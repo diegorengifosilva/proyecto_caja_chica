@@ -1,0 +1,111 @@
+/* src/auth/Auth.css */
+
+/* Contenedor principal */
+.auth-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #0f172a, #1e293b);
+  padding: 1rem;
+}
+
+/* Caja blanca centrada */
+.auth-box {
+  background-color: #ffffff;
+  padding: 2.5rem;
+  border-radius: 1.5rem;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+  animation: fadeIn 0.6s ease-in-out;
+}
+
+/* Título PMInsight */
+.auth-title {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #0f766e;
+  margin-bottom: 0.25rem;
+}
+
+/* Subtítulo */
+.auth-subtitle {
+  font-size: 0.9rem;
+  color: #6b7280;
+  margin-bottom: 2rem;
+}
+
+/* Formulario */
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Inputs */
+.auth-form input {
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  transition: border-color 0.2s ease;
+}
+
+.auth-form input:focus {
+  outline: none;
+  border-color: #0f766e;
+}
+
+/* Botón principal */
+.auth-form button,
+.auth-button {
+  background-color: #0f766e;
+  color: white;
+  font-weight: 600;
+  padding: 0.75rem;
+  border-radius: 0.75rem;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  width: 100%;
+}
+
+.auth-form button:hover,
+.auth-button:hover {
+  background-color: #0d9488;
+}
+
+/* Footer con link */
+.auth-footer,
+.auth-link {
+  margin-top: 1.5rem;
+  font-size: 0.85rem;
+  color: #6b7280;
+  text-align: center;
+}
+
+.auth-link a {
+  color: #0f766e;
+  font-weight: 500;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.auth-link a:hover {
+  text-decoration: underline;
+  color: #0d9488;
+}
+
+/* Animación fade-in */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

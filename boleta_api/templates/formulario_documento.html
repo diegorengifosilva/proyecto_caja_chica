@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="csrf_token"
+    content="{{csrf_token}}">
+    <title>Verificar Documento</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<div class="container mt-4 mb-5">
+    <h2 class="text-center">Verificar Documento OCR</h2>
+    <hr>
+
+    <form method="post">
+        {% csrf_token %}
+
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <label class="form-label">Tipo de documento</label>
+                <input type="text" class="form-control" name="tipo_documento" value="{{ datos.tipo_documento }}" readonly>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">Fecha</label>
+                <input type="text" class="form-control" name="fecha" value="{{ datos.fecha }}">
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">RUC</label>
+                <input type="text" class="form-control" name="ruc" value="{{ datos.ruc }}">
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Razón Social (Empresa)</label>
+            <input type="text" class="form-control" name="empresa" value="{{ datos.empresa }}">
+        </div>
+
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <label class="form-label">Subtotal</label>
+                <input type="text" class="form-control" name="subtotal" value="{{ datos.subtotal }}">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">IGV ({{ datos.porcentaje_igv }})</label>
+                <input type="text" class="form-control" name="igv" value="{{ datos.igv }}">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Importe Total</label>
+                <input type="text" class="form-control" name="importe_total" value="{{ datos.importe_total }}">
+            </div>
+        </div>
+
+        <h5 class="mt-4">Productos Detectados:</h5>
+        {% if datos.productos and datos.productos.0 != "No encontrados" %}
+            <table class="table table-bordered table-sm">
+                <thead class="table-light">
+                    <tr>
+                        <th>Código</th>
+                        <th>Nombre</th>
+                        <th>Precio Unitario</th>
+                        <th>Cantidad</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for producto in datos.productos %}
+                        <tr>
+                            <td>{{ producto.codigo }}</td>
+                            <td>{{ producto.nombre }}</td>
+                            <td>{{ producto.precio_unitario }}</td>
+                            <td>{{ producto.cantidad }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="text-muted">No se encontraron productos.</p>
+        {% endif %}
+
+        <div class="mt-4">
+            <button type="submit" class="btn btn-primary">Guardar</button>
+            <a href="{% url 'inicio' %}" class="btn btn-secondary">Volver</a>
+        </div>
+    </form>
+
+    <div class="mt-5">
+        <h6 class="text-muted">Texto completo extraído:</h6>
+        <pre class="bg-white p-3 border">{{ datos.texto_completo }}</pre>
+    </div>
+</div>
+
+</body>
+</html>

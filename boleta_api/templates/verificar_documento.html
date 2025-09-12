@@ -1,0 +1,73 @@
+<!-- templates/verificar_documento.html -->
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="csrf_token"
+    content="{{csrf_token}}">
+    <title>Verificación de Documento</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .campo { margin-bottom: 10px; }
+        label { font-weight: bold; }
+        .resultado { background: #f3f3f3; padding: 15px; margin-top: 20px; border-radius: 8px; }
+        .error { color: red; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h2>Subir imagen de Boleta o Factura</h2>
+
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="campo">
+            <label>Tipo de documento:</label>
+            <select name="tipo_documento">
+                <option value="boleta" {% if tipo_documento == "boleta" %}selected{% endif %}>Boleta</option>
+                <option value="factura" {% if tipo_documento == "factura" %}selected{% endif %}>Factura</option>
+            </select>
+        </div>
+
+        <div class="campo">
+            <label>Porcentaje de IGV:</label>
+            <select name="porcentaje_igv">
+                <option value="0.18" {% if porcentaje_igv == 0.18 %}selected{% endif %}>18%</option>
+                <option value="0.10" {% if porcentaje_igv == 0.10 %}selected{% endif %}>10%</option>
+                <option value="0.00" {% if porcentaje_igv == 0.00 %}selected{% endif %}>0%</option>
+            </select>
+        </div>
+
+        <div class="campo">
+            <label>Seleccionar imagen:</label>
+            <input type="file" name="imagen" required>
+        </div>
+
+        <button type="submit">Procesar</button>
+    </form>
+
+    {% if datos %}
+        <div class="resultado">
+            {% if datos.error %}
+                <p class="error">{{ datos.error }}</p>
+            {% else %}
+                <p><strong>Tipo de documento:</strong> {{ datos.tipo_documento }}</p>
+                <p><strong>RUC:</strong> {{ datos.ruc }}</p>
+                <p><strong>Fecha:</strong> {{ datos.fecha }}</p>
+                <p><strong>Razón Social (Empresa):</strong> {{ datos.empresa }}</p>
+                <p><strong>Total:</strong> S/ {{ datos.total }}</p>
+                <p><strong>IGV ({{ datos.porcentaje_igv }}):</strong> S/ {{ datos.igv }}</p>
+                <p><strong>Subtotal:</strong> S/ {{ datos.subtotal }}</p>
+                <p><strong>Productos detectados:</strong></p>
+                <ul>
+                    {% for producto in datos.productos %}
+                        <li>{{ producto }}</li>
+                    {% endfor %}
+                </ul>
+                <hr>
+                <p><strong>Texto completo extraído:</strong></p>
+                <pre>{{ datos.texto_completo }}</pre>
+            {% endif %}
+        </div>
+    {% endif %}
+</body>
+</html>

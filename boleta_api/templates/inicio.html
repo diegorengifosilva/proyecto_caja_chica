@@ -1,0 +1,181 @@
+<!-- inicio.html -->
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="csrf_token"
+    content="{{csrf_token}}">
+    <title>Sistema de Extracción OCR</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        .modal-lg { max-width: 900px; }
+        .titulo-modal { font-weight: bold; font-size: 1.4rem; }
+    </style>
+</head>
+<body>
+<div class="container py-5">
+    <h2 class="mb-4">Procesar Documento OCR</h2>
+    <form method="POST" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <label for="tipo_documento" class="form-label">Tipo de documento</label>
+                <select name="tipo_documento" class="form-select" required>
+                    <option value="">Seleccionar</option>
+                    <option value="boleta" {% if tipo_documento == 'boleta' %}selected{% endif %}>Boleta</option>
+                    <option value="factura" {% if tipo_documento == 'factura' %}selected{% endif %}>Factura</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="presentacion" class="form-label">Presentación</label>
+                <select name="presentacion" class="form-select" required>
+                    <option value="">Seleccionar</option>
+                    <option value="fisico">Físico</option>
+                    <option value="electronico">Electrónico</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="imagen" class="form-label">Seleccionar imagen</label>
+                <input type="file" name="imagen" class="form-control" required>
+            </div>
+        </div>
+        <div class="text-end">
+            <button type="submit" class="btn btn-primary">Procesar Documento</button>
+        </div>
+    </form>
+
+    {% if datos %}
+    <!-- Modal -->
+    <div class="modal show mt-5" style="display:block" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title titulo-modal">Resultado de Extracción de Datos</h5>
+                </div>
+                <div class="modal-body">
+                    <form>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Fecha de Emisión</label>
+                                <input type="date" value="{{ datos.fecha }}" class="form-control">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Tipo de Documento</label>
+                                <input type="text" value="{{ datos.tipo_documento|title }}" class="form-control">
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-8">
+                                <label class="form-label">RUC</label>
+                                <div class="input-group">
+                                    <input type="text" value="{{ datos.ruc }}" class="form-control">
+                                    <button type="button" class="btn btn-outline-secondary" onclick="buscarRUC('{{ datos.ruc }}')">Buscar SUNAT</button>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Moneda</label>
+                                <select class="form-select">
+                                    <option value="PEN" selected>Soles (PEN)</option>
+                                    <option value="USD">Dólares (USD)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Razón Social</label>
+                            <input type="text" value="{{ datos.empresa }}" class="form-control">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Número de Documento</label>
+                            <input type="text" value="{{ datos.nro_documento }}" class="form-control">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Tipo de Concepto o Servicio</label>
+                            <select class="form-select">
+                                <option selected>Seleccionar</option>
+                                <option>Viáticos</option>
+                                <option>Pasaje Aéreo/Terrestre</option>
+                                <option>Movilidad Local</option>
+                                <option>Otros Gastos</option>
+                                <option>Compras</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Detalle del Concepto o Servicio</label>
+                            <textarea class="form-control" rows="2"></textarea>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Subtotal</label>
+                                <input type="number" value="{{ datos.subtotal }}" class="form-control" id="subtotal">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">IGV ({{ datos.porcentaje_igv }})</label>
+                                <input type="number" value="{{ datos.igv }}" class="form-control" id="igv" readonly>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Total</label>
+                                <input type="number" value="{{ datos.importe_total }}" class="form-control" id="total" readonly>
+                            </div>
+                        </div>
+
+                        {% if datos.productos and datos.productos.0 != "No encontrados" %}
+                        <div class="mt-4">
+                            <h6>Productos Detectados</h6>
+                            <table class="table table-bordered">
+                                <thead>
+                                    <tr>
+                                        <th>Código</th>
+                                        <th>Nombre</th>
+                                        <th>Precio Unitario</th>
+                                        <th>Cantidad</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for producto in datos.productos %}
+                                    <tr>
+                                        <td>{{ producto.codigo }}</td>
+                                        <td>{{ producto.nombre }}</td>
+                                        <td>{{ producto.precio_unitario }}</td>
+                                        <td>{{ producto.cantidad }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% endif %}
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <a href="{{ MEDIA_URL }}{{ datos.imagen_nombre }}" target="_blank" class="btn btn-secondary">Ver Imagen</a>
+                    <button class="btn btn-success">Guardar</button>
+                    <button class="btn btn-outline-dark" onclick="window.print()">Imprimir</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function buscarRUC(ruc) {
+    window.open(`https://e-consulta.sunat.gob.pe/cl-ti-itmrconsruc/jcrS00Alias?accion=consPorRuc&ruc=${ruc}`, '_blank');
+}
+
+document.getElementById("subtotal")?.addEventListener("input", function () {
+    const subtotal = parseFloat(this.value);
+    const igv_percent = parseFloat("{{ datos.porcentaje_igv|slice:':-1' }}") / 100;
+    const igv = subtotal * igv_percent;
+    document.getElementById("igv").value = igv.toFixed(2);
+    document.getElementById("total").value = (subtotal + igv).toFixed(2);
+});
+</script>
+</body>
+</html>

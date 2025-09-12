@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="csrf_token"
+    content="{{csrf_token}}">
+    <title>Presentar Documento</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        form { margin-bottom: 20px; }
+        .preview { margin-top: 10px; }
+        .field { margin: 10px 0; }
+        img { max-width: 300px; max-height: 400px; border: 1px solid #ccc; }
+        .button-group { margin-top: 20px; }
+        input, select { padding: 5px; width: 300px; }
+    </style>
+</head>
+<body>
+    <h1>Presentar Documento</h1>
+
+    <form method="POST" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="field">
+            <label for="tipo_documento">Tipo de documento:</label><br>
+            <select name="tipo_documento" id="tipo_documento">
+                <option value="boleta" {% if tipo_documento == 'boleta' %}selected{% endif %}>Boleta</option>
+                <option value="factura" {% if tipo_documento == 'factura' %}selected{% endif %}>Factura</option>
+            </select>
+        </div>
+
+        <div class="field">
+            <label for="formato">Formato:</label><br>
+            <select name="formato">
+                <option value="fisico">Físico</option>
+                <option value="electronico">Electrónico</option>
+            </select>
+        </div>
+
+        <div class="field">
+            <label for="imagen">Subir imagen:</label><br>
+            <input type="file" name="imagen" accept="image/*" required>
+        </div>
+
+        <div class="button-group">
+            <button type="submit">Procesar</button>
+            <a href="/" style="margin-left: 10px;">Salir</a>
+        </div>
+    </form>
+
+    {% if datos %}
+        <h2>Resultado OCR</h2>
+
+        <form method="POST" action="#">
+            <div class="field"><label>RUC:</label><br><input name="ruc" value="{{ datos.ruc }}"></div>
+            <div class="field"><label>Razón Social:</label><br><input name="empresa" value="{{ datos.empresa }}"></div>
+            <div class="field"><label>N° Documento:</label><br><input name="nro_documento" value="{{ datos.nro_documento }}"></div>
+            <div class="field"><label>Fecha:</label><br><input name="fecha" value="{{ datos.fecha }}"></div>
+            <div class="field"><label>Subtotal:</label><br><input name="subtotal" value="{{ datos.subtotal }}"></div>
+            <div class="field"><label>IGV:</label><br><input name="igv" value="{{ datos.igv }}"></div>
+            <div class="field"><label>Total:</label><br><input name="importe_total" value="{{ datos.importe_total }}"></div>
+
+            <div class="preview">
+                <strong>Vista previa:</strong><br>
+                <img src="{{ MEDIA_URL }}{{ datos.imagen_nombre }}" alt="Imagen cargada">
+            </div>
+
+            <div class="button-group">
+                <button type="submit">Aceptar</button>
+                <a href="/" style="margin-left: 10px;">Salir</a>
+            </div>
+        </form>
+    {% endif %}
+</body>
+</html>

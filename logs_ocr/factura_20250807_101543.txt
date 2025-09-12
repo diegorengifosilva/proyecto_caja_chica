@@ -1,0 +1,14 @@
+=== TEXTO OCR ===
+Ex* TAI Loy 1 TAI LoY 5.A, " 20100c 49181 Direocion:LT 97 DE LA PARCELACION y FUNDO . DEL í—?MESTRELLA Distrito:ATE Prov:LIMA Dpto: a CLIE: 20508558997 S/N: FACTURA ELECTRONICA - F5E1-0166803 .A RAZ.SOCIAL: V 6 C CORPORATION S.A.C, * 605 6137714483 "gf 237465 MOUSE INALAM MAXELL MOWIL-100 2.4GHZ P: 29.90 UND 1.00 29.90 241425 PAD MCUSE “El ERGONOMICO CON SOPORT P: 15.90 BST 1.00 15.930 351524 BOLSA P/DESP COMPOST C/105 TL 21X24 P: .40 UND 1.00 . 40 SUBTOTAL.: 39.15 - OP , GRAVADA: 39.15 COP.EXONERADA: .00 . N CP , INAFECTA : .00 N - . OP.GRATULTA : .00 - IGV 18.00% 705 « AXIME. TOTAL $/ d6.20 y CANT . FRODUCTOS q e a — — N .A A . Ds NO 6193030 *** CGRACIAS PuB SU COMPRA ww C ón. E/07/25 18:07:42 CAJTIELIO3 — CO — Reo: 084-0127441 TCR COUNTADO EN º.. [ AA k leñalakeBoñololofcho el AEA Sah ef Rokehalala lol AA E EE ' -¡,¡'*-...'¡-x El cambio o devcolucion es aplicable para $ TE defectos de origen y podra "ealizarse en PO 7 días habiles para compras lucales 30 — nNg j y 30 — ME Paré VOMPIas JUN destinc a .…—_¡__.._)-x..: ¡ prov.noias, A ICNV A eO q NEO
+
+=== DATOS EXTRAÍDOS ===
+ruc: 20508558997
+razon_social: 
+numero_documento: 20508558997
+fecha: 
+subtotal: 30
+igv: 30
+total: 30
+ruc_valido: True
+fecha_valida: False
+total_consistente: False

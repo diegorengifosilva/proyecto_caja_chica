@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+env/
+*.env
+
+# Django
+db.sqlite3
+media/
+*.log
+*.pot
+*.pyc
+
+# Node / React
+node_modules/
+dist/
+.vite/
+*.local
+
+# IDE / OS
+.vscode/
+.DS_Store
+
+# Archivos grandes
+*.zip
+*.rar
+*.7z
