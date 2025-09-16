@@ -1,71 +1,23 @@
 // src/dashboard/liquidaciones/LiquidacionesPendientes.jsx
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { FileText, FolderKanban, DollarSign, Clock, ChartBarDecreasing, ChartColumnIncreasing } from "lucide-react";
 import PresentarDocumentacionModal from "./PresentarDocumentacionModal";
 import axios from "@/services/api";
+import { useAuth } from "@/context/AuthContext";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { TYPE_COLORS, TIPO_SOLICITUD_CLASSES, STATE_CLASSES } from "@/components/ui/colors";
 import KpiCard from "@/components/ui/KpiCard";
 import Table from "@/components/ui/table";
-import ChartWrapped, { tooltipFormatter, radialTooltipFormatter } from "@/components/ui/ChartWrapped";
-
-const DEV_FAKE_DATA = true;
-
-const cardStyle =
-  "rounded-xl p-4 shadow-md transform transition-transform hover:scale-[1.02] text-center";
-
-// Datos de prueba
-const fakeData = [
-  {
-    id: 1,
-    numero_solicitud: 9705,
-    fecha: "2025-08-14",
-    total_soles: 150,
-    total_dolares: 43,
-    estado: "Atendido, Pendiente de Liquidación",
-    solicitante: "Juan Pérez",
-    tipo: "Viáticos",
-    concepto_gasto: "Viaje Lima",
-  },
-  {
-    id: 2,
-    numero_solicitud: 6664,
-    fecha: "2025-08-12",
-    total_soles: 300,
-    total_dolares: 86,
-    estado: "Atendido, Pendiente de Liquidación",
-    solicitante: "María López",
-    tipo: "Compras",
-    concepto_gasto: "Material oficina",
-  },
-  {
-    id: 3,
-    numero_solicitud: 3103,
-    fecha: "2025-08-10",
-    total_soles: 200,
-    total_dolares: 57.34,
-    estado: "Atendido, Pendiente de Liquidación",
-    solicitante: "Carlos Díaz",
-    tipo: "Movilidad",
-    concepto_gasto: "Taxi",
-  },
-  {
-    id: 4,
-    numero_solicitud: 9857,
-    fecha: "2025-08-08",
-    total_soles: 250,
-    total_dolares: 71.67,
-    estado: "Atendido, Pendiente de Liquidación",
-    solicitante: "Ana Torres",
-    tipo: "Otros gastos",
-    concepto_gasto: "Almuerzo",
-  },
-];
+import ChartWrapped, { tooltipFormatter } from "@/components/ui/ChartWrapped";
+import EventBus from "@/components/EventBus";
 
 export default function LiquidacionesPendientes() {
+  const { authUser: user, logout } = useAuth();
+
   const [liquidaciones, setLiquidaciones] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
   const [filtroSolicitante, setFiltroSolicitante] = useState("");
   const [filtroTipo, setFiltroTipo] = useState("");
@@ -73,53 +25,86 @@ export default function LiquidacionesPendientes() {
   const [fechaFin, setFechaFin] = useState("");
   const [selectedSolicitud, setSelectedSolicitud] = useState(null);
   const [showPresentarModal, setShowPresentarModal] = useState(false);
-  const [showDocumentoModal, setShowDocumentoModal] = useState(false);
-  const [ocrData, setOcrData] = useState(null);
 
-  useEffect(() => {
-    fetchLiquidaciones();
-  }, []);
-
-  const fetchLiquidaciones = async () => {
+  // -------------------------------
+  // Fetch liquidaciones pendientes
+  // -------------------------------
+  const fetchLiquidaciones = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      if (DEV_FAKE_DATA) {
-        setTimeout(() => {
-          setLiquidaciones(fakeData);
-          setLoading(false);
-        }, 800);
-      } else {
-        const res = await axios.get("/api/liquidaciones-pendientes/");
-        setLiquidaciones(res.data);
-        setLoading(false);
-      }
-    } catch (err) {
-      console.error(err);
+      const token = localStorage.getItem("access_token");
+      const { data } = await axios.get("/boleta/liquidaciones_pendientes/", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      console.log("✅ Liquidaciones pendientes raw:", data);
+
+      // Limpiar posibles correos en el nombre del solicitante
+      const dataLimpia = data.map((s) => ({
+        ...s,
+        solicitante: s.solicitante?.replace(/\s*<.*?>/, "").trim() || "-",
+      }));
+
+      console.log("✅ Liquidaciones pendientes limpias:", dataLimpia);
+      setLiquidaciones(dataLimpia);
+    } catch (e) {
+      console.error("Error cargando solicitudes pendientes:", e);
+      setError(
+        e?.response?.data?.detail || 
+        "No se pudieron cargar las liquidaciones pendientes."
+      );
+      if (e?.response?.status === 401) logout();
+    } finally {
       setLoading(false);
     }
-  };
+  }, [logout]);
 
-  // === Lista de solicitantes únicos ===
+  // -------------------------------
+  // EventBus: refrescar al recibir eventos
+  // -------------------------------
+  useEffect(() => {
+    EventBus.on("solicitudAtendida", fetchLiquidaciones);
+    EventBus.on("solicitudRechazada", fetchLiquidaciones);
+
+    return () => {
+      EventBus.off("solicitudAtendida", fetchLiquidaciones);
+      EventBus.off("solicitudRechazada", fetchLiquidaciones);
+    };
+  }, [fetchLiquidaciones]);
+
+  // -------------------------------
+  // Fetch inicial
+  // -------------------------------
+  useEffect(() => {
+    fetchLiquidaciones();
+  }, [fetchLiquidaciones]);
+
+  // -------------------------------
+  // Lista de solicitantes únicos
+  // -------------------------------
   const solicitantes = useMemo(() => {
-    const unique = new Set(liquidaciones.map((s) => s.solicitante));
+    const unique = new Set(liquidaciones.map((l) => l.solicitante));
     return Array.from(unique);
   }, [liquidaciones]);
 
-  // === Filtro principal para la tabla ===
+  // -------------------------------
+  // Filtro principal para la tabla
+  // -------------------------------
   const solicitudesFiltradas = useMemo(() => {
-    return liquidaciones.filter((s) => {
+    return liquidaciones.filter((l) => {
       const matchSearch =
-        s.solicitante.toLowerCase().includes(search.toLowerCase()) ||
-        s.numero_solicitud.toString().includes(search);
+        l.solicitante.toLowerCase().includes(search.toLowerCase()) ||
+        l.numero_solicitud.toString().includes(search);
 
       const matchSolicitante =
-        filtroSolicitante === "" || s.solicitante === filtroSolicitante;
+        filtroSolicitante === "" || l.solicitante === filtroSolicitante;
 
-      const matchTipo = filtroTipo === "" || s.tipo === filtroTipo;
+      const matchTipo = filtroTipo === "" || l.tipo_solicitud === filtroTipo;
 
       const matchFecha =
-        (!fechaInicio || new Date(s.fecha) >= new Date(fechaInicio)) &&
-        (!fechaFin || new Date(s.fecha) <= new Date(fechaFin));
+        (!fechaInicio || new Date(l.fecha) >= new Date(fechaInicio)) &&
+        (!fechaFin || new Date(l.fecha) <= new Date(fechaFin));
 
       return matchSearch && matchSolicitante && matchTipo && matchFecha;
     });
@@ -144,16 +129,16 @@ export default function LiquidacionesPendientes() {
   const dataTipo = useMemo(() => {
     return Object.entries(
       solicitudesFiltradas.reduce((acc, l) => {
-        acc[l.tipo] = (acc[l.tipo] || 0) + 1;
+        acc[l.tipo_solicitud] = (acc[l.tipo_solicitud] || 0) + 1;
         return acc;
       }, {})
-    ).map(([tipo, value]) => ({ name: tipo, value }));
+    ).map(([tipo_solicitud, value]) => ({ name: tipo_solicitud, value }));
   }, [solicitudesFiltradas]);
 
   const dataMontoPorTipo = useMemo(() => {
     return Object.entries(
       solicitudesFiltradas.reduce((acc, l) => {
-        acc[l.tipo] = (acc[l.tipo] || 0) + (l.total_soles || 0);
+        acc[l.tipo_solicitud] = (acc[l.tipo_solicitud] || 0) + (l.total_soles || 0);
         return acc;
       }, {})
     ).map(([tipo, value]) => ({
@@ -241,7 +226,6 @@ export default function LiquidacionesPendientes() {
         </ChartWrapped>
       </div>
 
-
       {/* Filtros */}
       <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm mb-6">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
@@ -273,8 +257,8 @@ export default function LiquidacionesPendientes() {
               className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-400 focus:outline-none"
             >
               <option value="">Todos</option>
-              {Object.keys(TYPE_COLORS).map((tipo) => (
-                <option key={tipo} value={tipo}>{tipo}</option>
+              {Object.keys(TYPE_COLORS).map((tipo_solicitud) => (
+                <option key={tipo_solicitud} value={tipo_solicitud}>{tipo_solicitud}</option>
               ))}
             </select>
           </div>
@@ -325,11 +309,11 @@ export default function LiquidacionesPendientes() {
             <td className="px-2 sm:px-4 py-2 sm:py-3 text-center">
               <span
                 className={`text-xs px-2 py-1 rounded-full ${
-                  TIPO_SOLICITUD_CLASSES[s.tipo] ||
+                  TIPO_SOLICITUD_CLASSES[s.tipo_solicitud] ||
                   "bg-gray-200 text-gray-700"
                 }`}
               >
-                {s.tipo}
+                {s.tipo_solicitud}
               </span>
             </td>
             <td className="px-2 sm:px-4 py-2 sm:py-3 text-center">

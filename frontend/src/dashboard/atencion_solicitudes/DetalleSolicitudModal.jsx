@@ -5,6 +5,7 @@ import api from "@/services/api";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import EventBus from "@/components/EventBus";
+import { User, Tag, DollarSign, WalletMinimal, Calendar, BadgeAlert, Landmark, Hash, MessageCircleWarning } from "lucide-react";
 
 export default function DetalleSolicitudModal({ solicitudId, onClose, onDecided }) {
   const { authUser: user, logout } = useAuth();
@@ -15,7 +16,9 @@ export default function DetalleSolicitudModal({ solicitudId, onClose, onDecided 
   const [accion, setAccion] = useState(null);
   const [error, setError] = useState(null);
 
+  // -------------------------------
   // Cargar detalle de solicitud
+  // -------------------------------
   useEffect(() => {
     const fetchSolicitud = async () => {
       if (!user || !solicitudId) return;
@@ -38,7 +41,9 @@ export default function DetalleSolicitudModal({ solicitudId, onClose, onDecided 
     fetchSolicitud();
   }, [user, solicitudId, logout]);
 
+  // -------------------------------
   // Manejar acción "Atender" o "Rechazar"
+  // -------------------------------
   const handleDecision = async (decision) => {
     if (!solicitudId) return;
     setAccion(decision);
@@ -47,9 +52,16 @@ export default function DetalleSolicitudModal({ solicitudId, onClose, onDecided 
 
       await api.post(
         `/boleta/solicitudes/${solicitudId}/decision/`,
-        { decision, comentario }, // <-- enviar 'Atendido' o 'Rechazado'
+        { decision, comentario }, // 👈 Aquí mandamos solo "Atendido" o "Rechazado"
         { headers: { Authorization: `Bearer ${token}` } }
       );
+
+      // Emitimos eventos globales
+      if (decision === "Atendido") {
+        EventBus.emit("solicitudAtendida", { id: solicitudId });
+      } else if (decision === "Rechazado") {
+        EventBus.emit("solicitudRechazada", { id: solicitudId });
+      }
 
       const msg =
         decision === "Atendido"
@@ -59,6 +71,9 @@ export default function DetalleSolicitudModal({ solicitudId, onClose, onDecided 
       if (onDecided) onDecided(msg);
       onClose();
 
+      if (decision === "Atendido") {
+        navigate("/dashboard/liquidaciones");
+      }
     } catch (e) {
       console.error(e);
       toast.error("Error al registrar la acción.");
@@ -68,10 +83,11 @@ export default function DetalleSolicitudModal({ solicitudId, onClose, onDecided 
     }
   };
 
-
-
   if (!solicitudId) return null;
 
+  // -------------------------------
+  // Render
+  // -------------------------------
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50 px-4">
       <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-3xl shadow-xl relative border border-gray-100 dark:border-gray-700 overflow-y-auto max-h-[90vh]">
@@ -95,50 +111,67 @@ export default function DetalleSolicitudModal({ solicitudId, onClose, onDecided 
         ) : (
           <>
             <h2 className="text-2xl font-bold mb-4 text-gray-800 dark:text-gray-100 text-center md:text-left">
-              Solicitud #{solicitud?.numero_solicitud}
+              Solicitud {solicitud?.numero_solicitud}
             </h2>
 
             {/* Datos principales */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5 text-sm sm:text-base">
-              <div className="space-y-1">
-                <p>
-                  <strong>Solicitante:</strong>{" "}
+              <div className="space-y-2">
+                <p className="flex items-center gap-1">
+                  <User className="w-4 h-4 text-gray-800" />
+                  <span className="font-semibold">Solicitante:</span>{" "}
                   {solicitud?.solicitante_nombre || solicitud?.solicitante || "—"}
                 </p>
-                <p><strong>Tipo:</strong> {solicitud?.tipo_solicitud || "—"}</p>
-                <p>
-                  <strong>Monto S/:</strong>{" "}
-                  {(Number(solicitud?.total_soles ?? solicitud?.monto_soles) || 0).toFixed(2)}
+                <p className="flex items-center gap-1">
+                  <Tag className="w-4 h-4 text-gray-800" />
+                  <span className="font-semibold">Tipo:</span>{" "}
+                  {solicitud?.tipo_solicitud || "—"}
                 </p>
-                <p>
-                  <strong>Monto $:</strong>{" "}
-                  {(Number(solicitud?.total_dolares || 0) || 0).toFixed(2)}
+                <p className="flex items-center gap-1">
+                  <WalletMinimal className="w-4 h-4 text-gray-800" />
+                  <span className="font-semibold">Monto S/:</span>{" "}
+                  {(Number(solicitud?.total_soles ?? 0) || 0).toFixed(2)}
+                </p>
+                <p className="flex items-center gap-1">
+                  <DollarSign className="w-4 h-4 text-gray-800" />
+                  <span className="font-semibold">Monto $:</span>{" "}
+                  {(Number(solicitud?.total_dolares ?? 0) || 0).toFixed(2)}
                 </p>
               </div>
-              <div className="space-y-1">
-                <p>
-                  <strong>Fecha:</strong>{" "}
-                  {solicitud?.fecha ? new Date(solicitud.fecha).toLocaleDateString("es-PE") : "—"}
+
+              <div className="space-y-2">
+                <p className="flex items-center gap-1">
+                  <Calendar className="w-4 h-4 text-gray-800" />
+                  <span className="font-semibold">Fecha:</span>{" "}
+                  {solicitud?.fecha
+                    ? new Date(solicitud.fecha).toLocaleDateString("es-PE")
+                    : "—"}
                 </p>
-                <p><strong>Estado actual:</strong> {solicitud?.estado || "—"}</p>
-                <p>
-                  <strong>Número operación:</strong>{" "}
-                  {solicitud?.liquidacion?.numero_operacion || "—"}
+                <p className="flex items-center gap-1">
+                  <BadgeAlert className="w-4 h-4 text-gray-800" />
+                  <span className="font-semibold">Estado actual:</span>{" "}
+                  {solicitud?.estado || "—"}
                 </p>
-                {solicitud?.fecha_transferencia && (
-                  <p>
-                    <strong>Fecha transferencia:</strong>{" "}
-                    {new Date(solicitud.fecha_transferencia).toLocaleDateString("es-PE")}
+                {solicitud?.banco && (
+                  <p className="flex items-center gap-1">
+                    <Landmark className="w-4 h-4 text-gray-800" />
+                    <span className="font-semibold">Banco:</span> {solicitud.banco}
                   </p>
                 )}
-                {solicitud?.banco && <p><strong>Banco:</strong> {solicitud.banco}</p>}
-                {solicitud?.nro_cuenta && <p><strong>N° Cuenta:</strong> {solicitud.nro_cuenta}</p>}
+                {solicitud?.numero_cuenta && (
+                  <p className="flex items-center gap-1">
+                    <Hash className="w-4 h-4 text-gray-800" />
+                    <span className="font-semibold">N° Cuenta:</span>{" "}
+                    {solicitud.numero_cuenta}
+                  </p>
+                )}
               </div>
             </div>
 
             {/* Comentarios */}
             <div className="mb-4">
-              <label className="block mb-2 font-medium text-gray-700 dark:text-gray-200">
+              <label className="mb-2 font-medium text-gray-700 dark:text-gray-200 flex items-center gap-2">
+                <MessageCircleWarning className="w-4 h-4 text-gray-700" />
                 Comentario del revisor (opcional)
               </label>
               <textarea
@@ -159,7 +192,7 @@ export default function DetalleSolicitudModal({ solicitudId, onClose, onDecided 
               >
                 Rechazar
               </button>
-              
+
               <button
                 className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2 rounded-lg shadow-md transition"
                 onClick={() => handleDecision("Atendido")}

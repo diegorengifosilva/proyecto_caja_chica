@@ -101,21 +101,20 @@ def normalizar_monto(monto_txt: str) -> Optional[str]:
 # DETECTORES INDIVIDUALES #
 # ========================#
 def detectar_numero_documento(texto: str) -> Optional[str]:
-    """
-    Detecta números de documento (boleta/factura) con tolerancia a errores de OCR.
-    Ej: F561-0166803, F5E1-0166803, B123-0000123, etc.
-    """
-    # Normalizar caracteres confusos de OCR
-    texto = texto.replace("O", "0").replace("I", "1").replace("E", "6")
+    if not texto:
+        return "ND"
 
-    # Permitir un punto o espacio antes
-    patron = r"[.\s]*([FB]\d{3})[- ]?(\d{6,8})"
-    match = re.search(patron, texto, re.IGNORECASE)
+    # Normalizar OCR
+    texto = texto.replace("O", "0").replace("I", "1").replace("E", "6").upper()
+
+    # Nuevo patrón: acepta B, BA, F, FA + 2-3 dígitos de serie y 6-8 del correlativo
+    patron = r"[.\s]*([BF]A?\d{2,3})[- ]?(\d{6,8})"
+    match = re.search(patron, texto)
     if match:
         serie, correlativo = match.groups()
-        return f"{serie.upper()}-{correlativo}"
+        return f"{serie}-{correlativo}"
 
-    return None
+    return "ND"
 
 def detectar_fecha(texto: str) -> str:
     """
@@ -217,84 +216,70 @@ def detectar_ruc(texto: str) -> Optional[str]:
             return ruc
     return None
 
-def detectar_razon_social(texto: str) -> Optional[str]:
-    """
-    Detecta la razón social del proveedor (emisor).
-    - Limpia ruido de OCR (5A -> S.A., $.A.C -> S.A.C, etc).
-    - Busca primero patrones clásicos (S.A., S.A.C., SAC, SA).
-    - Si no encuentra, usa la línea previa al RUC válido.
-    - Ignora razón social del cliente (después de CLIE/CLIENTE/RAZ.SOCIAL).
-    """
+import re
+from typing import Optional
 
+def detectar_razon_social(texto: str) -> Optional[str]:
     if not texto:
         return "RAZÓN SOCIAL DESCONOCIDA"
 
     texto_norm = texto.upper()
     texto_norm = re.sub(r"\s{2,}", " ", texto_norm)
 
-    # --- Correcciones comunes de OCR ---
+    # Correcciones OCR comunes
     reemplazos = {
         "5. A OY": "S.A.",
         "5. A": "S.A.",
         "$.A.C": "S.A.C",
         "S . A . C": "S.A.C",
         "S . A": "S.A",
+        "3.A.C.":"S.A.C.",
         "5A": "S.A",
         "SA.": "S.A.",
         "S , A": "S.A",
         "SAC.": "S.A.C",
-        "CORPORATION $.A.C": "CORPORATION S.A.C",
+        "RETALE": "RETAIL",  # corrección mínima
     }
     for k, v in reemplazos.items():
         texto_norm = texto_norm.replace(k, v)
 
-    # --- Dividir en líneas y limitar a proveedor ---
-    lineas = texto_norm.splitlines()
-    proveedor_lineas = []
-    for linea in lineas:
-        if any(x in linea for x in ["CLIE", "CLIENTE", "RAZ.SOCIAL"]):
-            break
-        proveedor_lineas.append(linea.strip())
+    lineas = [l.strip(" ,.-") for l in texto_norm.splitlines() if l.strip()]
 
-    # --- Lista negra (clientes que no queremos como proveedor) ---
-    RAZONES_SOCIALES_EXCLUIDAS = {
-        "V & C CORPORATION S.A.C",
-        "V6C CORPORATION S.A.C",
-        "V 6 C CORPORATION S.A.C",
-    }
+    # Filtrar direcciones y etiquetas
+    lineas_validas = [
+        l for l in lineas[:15]  # primeras 15 líneas
+        if not re.match(r"^(CAL\.|AV\.|JR\.|PSJE\.|RUC\.|BOLETA|FACTURA)", l)
+    ]
 
-    # --- Patrones de razón social ---
+    # Buscar patrón S.A./S.A.C./SAC
     patrones = [
         r"([A-Z0-9ÁÉÍÓÚÑ\s\.\-&']+S\.?\s*A\.?\s*C\.?)",  # S.A.C
         r"([A-Z0-9ÁÉÍÓÚÑ\s\.\-&']+S\.?\s*A\.?)",        # S.A
-        r"([A-Z0-9ÁÉÍÓÚÑ\s\.\-&']+SAC)",                # SAC pegado
-        r"([A-Z0-9ÁÉÍÓÚÑ\s\.\-&']+SA)",                 # SA pegado
+        r"([A-Z0-9ÁÉÍÓÚÑ\s\.\-&']+SAC)",                # SAC
+        r"([A-Z0-9ÁÉÍÓÚÑ\s\.\-&']+SA)",                 # SA
     ]
-
-    # --- Intento 1: regex sobre proveedor ---
-    for linea in proveedor_lineas[:12]:  # primeras 12 líneas suelen tener la razón social
+    for linea in lineas_validas:
         for patron in patrones:
             m = re.search(patron, linea)
             if m:
-                razon = m.group(1).strip(" ,.-")
-                razon = re.sub(r"\s{2,}", " ", razon)
-                if len(razon) > 6 and razon not in RAZONES_SOCIALES_EXCLUIDAS:
-                    return razon
+                return m.group(1).strip()
 
-    # --- Intento 2: fallback, usar línea previa al RUC válido ---
+    # Fallback: primera línea válida antes del RUC
     ruc_match = re.search(r"\b\d{11}\b", texto_norm)
     if ruc_match:
-        ruc_line_idx = None
-        for idx, linea in enumerate(proveedor_lineas):
-            if ruc_match.group(0) in linea:
-                ruc_line_idx = idx
-                break
-        if ruc_line_idx and ruc_line_idx > 0:
-            posible_razon = proveedor_lineas[ruc_line_idx - 1].strip(" ,.-")
-            if len(posible_razon) > 4 and posible_razon not in RAZONES_SOCIALES_EXCLUIDAS:
-                return posible_razon
+        idx_ruc = next((i for i, l in enumerate(lineas) if ruc_match.group(0) in l), None)
+        if idx_ruc and idx_ruc > 0:
+            for i in range(idx_ruc - 1, -1, -1):
+                posible_razon = lineas[i]
+                if len(posible_razon) > 4 and not re.match(r"^(CAL\.|AV\.|JR\.|PSJE\.)", posible_razon):
+                    return posible_razon
+
+    # Última opción: primera línea válida de las 15 primeras
+    if lineas_validas:
+        return lineas_validas[0]
 
     return "RAZÓN SOCIAL DESCONOCIDA"
+
 
 def detectar_total(texto: str) -> str:
     """

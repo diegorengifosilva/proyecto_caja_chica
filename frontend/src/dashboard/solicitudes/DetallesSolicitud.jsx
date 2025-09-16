@@ -140,6 +140,7 @@ export default function DetallesSolicitud({ open, onClose, solicitudId, solicitu
                   <InfoCard label="N° Solicitud" value={solicitud.numero_solicitud} />
                   <InfoCard label="Fecha" value={solicitud.fecha} />
                   <InfoCard label="Destinatario" value={solicitud.destinatario_nombre || "-"} />
+
                   <InfoCard label="Tipo de Solicitud" value={solicitud.tipo_solicitud} />
                   <InfoCard label="Concepto" value={solicitud.concepto_gasto} />
                   <InfoCard
@@ -164,24 +165,6 @@ export default function DetallesSolicitud({ open, onClose, solicitudId, solicitu
                 </div>
               </TabsContent>
 
-              <TabsContent value="historial">
-                {historial.length === 0 ? (
-                  <p className="text-gray-500">No hay historial disponible.</p>
-                ) : (
-                  <ul className="space-y-4">
-                    {historial.map(h => (
-                      <li key={h.id} className="border-l-4 border-blue-500 pl-4 bg-gray-50 p-3 rounded-md shadow-sm">
-                        <p className="text-sm text-gray-700">
-                          <span className="font-semibold">{h.estado_anterior}</span> → <span className="font-semibold">{h.estado_nuevo}</span>
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {new Date(h.fecha_cambio).toLocaleString()} | Usuario: {h.usuario || "N/A"}
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </TabsContent>
 
               <TabsContent value="adjuntos">
                 <p className="text-gray-500">Aquí se mostrarán los documentos adjuntos.</p>

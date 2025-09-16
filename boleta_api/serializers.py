@@ -299,6 +299,65 @@ class SolicitudSerializer(serializers.ModelSerializer):
 ##===============##
 ## LIQUIDACIONES ##
 ##===============##
+class LiquidacionSerializer(serializers.ModelSerializer):
+    usuario_nombre = serializers.CharField(source="usuario.username", read_only=True)
+    solicitud = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Liquidacion
+        fields = [
+            "id",
+            "numero_operacion",
+            "usuario",
+            "usuario_nombre",
+            "fecha",
+            "total_soles",
+            "total_dolares",
+            "estado",          # 👈 ahora es directamente el nombre legible
+            "observaciones",
+            "saldo_a_pagar",
+            "vuelto",
+            "solicitud",
+        ]
+        read_only_fields = [
+            "numero_operacion",
+            "total_soles",
+            "total_dolares",
+            "usuario_nombre",
+            "saldo_a_pagar",
+            "vuelto",
+        ]
+
+    def get_solicitud(self, obj):
+        """Devuelve info resumida de la solicitud vinculada."""
+        if not obj.solicitud:
+            return None
+        return {
+            "id": obj.solicitud.id,
+            "numero_solicitud": obj.solicitud.numero_solicitud,
+            "tipo_solicitud": obj.solicitud.tipo_solicitud,
+            "concepto_gasto": obj.solicitud.concepto_gasto,
+            "total_soles": obj.solicitud.total_soles,
+            "total_dolares": obj.solicitud.total_dolares,
+            "estado": obj.solicitud.estado,  # 👈 mismo formato legible
+        }
+
+class SolicitudLiquidacionSerializer(serializers.ModelSerializer):
+    solicitante_nombre = serializers.CharField(source="solicitante.username", read_only=True)
+
+    class Meta:
+        model = Solicitud
+        fields = [
+            "id",
+            "numero_solicitud",
+            "tipo_solicitud",
+            "monto_soles",
+            "monto_dolares",
+            "fecha",
+            "estado",
+            "solicitante_nombre",
+        ]
+
 class DocumentoGastoSerializer(serializers.ModelSerializer):
     archivo_url = serializers.SerializerMethodField()
 
@@ -359,124 +418,7 @@ class DocumentoGastoSerializer(serializers.ModelSerializer):
         if rep.get("total") is not None:
             rep["total"] = str(Decimal(rep["total"]).quantize(Decimal("0.00")))
         return rep
-
-class LiquidacionSerializer(serializers.ModelSerializer):
-    usuario_nombre = serializers.CharField(source='usuario.username', read_only=True)
-    solicitudes = serializers.SerializerMethodField()
-    solicitudes_ids = serializers.ListField(
-        child=serializers.IntegerField(),
-        write_only=True,
-        required=False
-    )
-
-    class Meta:
-        model = Liquidacion
-        fields = [
-            'id',
-            'numero_operacion',
-            'usuario',
-            'usuario_nombre',
-            'fecha',
-            'total_soles',
-            'total_dolares',
-            'estado',
-            'observaciones',
-            'saldo_a_pagar',
-            'vuelto',
-            'solicitudes',
-            'solicitudes_ids',
-        ]
-        read_only_fields = [
-            'numero_operacion', 
-            'total_soles', 
-            'total_dolares', 
-            'usuario_nombre',
-            'saldo_a_pagar',
-            'vuelto'
-        ]
-
-    def get_solicitudes(self, obj):
-        """Devuelve solicitudes asociadas de forma resumida."""
-        return [
-            {
-                "id": s.id,
-                "descripcion": s.descripcion,
-                "monto_soles": s.monto_soles,
-                "monto_dolares": s.monto_dolares,
-                "estado": s.estado,
-            }
-            for s in obj.solicitudgasto_set.all()
-        ]
-
-    def validate_solicitudes_ids(self, value):
-        if not value:
-            return value
-
-        solicitudes_en_uso = Solicitud.objects.select_for_update().filter(
-            id__in=value, liquidacion__isnull=False
-        )
-        if solicitudes_en_uso.exists():
-            raise serializers.ValidationError(
-                f"Las siguientes solicitudes ya están vinculadas a otra liquidación: "
-                f"{', '.join(map(str, solicitudes_en_uso.values_list('id', flat=True)))}"
-            )
-        return value
-
-    def _actualizar_totales(self, liquidacion):
-        """Recalcula totales y actualiza saldo y vuelto."""
-        totals = Solicitud.objects.filter(liquidacion=liquidacion).aggregate(
-            total_soles=models.Sum('monto_soles'),
-            total_dolares=models.Sum('monto_dolares')
-        )
-        liquidacion.total_soles = totals['total_soles'] or 0
-        liquidacion.total_dolares = totals['total_dolares'] or 0
-
-        # Calcular saldo_a_pagar y vuelto (control financiero básico)
-        monto_entregado = liquidacion.total_soles  # Aquí lo puedes cambiar según tu lógica
-        liquidacion.saldo_a_pagar = max(liquidacion.total_soles - monto_entregado, 0)
-        liquidacion.vuelto = max(monto_entregado - liquidacion.total_soles, 0)
-
-        liquidacion.save(update_fields=[
-            'total_soles', 'total_dolares', 'saldo_a_pagar', 'vuelto'
-        ])
-
-    @transaction.atomic
-    def create(self, validated_data):
-        solicitudes_ids = validated_data.pop('solicitudes_ids', [])
-        liquidacion = Liquidacion.objects.create(**validated_data)
-
-        if solicitudes_ids:
-            Solicitud.objects.filter(id__in=solicitudes_ids).update(
-                liquidacion=liquidacion,
-                estado=Solicitud.ESTADO_EN_PROCESO
-            )
-            self._actualizar_totales(liquidacion)
-
-        return liquidacion
-
-    @transaction.atomic
-    def update(self, instance, validated_data):
-        solicitudes_ids = validated_data.pop('solicitudes_ids', None)
-
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-
-        if solicitudes_ids is not None:
-            Solicitud.objects.filter(liquidacion=instance).update(
-                liquidacion=None,
-                estado=Solicitud.ESTADO_PENDIENTE
-            )
-            if solicitudes_ids:
-                Solicitud.objects.filter(id__in=solicitudes_ids).update(
-                    liquidacion=instance,
-                    estado=Solicitud.ESTADO_EN_PROCESO
-                )
-
-            self._actualizar_totales(instance)
-
-        return instance
-    
+  
 class CorreccionOCRSerializer(serializers.ModelSerializer):
     class Meta:
         model = CorreccionOCR

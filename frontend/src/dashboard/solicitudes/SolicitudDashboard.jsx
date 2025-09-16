@@ -169,12 +169,12 @@ export default function SolicitudDashboard() {
 
       {/* Gráficos */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full">
-        {/* Estados */}
+        {/* Estados de Solicitudes */}
         <ChartWrapped
           title="Estados de Solicitudes"
           icon={<PieChart className="w-5 h-5 text-gray-700" />}
           subtitle="Última actualización"
-          className="h-[380px] w-[500px]"
+          className="h-[350px] w-[550px]"
         >
           <div className="flex flex-col lg:flex-row gap-4 h-full items-stretch">
             {/* Gráfico */}
@@ -219,7 +219,7 @@ export default function SolicitudDashboard() {
         <ChartWrapped
           title="Tipos de Solicitudes"
           icon={<LayoutGrid className="w-5 h-5 text-gray-700" />}
-          className="h-[380px] w-[500px]"
+          className="h-[350px] w-[550px]"
         >
           <div className="flex flex-col lg:flex-row gap-4 h-full items-stretch">
             {/* Gráfico */}
@@ -293,15 +293,17 @@ export default function SolicitudDashboard() {
         </ChartWrapped>
       </div>
 
-
       {/* Botones */}
       <div className="flex flex-wrap gap-4 mt-6">
+        {/* Nueva Solicitud */}
         <Button
           onClick={() => setOpenModal("nueva")}
           className="bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white text-sm px-4 py-2 rounded-lg shadow-md transition flex items-center gap-2 justify-center"
         >
           <FilePlus className="w-5 h-5" /> Nueva Solicitud
         </Button>
+
+        {/* Mis Solicitudes */}
         <Button
           onClick={() => setOpenMisSolicitudes(true)}
           className="bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-500 hover:to-yellow-600 text-white text-sm px-4 py-2 rounded-lg shadow-md transition flex items-center gap-2 justify-center"

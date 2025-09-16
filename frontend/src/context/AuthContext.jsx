@@ -8,48 +8,38 @@ export const AuthProvider = ({ children }) => {
   const [authUser, setAuthUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Función para cargar usuario desde backend
   const fetchUserFromBackend = async () => {
     try {
       const res = await api.get("usuarios/actual/");
-      console.log("Usuario backend:", res.data);
       setAuthUser(res.data);
       localStorage.setItem("auth_user", JSON.stringify(res.data));
     } catch (err) {
-      console.error("No se pudo obtener usuario actual:", err.response?.data ?? err);
-      logout();
+      console.error("❌ No se pudo obtener usuario actual:", err.response?.status, err);
+      if (err.response?.status === 401) logout();
+      else setAuthUser(null); // no logout si es otro error
     } finally {
       setLoading(false);
     }
   };
 
-
-  // Carga inicial de authUser
   useEffect(() => {
     const accessToken = localStorage.getItem("access_token");
     const userData = localStorage.getItem("auth_user");
 
     if (accessToken) {
       api.defaults.headers.common["Authorization"] = `Bearer ${accessToken}`;
-
       if (userData) {
         try {
-          const parsedUser = JSON.parse(userData);
-          setAuthUser(parsedUser);
-        } catch (err) {
-          console.error("Error al parsear auth_user:", err);
+          setAuthUser(JSON.parse(userData));
+        } catch {
           logout();
           return;
         }
       }
-      // Siempre refrescamos info del usuario desde backend
       fetchUserFromBackend();
-    } else {
-      setLoading(false);
-    }
+    } else setLoading(false);
   }, []);
 
-  // LOGIN
   const login = async ({ email, password }) => {
     try {
       const res = await api.post("login/", { email, password });
@@ -57,12 +47,10 @@ export const AuthProvider = ({ children }) => {
 
       localStorage.setItem("access_token", access);
       localStorage.setItem("refresh_token", refresh);
+      localStorage.setItem("auth_user", JSON.stringify(user));
       api.defaults.headers.common["Authorization"] = `Bearer ${access}`;
 
-      // Guardamos info completa del usuario
-      localStorage.setItem("auth_user", JSON.stringify(user));
       setAuthUser(user);
-
       return { success: true };
     } catch (err) {
       console.error("Error de inicio de sesión:", err);
@@ -70,18 +58,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // REGISTER
-  const register = async ({ email, password, nombre, apellido, rol, area }) => {
-    try {
-      const res = await api.post("register/", { email, password, nombre, apellido, rol, area });
-      return { success: true, data: res.data };
-    } catch (err) {
-      console.error("Error de registro:", err);
-      return { success: false, message: "No se pudo registrar el usuario" };
-    }
-  };
-
-  // LOGOUT
   const logout = () => {
     localStorage.removeItem("access_token");
     localStorage.removeItem("refresh_token");
@@ -91,18 +67,16 @@ export const AuthProvider = ({ children }) => {
     window.location.href = "/login";
   };
 
-  // REFRESH TOKEN (por si quieres usarlo manualmente)
   const refreshToken = async () => {
     try {
       const refresh = localStorage.getItem("refresh_token");
-      if (!refresh) throw new Error("No se encontró refresh token");
+      if (!refresh) throw new Error("No refresh token");
 
       const res = await api.post("token/refresh/", { refresh });
       const { access } = res.data;
       localStorage.setItem("access_token", access);
       api.defaults.headers.common["Authorization"] = `Bearer ${access}`;
 
-      // Refrescamos usuario desde backend
       await fetchUserFromBackend();
     } catch (err) {
       console.error("Error al refrescar token:", err);
@@ -112,7 +86,7 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider
-      value={{ authUser, setAuthUser, login, register, logout, refreshToken, loading }}
+      value={{ authUser, setAuthUser, login, logout, refreshToken, loading }}
     >
       {children}
     </AuthContext.Provider>

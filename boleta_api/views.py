@@ -43,7 +43,7 @@ from django.db.models import F
 
 # ─── Django REST Framework ──────────────────────────
 from rest_framework.decorators import api_view, parser_classes, permission_classes, action
-from rest_framework.parsers import MultiPartParser
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework import status, viewsets, generics, filters, permissions
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -90,7 +90,8 @@ from .serializers import (
     LiquidacionSerializer,
     MisSolicitudesDetalleSerializer,
     MisSolicitudesTablaSerializer,
-    SolicitudGastoEstadoHistorialSerializer
+    SolicitudGastoEstadoHistorialSerializer,
+    SolicitudLiquidacionSerializer
 )
 
 from boleta_api.extraccion import (
@@ -297,7 +298,6 @@ def mis_solicitudes(request):
     return Response(serializer.data)
 
 # ========= Detalle Solicitud ==========
-# ========= Detalle Solicitud ==========
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def detalle_solicitud(request, solicitud_id):
@@ -412,13 +412,13 @@ class SolicitudViewSet(viewsets.ReadOnlyModelViewSet):
 ##=========================##
 ## ATENCIÓN DE SOLICITUDES ##
 ##=========================##
-# Solicitud Detail View #
+# Solicitud Detail View
 class SolicitudDetailView(RetrieveAPIView):
     queryset = Solicitud.objects.all()
     serializer_class = SolicitudSerializer
     permission_classes = [IsAuthenticated]
 
-# Solicitudes Pendientes View #
+# Solicitudes Pendientes View
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def solicitudes_pendientes_view(request):
@@ -444,7 +444,7 @@ def solicitudes_pendientes_view(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-# ========= SolicitudGasto ViewSet CRUD ==========
+# SolicitudGasto ViewSet CRUD
 class SolicitudGastoViewSetCRUD(viewsets.ModelViewSet):
     """
     CRUD principal de Solicitudes de Gasto.
@@ -526,51 +526,12 @@ class SolicitudGastoViewSetCRUD(viewsets.ModelViewSet):
         super().perform_destroy(instance)
         self._invalidate_cache(instance)
 
-# Solicitud Decision View #
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def solicitud_decision_view(request, pk):
-    try:
-        solicitud = Solicitud.objects.get(pk=pk)
-    except Solicitud.DoesNotExist:
-        return Response({"error": "Solicitud no encontrada."}, status=status.HTTP_404_NOT_FOUND)
-
-    decision = request.data.get("decision")
-    comentario = request.data.get("comentario", "")
-
-    if decision not in ["Atendido", "Rechazado", "Derivado"]:
-        return Response({"error": "Decisión inválida."}, status=status.HTTP_400_BAD_REQUEST)
-
-    # Asignar estado según decisión
-    if decision == "Atendido":
-        solicitud.estado = "Atendido, Pendiente de Liquidación"
-        # Crear liquidación en estado borrador
-        Liquidacion.objects.create(
-            usuario=solicitud.solicitante,  # FK a User
-            estado=Liquidacion.ESTADO_BORRADOR
-        )
-    elif decision == "Rechazado":
-        solicitud.estado = "Rechazado"
-    elif decision == "Derivado":
-        # Puedes agregar lógica específica si se deriva
-        pass
-
-    if comentario:
-        solicitud.observacion = comentario
-
-    solicitud.save()
-
-    return Response(
-        {"message": f"Solicitud {decision.lower()} correctamente."},
-        status=status.HTTP_200_OK
-    )
-
 #========================================================================================
 
 ##===============##
 ## LIQUIDACIONES ##
 ##===============##
-# Endpoint Principal #
+# Endpoint Principal
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def procesar_documento(request):
@@ -624,6 +585,97 @@ def procesar_documento(request):
     except Exception as e:
         print("❌ Error en procesar_documento:", str(e))
         return Response({"error": f"Ocurrió un error procesando OCR: {str(e)}"}, status=500)
+
+# Liquidaciones Pendientes View
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def liquidaciones_pendientes(request):
+    try:
+        user = request.user
+        ESTADO_ATENDIDO_PEND_LIQ = "Atendido, Pendiente de Liquidación"
+
+        # Filtrar solicitudes del usuario con el estado correcto
+        qs = Solicitud.objects.filter(
+            solicitante=user,
+            estado=ESTADO_ATENDIDO_PEND_LIQ
+        ).order_by("-creado")
+
+        data = []
+        for s in qs:
+            # Nombre del solicitante limpio (sin correo)
+            if s.solicitante:
+                if hasattr(s.solicitante, "get_full_name"):
+                    full_name = s.solicitante.get_full_name()
+                    # Elimina cualquier correo entre <>
+                    nombre_solicitante = re.sub(r"\s*<.*?>", "", full_name).strip()
+                    if not nombre_solicitante:
+                        nombre_solicitante = str(s.solicitante)
+                else:
+                    nombre_solicitante = str(s.solicitante)
+            else:
+                nombre_solicitante = "-"
+
+            data.append({
+                "id": s.id,
+                "numero_solicitud": getattr(s, "numero_solicitud", s.id),
+                "fecha": s.creado.strftime("%Y-%m-%d") if getattr(s, "creado", None) else None,
+                "total_soles": getattr(s, "total_soles", 0),
+                "total_dolares": getattr(s, "total_dolares", 0),
+                "estado": s.estado,
+                "solicitante": nombre_solicitante,
+                "tipo_solicitud": getattr(s, "tipo_solicitud", "N/A"),
+                "concepto_gasto": getattr(s, "concepto_gasto", "N/A"),
+            })
+
+        return Response(data, status=200)
+
+    except Exception as e:
+        print("❌ Error en liquidaciones_pendientes:", e)
+        return Response({"error": str(e)}, status=500)
+
+# Presentar Liquidacion
+@api_view(['POST'])
+@parser_classes([MultiPartParser, FormParser])
+def presentar_liquidacion(request):
+    try:
+        solicitud_id = request.data.get("id_solicitud")
+        documentos = request.data.get("documentos")  # JSON string
+        archivos = request.FILES.getlist("archivos")
+
+        if not solicitud_id or not documentos:
+            return Response({"error": "Datos incompletos"}, status=400)
+
+        documentos = json.loads(documentos)
+
+        # 🔹 Guardar comprobantes en la DB
+        for idx, doc in enumerate(documentos):
+            archivo = archivos[idx] if idx < len(archivos) else None
+            DocumentoGasto.objects.create(
+                solicitud_id=solicitud_id,
+                tipo_documento=doc.get("tipo_documento"),
+                numero_documento=doc.get("numero_documento"),
+                fecha=doc.get("fecha"),
+                ruc=doc.get("ruc"),
+                razon_social=doc.get("razon_social"),
+                total=doc.get("total"),
+                archivo=archivo
+            )
+
+        # 🔹 Crear liquidación
+        liquidacion = Liquidacion.objects.create(
+            solicitud_id=solicitud_id,
+            estado="Enviada para Aprobación"
+        )
+
+        # 🔹 Actualizar solicitud
+        Solicitud.objects.filter(id=solicitud_id).update(
+            estado="Liquidación enviada para Aprobación"
+        )
+
+        return Response({"success": True, "id_liquidacion": liquidacion.id})
+
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
 
 # Endpoint de prueba OCR #
 @api_view(['POST'])
@@ -1109,7 +1161,7 @@ def exportar_reportes_pdf(request):
 ##=======================##
 ## FUNCIONES ADICIONALES ##
 ##=======================##
-#====== Datos Usuario ======
+# Datos Usuario
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def usuario_actual(request):
@@ -1128,7 +1180,7 @@ def usuario_actual(request):
     }
     return Response(data)
 
-#===== Vista de registro =====
+# Vista de registro
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
 
@@ -1148,9 +1200,73 @@ class RegisterView(generics.CreateAPIView):
             'message': 'Registro exitoso'
         }, status=status.HTTP_201_CREATED)
 
-#===== Vista de login personalizada que devuelve también datos del usuario =====
+# Vista de login personalizada que devuelve también datos del usuario
 class EmailTokenObtainPairView(TokenObtainPairView):
     serializer_class = EmailTokenObtainPairSerializer
+
+# Solicitud Decision View
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def solicitud_decision_view(request, pk):
+    try:
+        solicitud = Solicitud.objects.get(pk=pk)
+    except Solicitud.DoesNotExist:
+        return Response({"error": "Solicitud no encontrada."}, status=status.HTTP_404_NOT_FOUND)
+
+    decision = request.data.get("decision")
+    comentario = request.data.get("comentario", "")
+
+    DECISION_MAP = {
+        "Atendido": "Atendido, Pendiente de Liquidación",
+        "Rechazado": "Rechazado",
+    }
+
+    if decision not in DECISION_MAP:
+        return Response({"error": "Decisión inválida."}, status=status.HTTP_400_BAD_REQUEST)
+
+    estado_nuevo = DECISION_MAP[decision]
+    estado_anterior = solicitud.estado
+
+    try:
+        with transaction.atomic():
+            # 1. Actualizar estado y comentario
+            solicitud.estado = estado_nuevo
+            if comentario:
+                solicitud.observacion = comentario
+            solicitud.save()
+
+            # 2. Registrar historial
+            SolicitudGastoEstadoHistorial.objects.create(
+                solicitud=solicitud,
+                estado_anterior=estado_anterior,
+                estado_nuevo=estado_nuevo,
+                usuario=request.user
+            )
+
+            # 3. Crear liquidación si se atiende
+            if decision == "Atendido":
+                Liquidacion.objects.create(
+                    solicitud=solicitud,
+                    usuario=solicitud.solicitante,
+                    estado=Liquidacion.ESTADO_BORRADOR,
+                    observaciones="Liquidación generada automáticamente",
+                    total_soles=solicitud.total_soles,
+                    total_dolares=solicitud.total_dolares,
+                )
+
+        return Response(
+            {"message": f"Solicitud {decision.lower()} correctamente."},
+            status=status.HTTP_200_OK
+        )
+
+    except Exception as e:
+        import traceback
+        print("ERROR EN solicitud_decision_view:", traceback.format_exc())
+        return Response(
+            {"error": "Error al procesar la decisión.", "detalle": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
 #========================================================================================
 
 
@@ -1237,27 +1353,7 @@ def set_monto_diario_view(request):
 # 🧾 ATENCION DE SOLICITUDES
 
 
-# ========= Liquidaciones Pendientes View ==========
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def liquidaciones_pendientes(request):
-    """
-    Devuelve todas las solicitudes de gasto que estén pendientes de liquidar.
-    """
-    try:
-        solicitudes = Solicitud.objects.filter(
-            estado="Pendiente",
-            fecha_liquidacion__isnull=True
-        ).order_by('-fecha', '-hora')  # Más reciente primero
 
-        serializer = SolicitudParaLiquidarSerializer(solicitudes, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    except Exception as e:
-        return Response(
-            {"error": f"Ocurrió un error al obtener las liquidaciones pendientes: {str(e)}"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
 
 
 # 🧾 APROBACION DE SOLICITUDES

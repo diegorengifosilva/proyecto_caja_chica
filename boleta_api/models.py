@@ -238,18 +238,16 @@ class DocumentoGasto(models.Model):
 class Liquidacion(models.Model):
     NUM_PREFIX = "LIQ"
 
-    ESTADO_BORRADOR = "BORRADOR"
-    ESTADO_EN_PROCESO = "EN_PROCESO"
-    ESTADO_CERRADA = "CERRADA"
-    ESTADO_RECHAZADA = "RECHAZADA"
-    ESTADO_DEVOLUCION = "DEVOLUCION"
-
+    # ===============================
+    # ESTADOS (directos, sin alias raros)
+    # ===============================
     ESTADO_CHOICES = [
-        (ESTADO_BORRADOR, "Borrador"),
-        (ESTADO_EN_PROCESO, "En proceso"),
-        (ESTADO_CERRADA, "Cerrada"),
-        (ESTADO_RECHAZADA, "Rechazada"),
-        (ESTADO_DEVOLUCION, "Devolución"),
+        ("Pendiente de Envío", "Pendiente de Envío"),                       
+        ("Pendiente para Atención", "Pendiente para Atención"),             
+        ("Atendido, Pendiente de Liquidación", "Atendido, Pendiente de Liquidación"),  
+        ("Liquidación enviada para Aprobación", "Liquidación enviada para Aprobación"),
+        ("Liquidación Aprobada", "Liquidación Aprobada"),
+        ("Rechazado", "Rechazado"),
     ]
 
     numero_operacion = models.CharField(
@@ -264,17 +262,17 @@ class Liquidacion(models.Model):
         related_name="liquidaciones"
     )
 
-    # Totales calculados automáticamente
     total_soles = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     total_dolares = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
 
     estado = models.CharField(
-        max_length=20, choices=ESTADO_CHOICES,
-        default=ESTADO_BORRADOR, db_index=True
+        max_length=100,
+        choices=ESTADO_CHOICES,
+        default="Pendiente de Envío",
+        db_index=True
     )
     observaciones = models.TextField(blank=True)
 
-    # Relación opcional con una solicitud
     solicitud = models.ForeignKey(
         "Solicitud",
         on_delete=models.CASCADE,
@@ -307,9 +305,15 @@ class Liquidacion(models.Model):
         """
         Calcula los totales (soles y dólares) sumando documentos relacionados.
         """
-        documentos = self.documentos.all()
-        total_s = sum([d.total or Decimal("0.00") for d in documentos if d.moneda == "PEN"])
-        total_d = sum([d.total or Decimal("0.00") for d in documentos if d.moneda == "USD"])
+        if not self.pk:
+            return self.total_soles, self.total_dolares
+
+        documentos = getattr(self, "documentos", None)
+        if documentos is None:
+            return self.total_soles, self.total_dolares
+
+        total_s = sum([d.total or Decimal("0.00") for d in documentos.all() if d.moneda == "PEN"])
+        total_d = sum([d.total or Decimal("0.00") for d in documentos.all() if d.moneda == "USD"])
 
         self.total_soles = total_s
         self.total_dolares = total_d
@@ -317,40 +321,32 @@ class Liquidacion(models.Model):
 
     @property
     def saldo_a_pagar(self) -> Decimal:
-        """
-        Retorna cuánto falta por pagar si lo gastado es mayor que lo aprobado.
-        """
         if not self.solicitud:
             return Decimal("0.00")
-        diferencia = (self.total_soles or Decimal("0.00")) - (self.solicitud.monto_solicitado or Decimal("0.00"))
+        diferencia = (self.total_soles or Decimal("0.00")) - (getattr(self.solicitud, "monto_solicitado", Decimal("0.00")) or Decimal("0.00"))
         return diferencia if diferencia > 0 else Decimal("0.00")
 
     @property
     def vuelto(self) -> Decimal:
-        """
-        Retorna el vuelto si se gastó menos de lo aprobado.
-        """
         if not self.solicitud:
             return Decimal("0.00")
-        diferencia = (self.solicitud.monto_solicitado or Decimal("0.00")) - (self.total_soles or Decimal("0.00"))
+        diferencia = (getattr(self.solicitud, "monto_solicitado", Decimal("0.00")) or Decimal("0.00")) - (self.total_soles or Decimal("0.00"))
         return diferencia if diferencia > 0 else Decimal("0.00")
 
-    # ===============================
-    # OVERRIDE SAVE
-    # ===============================
     def save(self, *args, **kwargs):
         if not self.hora:
             self.hora = timezone.now().time()
+
         if not self.numero_operacion:
             try:
                 self.numero_operacion = generar_numero_operacion(self.NUM_PREFIX)
             except Exception:
                 self.numero_operacion = f"{self.NUM_PREFIX}-{timezone.now().strftime('%Y%m%d%H%M%S%f')}"
 
-        # Recalcular totales antes de guardar
-        self.calcular_totales()
-
         super().save(*args, **kwargs)
+
+        self.calcular_totales()
+        super().save(update_fields=["total_soles", "total_dolares"])
 
 class CorreccionOCR(models.Model):
     documento = models.ForeignKey(

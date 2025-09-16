@@ -8,7 +8,7 @@ import "tippy.js/dist/tippy.css";
 import EventBus from "@/components/EventBus";
 import { RefreshCw, DollarSign, ListChecks, Eye, FileText, Clock, CheckCircle, XCircle } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, Tooltip, XAxis, YAxis, CartesianGrid, RadialBarChart, RadialBar, Cell, PieChart } from "recharts";
-import { STATE_COLORS } from "@/components/ui/colors";
+import { STATE_CLASSES, STATE_COLORS } from "@/components/ui/colors";
 import KpiCard from "@/components/ui/KpiCard";
 import Table from "@/components/ui/table";
 import ChartWrapped, { tooltipFormatter, radialTooltipFormatter } from "@/components/ui/ChartWrapped";
@@ -237,7 +237,7 @@ export default function AtencionSolicitudes() {
             <td className="px-3 sm:px-4 py-3 text-center">$ {(Number(s.total_dolares) || 0).toFixed(2)}</td>
             <td className="px-3 sm:px-4 py-3 text-center hidden sm:table-cell">{s.fecha ? new Date(s.fecha).toLocaleDateString("es-PE") : "-"}</td>
             <td className="px-3 sm:px-4 py-3 text-center">
-              <span className={`text-xs px-2 py-1 rounded-full ${STATE_COLORS[s.estado] || "bg-gray-100 text-gray-700"}`}>{s.estado || "Sin estado"}</span>
+              <span className={`text-xs px-2 py-1 rounded-full ${STATE_CLASSES[s.estado] || "bg-gray-100 text-gray-700"}`}>{s.estado || "Sin estado"}</span>
             </td>
             <td className="px-3 sm:px-4 py-3 text-center">
               <button

@@ -1,21 +1,8 @@
 // src/dashboard/liquidaciones/SubirArchivoModal.jsx
 import React, { useState, useEffect } from "react";
 import { procesarDocumentoOCR } from "@/services/documentoService";
-import {
-  Camera,
-  FileUp,
-  X,
-  CheckCircle,
-  Paperclip,
-  AlertCircle,
-} from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { Camera, FileUp, X, CheckCircle, Paperclip, AlertCircle } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
 export default function SubirArchivoModal({
@@ -32,7 +19,7 @@ export default function SubirArchivoModal({
   const [totalManual, setTotalManual] = useState("");
   const [isMobile, setIsMobile] = useState(false);
 
-  // Detectar si el dispositivo es móvil o tablet
+  // Detectar si es móvil o tablet
   useEffect(() => {
     const checkMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
     setIsMobile(checkMobile);
@@ -60,13 +47,11 @@ export default function SubirArchivoModal({
 
     try {
       setCargando(true);
+
+      // 1️⃣ Procesamos OCR
       const datosDetectados = await procesarDocumentoOCR(formData);
-
-      // 🔍 Debug para ver qué llega
       console.log("📦 OCR recibido:", datosDetectados);
-      console.log("🔍 Total recibido:", `"${datosDetectados?.total}"`);
 
-      // Normalizamos el total detectado (si existe)
       const totalDetectado = datosDetectados?.total
         ? datosDetectados.total.toString().trim().replace(",", ".")
         : "";
@@ -79,21 +64,23 @@ export default function SubirArchivoModal({
 
       const totalFinal = totalDetectado || totalManual;
 
+      // 2️⃣ Enviamos al componente padre para almacenar en memoria
       onProcesado(
         {
           ...datosDetectados,
-          total: totalFinal, // ⬅️ ya lo pasamos normalizado
-        },
-        archivo,
-        tipoDocumento,
-        idSolicitud,
-        tipoSolicitud
+          total: totalFinal,
+          tipo_documento: tipoDocumento,
+          nombre_archivo: archivo.name,
+          archivo, // lo dejamos en memoria
+        }
       );
 
       onClose();
     } catch (error) {
-      console.error("Error OCR:", error);
-      setErrorOCR("No se pudo procesar el documento. Intenta con otra imagen.");
+      console.error("❌ Error procesando OCR:", error);
+      setErrorOCR(
+        "No se pudo procesar el documento. Intenta nuevamente."
+      );
     } finally {
       setCargando(false);
     }
@@ -105,12 +92,12 @@ export default function SubirArchivoModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
             <FileUp className="w-5 h-5 text-gray-700" />
-            Subir Documento - Solicitud #{idSolicitud}
+            Subir Documento - Solicitud # {idSolicitud}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Selección tipo de documento */}
+          {/* Tipo de documento */}
           <div>
             <label className="block text-sm font-medium text-gray-700">
               Tipo de Documento
@@ -128,7 +115,7 @@ export default function SubirArchivoModal({
             </select>
           </div>
 
-          {/* Botones para cargar archivo */}
+          {/* Botones de carga */}
           <div className="flex flex-col sm:flex-row gap-2">
             {isMobile && (
               <label className="flex-1 cursor-pointer">
@@ -151,7 +138,7 @@ export default function SubirArchivoModal({
                 onChange={handleArchivoChange}
                 style={{ display: "none" }}
               />
-              <span className="bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-500 hover:to-yellow-600 text-white text-sm px-4 py-2 rounded-lg shadow-md flex items-center gap-2 justify-center">
+              <span className="bg-gradient-to-r from-amber-200 to-amber-300 hover:from-amber-300 hover:to-amber-400 text-white text-sm px-4 py-2 rounded-lg shadow-md flex items-center gap-2 justify-center">
                 <FileUp className="w-4 h-4" /> Archivo
               </span>
             </label>

@@ -1,22 +1,7 @@
 // src/dashboard/Layout/DashboardLayout.jsx
 import React, { useState, useMemo } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import {
-  LayoutDashboard,
-  FileText,
-  UserCog,
-  LogOut,
-  ClipboardList,
-  FilePlus,
-  FileSearch,
-  Settings,
-  FolderKanban,
-  Wallet,
-  BarChart2,
-  ListChecks,
-  Menu,
-  X,
-} from "lucide-react";
+import { LayoutDashboard, FileText, UserCog, LogOut, ClipboardList, FilePlus, FileSearch, Settings, FolderKanban, Wallet, BarChart2, ListChecks, Menu, X } from "lucide-react";
 import logo from "@/assets/logo.png";
 import "@/styles/Home.css";
 import { useAuth } from "@/context/AuthContext";
