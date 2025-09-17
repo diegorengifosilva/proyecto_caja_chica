@@ -72,7 +72,7 @@ const MisSolicitudes = ({ open, onClose }) => {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-6xl w-[95%] max-h-[90vh] overflow-y-auto bg-white">
+      <DialogContent className="max-w-6xl w-full max-h-[90vh] bg-white rounded-xl p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl sm:text-2xl font-bold text-gray-800">
             <FileText className="w-6 h-6" />
@@ -115,11 +115,9 @@ const MisSolicitudes = ({ open, onClose }) => {
         </div>
 
         {/* Tabla */}
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[70vh]">
           <Table
-            headers={[
-              "N°", "Tipo", "S/.", "$", "Fecha", "Concepto", "Estado", "Acción"
-            ]}
+            headers={["N°", "Tipo", "S/.", "$", "Fecha", "Concepto", "Estado", "Acción"]}
             data={solicitudesFiltradas}
             emptyMessage="No hay solicitudes en este estado o rango de fechas."
             renderRow={(s) => (
@@ -142,9 +140,7 @@ const MisSolicitudes = ({ open, onClose }) => {
                 <td className="px-1 sm:px-2 py-1 sm:py-2 text-center text-xs sm:text-sm">
                   {s.total_dolares ? `$ ${s.total_dolares}` : "-"}
                 </td>
-                <td className="px-1 sm:px-2 py-1 sm:py-2 text-center text-xs sm:text-sm">
-                  {s.fecha}
-                </td>
+                <td className="px-1 sm:px-2 py-1 sm:py-2 text-center text-xs sm:text-sm">{s.fecha}</td>
                 <td className="px-1 sm:px-2 py-1 sm:py-2 text-center text-xs sm:text-sm truncate max-w-[120px] sm:max-w-[200px]">
                   {s.concepto_gasto ?? "-"}
                 </td>

@@ -77,7 +77,7 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
       }
 
       // POST con JWT en Authorization
-      const res = await api.post("/api/boleta/documentos/guardar/", formData, {
+      const res = await api.post("/boleta/documentos/guardar/", formData, {
         headers: {
           "Content-Type": "multipart/form-data",
           Authorization: `Bearer ${token}`, // ⚡ JWT
