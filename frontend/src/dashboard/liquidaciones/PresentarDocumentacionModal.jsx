@@ -44,13 +44,15 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
     try {
       setLoading(true);
 
-      const token = localStorage.getItem("access_token"); // JWT guardado
+      const token = localStorage.getItem("access_token");
       if (!token) return alert("⚠️ No se encontró token. Debes iniciar sesión.");
 
       const formData = new FormData();
-      formData.append("id_solicitud", solicitud.id);
 
-      // Datos sin archivo
+      // 🔹 Cambiado para que el backend reciba lo que espera
+      formData.append("solicitud_id", solicitud.id);
+
+      // Datos de los documentos (sin archivos)
       const documentosSinArchivo = documentos.map(doc => ({
         tipo_documento: doc.tipo_documento,
         numero_documento: doc.numero_documento,
@@ -66,7 +68,7 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
         if (doc.archivo) formData.append("archivos", doc.archivo);
       });
 
-      // 🔹 DEBUG: ver qué se envía
+      // 🔹 DEBUG
       console.log("📤 Enviando FormData:");
       for (let pair of formData.entries()) {
         if (pair[1] instanceof File) {
@@ -76,17 +78,15 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
         }
       }
 
-      // POST con JWT en Authorization
+      // POST con JWT
       const res = await api.post("/boleta/documentos/guardar/", formData, {
         headers: {
           "Content-Type": "multipart/form-data",
-          Authorization: `Bearer ${token}`, // ⚡ JWT
+          Authorization: `Bearer ${token}`,
         },
       });
 
       console.log("✅ Liquidación presentada:", res.data);
-
-      // Actualizar estado local (opcional)
       onClose();
       alert("✅ Liquidación presentada correctamente");
 

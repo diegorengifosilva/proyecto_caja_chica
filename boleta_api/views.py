@@ -816,9 +816,16 @@ def guardar_documento(request):
             else:
                 print(f"❌ Error guardando documento {idx}: {serializer.errors}")
 
+        # 🔹 Actualizar estado de la solicitud si corresponde
+        if solicitud.estado == "Atendido, Pendiente de Liquidación":
+            solicitud.estado = "Liquidación enviada para Aprobación"
+            solicitud.save(update_fields=["estado"])
+            print(f"✅ Estado de solicitud {solicitud.id} actualizado a '{solicitud.estado}'")
+
         return Response({
             "mensaje": "Documentos guardados correctamente",
-            "documentos": documentos_guardados
+            "documentos": documentos_guardados,
+            "solicitud_estado": solicitud.estado
         }, status=201)
 
     except Exception as e:

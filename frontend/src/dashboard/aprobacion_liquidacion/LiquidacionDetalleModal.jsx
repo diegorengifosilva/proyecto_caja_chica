@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import VistaDocumentoModal from "./VistaDocumentoModal";
+import { STATE_CLASSES } from "@/components/ui/colors";
 
 const TASA_CAMBIO = 3.52;
 
@@ -19,14 +20,6 @@ export default function DetalleLiquidacionModal({ open, onClose, liquidacion }) 
   const [documentoSeleccionado, setDocumentoSeleccionado] = useState(null);
 
   if (!liquidacion) return null;
-
-  const estadoColor = {
-    Pendiente: "#facc15",
-    Aprobado: "#16a34a",
-    Rechazado: "#ef4444",
-    "Aprobado con ajuste": "#f59e0b",
-    Devolucion: "#f97316",
-  }[liquidacion.estado] || "#ccc";
 
   const formatSoles = (value) =>
     Number(value).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -75,7 +68,7 @@ export default function DetalleLiquidacionModal({ open, onClose, liquidacion }) 
 
             <div className="flex items-center gap-2">
               <strong>Estado:</strong>
-              <Badge style={{ backgroundColor: estadoColor, color: "#fff" }}>{liquidacion.estado}</Badge>
+              <Badge style={{ STATE_CLASSES }}>{liquidacion.estado}</Badge>
             </div>
 
             <p><strong>Observaciones:</strong> {liquidacion.observaciones || "Sin observaciones"}</p>

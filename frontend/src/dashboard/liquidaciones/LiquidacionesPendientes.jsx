@@ -158,34 +158,43 @@ export default function LiquidacionesPendientes() {
   };
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6 w-full">
 
       {/* Header */}
       <div className="flex justify-center md:justify-start items-center mb-4">
-        <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2 text-black">
+        <h2 className="text-lg sm:text-xl md:text-2xl font-bold flex items-center gap-2 text-black">
           <FolderKanban className="w-5 sm:w-6 h-5 sm:h-6" /> Liquidaciones Pendientes
         </h2>
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 text-center">
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-x-3 gap-y-4 sm:gap-x-4 sm:gap-y-5 md:gap-x-6 md:gap-y-6 mb-6 w-full justify-items-stretch">
         {[
           { label: "Total Pendientes", value: stats.total, gradient: "linear-gradient(135deg, #f97316cc, #fb923c99)", icon: Clock, tooltip: "Número total de solicitudes pendientes." },
           { label: "Monto Total (S/)", value: stats.totalSoles, gradient: "linear-gradient(135deg, #3b82f6cc, #60a5fa99)", icon: DollarSign, tooltip: "Monto acumulado en soles.", decimals: 2 },
           { label: "Monto Total ($)", value: stats.totalDolares, gradient: "linear-gradient(135deg, #10b981cc, #34d39999)", icon: DollarSign, tooltip: "Monto acumulado en dólares.", decimals: 2 },
           { label: "Promedio por Solicitud (S/)", value: stats.promedio, gradient: "linear-gradient(135deg, #f59e0bcc, #fcd34d99)", icon: DollarSign, tooltip: "Promedio por solicitud.", decimals: 2 },
-        ].map((kpi, idx) => (
-          <KpiCard key={idx} {...kpi} />
+        ].map((kpi) => (
+          <div key={kpi.label} className="flex-1 min-w-0">
+            <KpiCard
+              label={kpi.label}
+              value={loading ? 0 : kpi.value}
+              icon={kpi.icon}
+              gradient={kpi.gradient}
+              tooltip={kpi.tooltip}
+              decimals={Number.isInteger(kpi.value) ? 0 : 2}
+              className="text-xs sm:text-sm md:text-base w-full p-2 sm:p-3"
+            />
+          </div>
         ))}
       </div>
 
       {/* Gráficos */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
-        {/* Montos por Tipo de Solicitud */}
         <ChartWrapped
           title="Montos por Tipo de Solicitud (S/.)"
           icon={<ChartBarDecreasing className="w-4 h-4" />}
-          className="h-72"
+          className="h-64 sm:h-72 lg:h-80"
           tooltipFormatter={(val) => `S/ ${val.toLocaleString()}`}
         >
           <ResponsiveContainer width="100%" height="100%">
@@ -194,7 +203,7 @@ export default function LiquidacionesPendientes() {
               <XAxis type="number" />
               <YAxis dataKey="name" type="category" width={100} />
               <Tooltip formatter={(val) => `S/ ${val.toLocaleString()}`} />
-              <Bar dataKey="value" barSize={35}>
+              <Bar dataKey="value" barSize={25}>
                 {dataMontoPorTipo.map((entry, i) => (
                   <Cell key={i} fill={TYPE_COLORS[entry.name] || "#9CA3AF"} />
                 ))}
@@ -203,12 +212,11 @@ export default function LiquidacionesPendientes() {
           </ResponsiveContainer>
         </ChartWrapped>
 
-        {/* Distribución por Tipo */}
         <ChartWrapped
           title="Distribución por Tipo"
           icon={<ChartColumnIncreasing className="w-4 h-4" />}
-          className="h-72"
-          tooltipFormatter={tooltipFormatter} // Genérico
+          className="h-64 sm:h-72 lg:h-80"
+          tooltipFormatter={tooltipFormatter}
         >
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={dataTipo}>
@@ -216,7 +224,7 @@ export default function LiquidacionesPendientes() {
               <XAxis dataKey="name" />
               <YAxis allowDecimals={false} />
               <Tooltip formatter={tooltipFormatter} />
-              <Bar dataKey="value" barSize={35}>
+              <Bar dataKey="value" barSize={25}>
                 {dataTipo.map((entry, i) => (
                   <Cell key={i} fill={TYPE_COLORS[entry.name] || "#9CA3AF"} />
                 ))}
@@ -227,17 +235,17 @@ export default function LiquidacionesPendientes() {
       </div>
 
       {/* Filtros */}
-      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm mb-6">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
+      <div className="bg-white p-3 sm:p-4 rounded-xl border border-gray-200 shadow-sm mb-6 w-full overflow-x-auto">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 items-end">
           {/* Solicitante */}
-          <div className="flex flex-col">
+          <div className="flex flex-col w-full">
             <label className="text-sm font-semibold text-gray-600 mb-1 flex items-center gap-1">
               <span className="w-2 h-2 bg-blue-500 rounded-full"></span> Solicitante
             </label>
             <select
               value={filtroSolicitante}
               onChange={(e) => setFiltroSolicitante(e.target.value)}
-              className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
+              className="border rounded-lg px-2 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none w-full"
             >
               <option value="">Todos</option>
               {solicitantes.map((sol) => (
@@ -247,14 +255,14 @@ export default function LiquidacionesPendientes() {
           </div>
 
           {/* Tipo */}
-          <div className="flex flex-col">
+          <div className="flex flex-col w-full">
             <label className="text-sm font-semibold text-gray-600 mb-1 flex items-center gap-1">
               <span className="w-2 h-2 bg-green-500 rounded-full"></span> Tipo
             </label>
             <select
               value={filtroTipo}
               onChange={(e) => setFiltroTipo(e.target.value)}
-              className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-400 focus:outline-none"
+              className="border rounded-lg px-2 py-2 text-sm focus:ring-2 focus:ring-green-400 focus:outline-none w-full"
             >
               <option value="">Todos</option>
               {Object.keys(TYPE_COLORS).map((tipo_solicitud) => (
@@ -264,7 +272,7 @@ export default function LiquidacionesPendientes() {
           </div>
 
           {/* Fechas */}
-          <div className="flex flex-col">
+          <div className="flex flex-col w-full">
             <label className="text-sm font-semibold text-gray-600 mb-1 flex items-center gap-1">
               <span className="w-2 h-2 bg-purple-500 rounded-full"></span> Rango de Fechas
             </label>
@@ -273,14 +281,14 @@ export default function LiquidacionesPendientes() {
                 type="date"
                 value={fechaInicio}
                 onChange={(e) => setFechaInicio(e.target.value)}
-                className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-400 focus:outline-none w-full sm:w-auto"
+                className="border rounded-lg px-2 py-2 text-sm focus:ring-2 focus:ring-purple-400 focus:outline-none w-full sm:w-auto"
               />
               <span className="text-gray-400 text-xs hidden sm:inline">→</span>
               <input
                 type="date"
                 value={fechaFin}
                 onChange={(e) => setFechaFin(e.target.value)}
-                className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-400 focus:outline-none w-full sm:w-auto"
+                className="border rounded-lg px-2 py-2 text-sm focus:ring-2 focus:ring-purple-400 focus:outline-none w-full sm:w-auto"
               />
             </div>
           </div>
@@ -288,71 +296,47 @@ export default function LiquidacionesPendientes() {
       </div>
 
       {/* Tabla */}
-      <Table
-        headers={[
-          "N° Solicitud",
-          "Tipo",
-          "Monto (S/.)",
-          "Monto ($)",
-          "Fecha",
-          "Concepto",
-          "Estado",
-          "Acción",
-        ]}
-        data={solicitudesFiltradas}
-        emptyMessage="No hay solicitudes en este estado o rango de fechas."
-        renderRow={(s) => (
-          <>
-            <td className="px-2 sm:px-4 py-2 sm:py-3 font-semibold text-center">
-              {s.numero_solicitud}
-            </td>
-            <td className="px-2 sm:px-4 py-2 sm:py-3 text-center">
-              <span
-                className={`text-xs px-2 py-1 rounded-full ${
-                  TIPO_SOLICITUD_CLASSES[s.tipo_solicitud] ||
-                  "bg-gray-200 text-gray-700"
-                }`}
-              >
-                {s.tipo_solicitud}
-              </span>
-            </td>
-            <td className="px-2 sm:px-4 py-2 sm:py-3 text-center">
-              {s.total_soles ? `S/. ${s.total_soles}` : "-"}
-            </td>
-            <td className="px-2 sm:px-4 py-2 sm:py-3 text-center">
-              {s.total_dolares ? `$ ${s.total_dolares}` : "-"}
-            </td>
-            <td className="px-2 sm:px-4 py-2 sm:py-3 text-center">
-              {s.fecha}
-            </td>
-            <td className="px-2 sm:px-4 py-2 sm:py-3 text-center">
-              {s.concepto_gasto ?? "-"}
-            </td>
-            <td className="px-2 sm:px-4 py-2 sm:py-3 text-center">
-              <span
-                className={`text-xs px-2 py-1 rounded-full ${
-                  STATE_CLASSES[s.estado] ||
-                  "bg-gray-200 text-gray-700"
-                }`}
-              >
-                {s.estado}
-              </span>
-            </td>
-            <td className="px-2 sm:px-4 py-2 sm:py-3 text-center">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  handleAccion(s.id, "Presentar Documentación", s)
-                }
-                className="flex items-center gap-1"
-              >
-                <FileText className="w-4 h-4" /> Presentar
-              </Button>
-            </td>
-          </>
-        )}
-      />
+      <div className="overflow-x-auto">
+        <Table
+          headers={[
+            "N° Solicitud",
+            "Tipo",
+            "Monto (S/.)",
+            "Monto ($)",
+            "Fecha",
+            "Concepto",
+            "Estado",
+            "Acción",
+          ]}
+          data={solicitudesFiltradas}
+          emptyMessage="No hay solicitudes en este estado o rango de fechas."
+          renderRow={(s) => (
+            <>
+              <td className="px-2 sm:px-3 py-2 text-center font-semibold">{s.numero_solicitud}</td>
+              <td className="px-2 sm:px-3 py-2 text-center">
+                <span className={`text-xs px-2 py-1 rounded-full ${TIPO_SOLICITUD_CLASSES[s.tipo_solicitud] || "bg-gray-200 text-gray-700"}`}>{s.tipo_solicitud}</span>
+              </td>
+              <td className="px-2 sm:px-3 py-2 text-center">{s.total_soles ? `S/. ${s.total_soles}` : "-"}</td>
+              <td className="px-2 sm:px-3 py-2 text-center">{s.total_dolares ? `$ ${s.total_dolares}` : "-"}</td>
+              <td className="px-2 sm:px-3 py-2 text-center">{s.fecha}</td>
+              <td className="px-2 sm:px-3 py-2 text-center">{s.concepto_gasto ?? "-"}</td>
+              <td className="px-2 sm:px-3 py-2 text-center">
+                <span className={`text-xs px-2 py-1 rounded-full ${STATE_CLASSES[s.estado] || "bg-gray-200 text-gray-700"}`}>{s.estado}</span>
+              </td>
+              <td className="px-2 sm:px-3 py-2 text-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleAccion(s.id, "Presentar Documentación", s)}
+                  className="flex items-center justify-center gap-1 w-full sm:w-auto"
+                >
+                  <FileText className="w-4 h-4" /> Presentar
+                </Button>
+              </td>
+            </>
+          )}
+        />
+      </div>
 
       {/* Modals */}
       {showPresentarModal && (
@@ -365,5 +349,4 @@ export default function LiquidacionesPendientes() {
 
     </div>
   );
-
 }

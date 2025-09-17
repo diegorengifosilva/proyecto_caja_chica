@@ -382,6 +382,13 @@ class DocumentoGastoSerializer(serializers.ModelSerializer):
             "total", "nombre_archivo", "archivo", "archivo_url", "creado"
         ]
 
+    def get_archivo_url(self, obj):
+        """Devuelve la URL absoluta del archivo si existe"""
+        if obj.archivo and hasattr(obj.archivo, "url"):
+            request = self.context.get("request")
+            return request.build_absolute_uri(obj.archivo.url) if request else obj.archivo.url
+        return None
+
 class CorreccionOCRSerializer(serializers.ModelSerializer):
     class Meta:
         model = CorreccionOCR
