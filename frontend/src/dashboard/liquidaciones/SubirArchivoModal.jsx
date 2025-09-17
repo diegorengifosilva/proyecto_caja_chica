@@ -82,7 +82,7 @@ export default function SubirArchivoModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="w-[95vw] max-w-md h-auto max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] sm:max-w-md md:max-w-lg lg:max-w-xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
             <FileUp className="w-5 h-5 text-gray-700" />
@@ -111,20 +111,21 @@ export default function SubirArchivoModal({
 
           {/* Botones de carga */}
           <div className="flex flex-col sm:flex-row gap-2">
-            {isMobile && (
-              <label className="flex-1 cursor-pointer">
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={handleArchivoChange}
-                  style={{ display: "none" }}
-                />
-                <span className="bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white text-sm px-4 py-2 rounded-lg shadow-md flex items-center gap-2 justify-center">
-                  <Camera className="w-4 h-4" /> Cámara
-                </span>
-              </label>
-            )}
+            {/* Botón Cámara */}
+            <label className="flex-1 cursor-pointer">
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleArchivoChange}
+                style={{ display: "none" }}
+              />
+              <span className="bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white text-sm px-4 py-2 rounded-lg shadow-md flex items-center gap-2 justify-center w-full sm:w-auto">
+                <Camera className="w-4 h-4" /> Cámara
+              </span>
+            </label>
+
+            {/* Botón Archivo */}
             <label className="flex-1 cursor-pointer">
               <input
                 type="file"
@@ -132,7 +133,7 @@ export default function SubirArchivoModal({
                 onChange={handleArchivoChange}
                 style={{ display: "none" }}
               />
-              <span className="bg-gradient-to-r from-amber-200 to-amber-300 hover:from-amber-300 hover:to-amber-400 text-white text-sm px-4 py-2 rounded-lg shadow-md flex items-center gap-2 justify-center">
+              <span className="bg-gradient-to-r from-amber-200 to-amber-300 hover:from-amber-300 hover:to-amber-400 text-white text-sm px-4 py-2 rounded-lg shadow-md flex items-center gap-2 justify-center w-full sm:w-auto">
                 <FileUp className="w-4 h-4" /> Archivo
               </span>
             </label>

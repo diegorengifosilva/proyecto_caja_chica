@@ -9,11 +9,12 @@ const KpiCard = ({ label, value, gradient, icon: Icon, tooltip, decimals = 0 }) 
   return (
     <div
       className="
-        rounded-xl p-4 shadow-md text-white relative
+        w-full max-w-full rounded-xl p-3 sm:p-4 md:p-5
+        shadow-md text-white relative
         flex flex-col items-center justify-center text-center
         transition-all duration-300 transform
         hover:scale-105 hover:shadow-lg cursor-pointer
-        min-h-[90px] sm:min-h-[100px]
+        min-h-[90px] sm:min-h-[100px] md:min-h-[110px]
       "
       style={{ background: gradient }}
     >
@@ -27,13 +28,13 @@ const KpiCard = ({ label, value, gradient, icon: Icon, tooltip, decimals = 0 }) 
       )}
 
       {/* Ícono */}
-      {Icon && <Icon className="w-6 h-6 mb-2 opacity-90" />}
+      {Icon && <Icon className="w-5 sm:w-6 md:w-7 h-5 sm:h-6 md:h-7 mb-2 opacity-90" />}
 
       {/* Label */}
-      <p className="text-xs sm:text-sm opacity-90">{label}</p>
+      <p className="text-xs sm:text-sm md:text-base opacity-90">{label}</p>
 
       {/* Valor animado */}
-      <p className="text-xl sm:text-2xl font-bold">
+      <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold break-words">
         <CountUp
           end={Number(value) || 0}
           duration={1.2}

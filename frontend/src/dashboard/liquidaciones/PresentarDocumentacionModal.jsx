@@ -101,9 +101,9 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
  return (
     <>
       <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent className="w-full max-w-5xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+        <DialogContent className="w-full max-w-full sm:max-w-3xl md:max-w-4xl lg:max-w-5xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+            <DialogTitle className="flex items-center gap-2 text-sm sm:text-base md:text-lg">
               <FileText className="w-5 h-5 text-gray-700" />
               Presentar Documentación
             </DialogTitle>
@@ -113,34 +113,36 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
             {/* Información de la solicitud */}
             <Card>
               <CardContent className="p-4 space-y-2 text-sm sm:text-base">
-                <p className="flex items-center gap-1">
-                  <ClipboardList className="w-4 h-4 text-gray-800" />
-                  <span className="font-semibold">Solicitud:</span> {solicitud.numero_solicitud}
-                </p>
-                <p className="flex items-center gap-1">
-                  <User className="w-4 h-4 text-gray-800" />
-                  <span className="font-semibold">Solicitante:</span> {solicitud.solicitante || "—"}
-                </p>
-                <p className="flex items-center gap-1">
-                  <Tag className="w-4 h-4 text-gray-800" />
-                  <span className="font-semibold">Tipo:</span> {solicitud.tipo_solicitud || "—"}
-                </p>
-                <p className="flex items-center gap-1">
-                  <WalletMinimal className="w-4 h-4 text-gray-800" />
-                  <span className="font-semibold">Monto Soles (S/.):</span> {solicitud.total_soles || solicitud.monto || "—"}
-                </p>
-                <p className="flex items-center gap-1">
-                  <DollarSign className="w-4 h-4 text-gray-800" />
-                  <span className="font-semibold">Monto Dólares ($):</span> {solicitud.total_dolares || "—"}
-                </p>
-                <p className="flex items-center gap-1">
-                  <Calendar className="w-4 h-4 text-gray-800" />
-                  <span className="font-semibold">Fecha:</span> {solicitud.fecha || "—"}
-                </p>
-                <p className="flex items-center gap-1">
-                  <BadgeAlert className="w-4 h-4 text-gray-800" />
-                  <span className="font-semibold">Estado actual:</span> {solicitud.estado || "Pendiente"}
-                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  <p className="flex items-center gap-1">
+                    <ClipboardList className="w-4 h-4 text-gray-800" />
+                    <span className="font-semibold">Solicitud:</span> {solicitud.numero_solicitud}
+                  </p>
+                  <p className="flex items-center gap-1">
+                    <User className="w-4 h-4 text-gray-800" />
+                    <span className="font-semibold">Solicitante:</span> {solicitud.solicitante || "—"}
+                  </p>
+                  <p className="flex items-center gap-1">
+                    <Tag className="w-4 h-4 text-gray-800" />
+                    <span className="font-semibold">Tipo:</span> {solicitud.tipo_solicitud || "—"}
+                  </p>
+                  <p className="flex items-center gap-1">
+                    <WalletMinimal className="w-4 h-4 text-gray-800" />
+                    <span className="font-semibold">Monto Soles (S/.):</span> {solicitud.total_soles || solicitud.monto || "—"}
+                  </p>
+                  <p className="flex items-center gap-1">
+                    <DollarSign className="w-4 h-4 text-gray-800" />
+                    <span className="font-semibold">Monto Dólares ($):</span> {solicitud.total_dolares || "—"}
+                  </p>
+                  <p className="flex items-center gap-1">
+                    <Calendar className="w-4 h-4 text-gray-800" />
+                    <span className="font-semibold">Fecha:</span> {solicitud.fecha || "—"}
+                  </p>
+                  <p className="flex items-center gap-1 col-span-full sm:col-span-2 lg:col-span-3">
+                    <BadgeAlert className="w-4 h-4 text-gray-800" />
+                    <span className="font-semibold">Estado actual:</span> {solicitud.estado || "Pendiente"}
+                  </p>
+                </div>
               </CardContent>
             </Card>
 
@@ -156,43 +158,43 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
                   <Button
                     size="sm"
                     onClick={() => setShowSubirArchivoModal(true)}
-                    className="bg-gradient-to-r from-violet-400 to-violet-500 hover:from-violet-500 hover:to-violet-600 text-white px-4 py-2 rounded-lg shadow-md flex items-center gap-2"
+                    className="bg-gradient-to-r from-violet-400 to-violet-500 hover:from-violet-500 hover:to-violet-600 text-white px-4 py-2 rounded-lg shadow-md flex items-center gap-2 w-full sm:w-auto"
                   >
                     <Plus className="h-4 w-4" /> Agregar
                   </Button>
                 </div>
 
-                {/* Tabla OCR usando Table.jsx */}
-                <Table
-                  headers={[
-                    "Nombre del Archivo",
-                    "N° Doc",
-                    "Tipo",
-                    "Fecha",
-                    "RUC",
-                    "Razón Social",
-                    "Total",
-                  ]}
-                  data={documentos}
-                  emptyMessage="No se han agregado comprobantes todavía."
-                  renderRow={(doc) => [
-                    <span
-                      className="cursor-pointer text-blue-600 hover:underline"
-                      onClick={() => handleAbrirArchivo(doc.archivo)}
-                    >
-                      {doc.nombre_archivo}
-                    </span>,
-                    doc.numero_documento,
-                    doc.tipo_documento,
-                    doc.fecha,
-                    doc.ruc,
-                    doc.razon_social,
-                    doc.total,
-                  ]}
-                  onDeleteRow={(doc) => handleEliminarDocumento(doc)}
-                />
+                <div className="overflow-x-auto">
+                  <Table
+                    headers={[
+                      "Nombre del Archivo",
+                      "N° Doc",
+                      "Tipo",
+                      "Fecha",
+                      "RUC",
+                      "Razón Social",
+                      "Total",
+                    ]}
+                    data={documentos}
+                    emptyMessage="No se han agregado comprobantes todavía."
+                    renderRow={(doc) => [
+                      <span
+                        className="cursor-pointer text-blue-600 hover:underline"
+                        onClick={() => handleAbrirArchivo(doc.archivo)}
+                      >
+                        {doc.nombre_archivo}
+                      </span>,
+                      doc.numero_documento,
+                      doc.tipo_documento,
+                      doc.fecha,
+                      doc.ruc,
+                      doc.razon_social,
+                      doc.total,
+                    ]}
+                    onDeleteRow={(doc) => handleEliminarDocumento(doc)}
+                  />
+                </div>
 
-                {/* Total Documentado */}
                 <div className="mt-4 text-right font-semibold text-gray-800 text-sm sm:text-base">
                   <p>Total: S/ {totalSoles.toFixed(2)}</p>
                   <p>Total: $ {totalDolares.toFixed(2)}</p>

@@ -911,6 +911,33 @@ def detectar_origen_imagen(img_bgr, umbral_blur=100.0, umbral_sombra=25.0):
 ##===========================##
 ## APROBACIÓN DE LIQUIDACIÓN ##
 ##===========================##
+# Liquidaciones Pendientes View
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def liquidaciones_pendientes_view(request):
+    """
+    Devuelve todas las liquidaciones pendientes para el usuario destinatario.
+    """
+    try:
+        usuario = request.user
+        estado = request.query_params.get("estado", "Liquidación enviada para Aprobación")
+
+        liquidaciones = Liquidacion.objects.filter(
+            destinatario=usuario,
+            estado=estado
+        ).order_by('-fecha')
+
+        serializer = LiquidacionSerializer(liquidaciones, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    except Exception as e:
+        import traceback
+        print("Error en liquidaciones_pendientes_view:", traceback.format_exc())
+        return Response(
+            {"error": "No se pudieron obtener las liquidaciones pendientes.", "detalle": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
 # Detalle Liquidacion Views #
 TASA_CAMBIO = 3.55  # S/ -> $
 
@@ -943,7 +970,6 @@ def detalle_liquidacion_view(request, liquidacion_id):
     })
 
     return Response(liquidacion_data)
-
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -1275,6 +1301,7 @@ def solicitud_decision_view(request, pk):
     decision = request.data.get("decision")
     comentario = request.data.get("comentario", "")
 
+    # Mapeo de decisiones a estados válidos
     DECISION_MAP = {
         "Atendido": "Atendido, Pendiente de Liquidación",
         "Rechazado": "Rechazado",
@@ -1294,7 +1321,7 @@ def solicitud_decision_view(request, pk):
                 solicitud.observacion = comentario
             solicitud.save()
 
-            # 2. Registrar historial
+            # 2. Registrar historial de cambio de estado
             SolicitudGastoEstadoHistorial.objects.create(
                 solicitud=solicitud,
                 estado_anterior=estado_anterior,
@@ -1302,12 +1329,12 @@ def solicitud_decision_view(request, pk):
                 usuario=request.user
             )
 
-            # 3. Crear liquidación si se atiende
+            # 3. Crear liquidación si se atiende la solicitud
             if decision == "Atendido":
                 Liquidacion.objects.create(
                     solicitud=solicitud,
                     usuario=solicitud.solicitante,
-                    estado=Liquidacion.ESTADO_BORRADOR,
+                    estado="Pendiente para Atención",  # <--- estado válido actual
                     observaciones="Liquidación generada automáticamente",
                     total_soles=solicitud.total_soles,
                     total_dolares=solicitud.total_dolares,

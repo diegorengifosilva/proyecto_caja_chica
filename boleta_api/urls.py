@@ -18,6 +18,7 @@ from .views import (
     solicitudes_pendientes_view,
     detalle_liquidacion_view,
     presentar_liquidacion,
+    liquidaciones_pendientes_view,
     EmailTokenObtainPairView,
     RegisterView,
     SolicitudGastoHistorialViewSet,
@@ -71,6 +72,7 @@ urlpatterns = [
 
 
     # APROBACIÓN DE LIQUIDACIÓN
+    path("boleta/liquidaciones_pendientes/", views.liquidaciones_pendientes_view),
     path('api/liquidaciones/<int:liquidacion_id>/detalle/', detalle_liquidacion_view, name='detalle-liquidacion'),
     path("liquidaciones/<int:liquidacion_id>/accion/", views.actualizar_estado_liquidacion, name="actualizar_estado_liquidacion"),
     

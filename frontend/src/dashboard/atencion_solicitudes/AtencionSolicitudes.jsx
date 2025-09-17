@@ -15,18 +15,27 @@ import ChartWrapped, { tooltipFormatter, radialTooltipFormatter } from "@/compon
 
 export default function AtencionSolicitudes() {
   const { authUser: user, logout } = useAuth();
-  const [solicitudes, setSolicitudes] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+
+  // Tabla solo pendientes
+  const [solicitudesTabla, setSolicitudesTabla] = useState([]);
+  // Todos los estados para KPIs y gráficos
+  const [solicitudesAll, setSolicitudesAll] = useState([]);
+
+  const [loadingTabla, setLoadingTabla] = useState(true);
+  const [loadingAll, setLoadingAll] = useState(true);
+
+  const [errorTabla, setErrorTabla] = useState(null);
+  const [errorAll, setErrorAll] = useState(null);
+
   const [selectedId, setSelectedId] = useState(null);
 
   // -------------------------------
-  // Fetch solicitudes filtrando por destinatario_id y estado
+  // Fetch solicitudes pendientes para la tabla
   // -------------------------------
-  const fetchSolicitudes = useCallback(async () => {
+  const fetchTabla = useCallback(async () => {
     if (!user) return;
-    setLoading(true);
-    setError(null);
+    setLoadingTabla(true);
+    setErrorTabla(null);
     try {
       const token = localStorage.getItem("access_token");
       const { data } = await api.get("/boleta/solicitudes/pendientes/", {
@@ -36,39 +45,72 @@ export default function AtencionSolicitudes() {
           estado: "Pendiente para Atención",
         },
       });
-      setSolicitudes(data);
+      setSolicitudesTabla(data);
     } catch (e) {
       console.error(e);
-      setError("No se pudieron cargar las solicitudes pendientes.");
+      setErrorTabla("No se pudieron cargar las solicitudes pendientes.");
       if (e?.response?.status === 401) logout();
     } finally {
-      setLoading(false);
+      setLoadingTabla(false);
     }
   }, [user, logout]);
 
   // -------------------------------
-  // Escuchar eventos globales (EventBus)
+  // Fetch todas las solicitudes para KPIs y gráficos
+  // -------------------------------
+  const fetchAll = useCallback(async () => {
+    if (!user) return;
+    setLoadingAll(true);
+    setErrorAll(null);
+    try {
+      const token = localStorage.getItem("access_token");
+      const { data } = await api.get("/boleta/solicitudes/pendientes/", {
+        headers: { Authorization: `Bearer ${token}` },
+        params: {
+          destinatario_id: user.id,
+        },
+      });
+      setSolicitudesAll(data);
+    } catch (e) {
+      console.error(e);
+      setErrorAll("No se pudieron cargar los datos de KPI.");
+      if (e?.response?.status === 401) logout();
+    } finally {
+      setLoadingAll(false);
+    }
+  }, [user, logout]);
+
+  // -------------------------------
+  // Escuchar eventos globales
   // -------------------------------
   useEffect(() => {
-    EventBus.on("solicitudEnviada", fetchSolicitudes);
-    EventBus.on("solicitudAtendida", fetchSolicitudes);
-    EventBus.on("solicitudRechazada", fetchSolicitudes);
+    const actualizar = () => {
+      fetchTabla();
+      fetchAll();
+    };
+
+    EventBus.on("solicitudEnviada", actualizar);
+    EventBus.on("solicitudAtendida", actualizar);
+    EventBus.on("solicitudRechazada", actualizar);
 
     return () => {
-      EventBus.off("solicitudEnviada", fetchSolicitudes);
-      EventBus.off("solicitudAtendida", fetchSolicitudes);
-      EventBus.off("solicitudRechazada", fetchSolicitudes);
+      EventBus.off("solicitudEnviada", actualizar);
+      EventBus.off("solicitudAtendida", actualizar);
+      EventBus.off("solicitudRechazada", actualizar);
     };
-  }, [fetchSolicitudes]);
+  }, [fetchTabla, fetchAll]);
 
   useEffect(() => {
-    fetchSolicitudes();
-  }, [fetchSolicitudes]);
+    fetchTabla();
+    fetchAll();
+  }, [fetchTabla, fetchAll]);
 
   // -------------------------------
   // KPIs y datos gráficos
   // -------------------------------
   const { kpis, serie, estados } = useMemo(() => {
+    const solicitudes = solicitudesAll;
+
     const totalPendientes = solicitudes.filter(s => s.estado === "Pendiente para Atención").length;
     const totalAtendidas = solicitudes.filter(s => s.estado === "Atendido, Pendiente de Liquidación").length;
     const totalRechazadas = solicitudes.filter(s => s.estado === "Rechazado").length;
@@ -83,7 +125,7 @@ export default function AtencionSolicitudes() {
       .filter(s => s.estado === "Rechazado")
       .reduce((acc, s) => acc + (parseFloat(s.total_soles) || 0), 0);
 
-    // Serie diaria de pendientes últimos 30 días
+    // Serie diaria últimos 30 días
     const byDayMap = new Map();
     solicitudes.forEach((s) => {
       if (s.estado === "Pendiente para Atención") {
@@ -119,12 +161,12 @@ export default function AtencionSolicitudes() {
       serie: list,
       estados: Object.entries(estadoCounts).map(([name, value]) => ({ name, value })),
     };
-  }, [solicitudes]);
+  }, [solicitudesAll]);
 
   // -------------------------------
   // Render loading
   // -------------------------------
-  if (loading) {
+  if (loadingTabla || loadingAll) {
     return (
       <div className="p-6 space-y-6 min-h-screen flex flex-col">
         <div className="h-8 w-2/3 bg-gray-200 rounded animate-pulse" />
@@ -142,10 +184,10 @@ export default function AtencionSolicitudes() {
   // -------------------------------
   // Render error
   // -------------------------------
-  if (error) {
+  if (errorTabla || errorAll) {
     return (
       <div className="p-6 min-h-screen flex flex-col">
-        <p className="text-red-500 font-semibold">{error}</p>
+        <p className="text-red-500 font-semibold">{errorTabla || errorAll}</p>
       </div>
     );
   }
@@ -161,7 +203,7 @@ export default function AtencionSolicitudes() {
           <ListChecks size={24} />
           Atención de Solicitudes
           <button
-            onClick={fetchSolicitudes}
+            onClick={() => { fetchTabla(); fetchAll(); }}
             className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition"
           >
             <RefreshCw size={18} />
@@ -210,10 +252,7 @@ export default function AtencionSolicitudes() {
                 <RadialBarChart innerRadius="10%" outerRadius="95%" data={estados}>
                   <RadialBar minAngle={10} background clockWise dataKey="value" cornerRadius={8}>
                     {estados.map((entry, i) => (
-                      <Cell
-                        key={`cell-${i}`}
-                        fill={STATE_COLORS[entry.name] || "#9ca3af"}
-                      />
+                      <Cell key={`cell-${i}`} fill={STATE_COLORS[entry.name] || "#9ca3af"} />
                     ))}
                   </RadialBar>
                 </RadialBarChart>
@@ -226,7 +265,7 @@ export default function AtencionSolicitudes() {
       {/* Tabla */}
       <Table
         headers={["N° Solicitud","Solicitante","Tipo","Monto S/.","Monto $","Fecha","Estado","Acciones"]}
-        data={solicitudes}
+        data={solicitudesTabla}
         emptyMessage="No hay solicitudes pendientes por ahora."
         renderRow={(s) => (
           <>
@@ -259,7 +298,8 @@ export default function AtencionSolicitudes() {
           onDecided={(msg) => {
             if (msg) toast.success(msg);
             setSelectedId(null);
-            fetchSolicitudes();
+            fetchTabla();
+            fetchAll();
           }}
         />
       )}

@@ -3,37 +3,23 @@ import React from "react";
 import { Card, CardContent } from "./card"; 
 import PropTypes from "prop-types";
 
-/* Tooltip formatter genérico para charts: muestra nombre y cantidad */
+/* Tooltip formatter genérico para charts */
 export const tooltipFormatter = (value, name, props) => [`${value}`, `${name}`];
-
-/* Tooltip personalizado para radial: mostrar "Nombre: valor" */
 export const radialTooltipFormatter = (value, name, payload) => [`${value}`, `${name}`];
 
-/**
- * ChartWrapper
- * Contenedor unificado para gráficos en dashboards.
- *
- * Props:
- *  - title: string -> título principal del gráfico
- *  - icon: JSX -> ícono opcional a mostrar junto al título
- *  - subtitle: string -> subtítulo opcional (ej: "Última actualización")
- *  - children: JSX -> el gráfico o componente a renderizar dentro del card
- *  - className: string -> clases adicionales opcionales para el card
- *  - legend: array -> [{ name, value, color }] opcional, para leyendas debajo del header
- *  - tooltipFormatter: function -> formatter opcional para tooltips
- */
 const ChartWrapped = ({ title, icon, subtitle, children, className = "", legend = [], tooltipFormatter: tf }) => {
   return (
-    <Card className={`rounded-xl shadow-md hover:shadow-lg transition-shadow ${className}`}>
+    <Card className={`w-full max-w-full rounded-xl shadow-md hover:shadow-lg transition-shadow ${className}`}>
       <CardContent className="flex flex-col p-4 w-full h-full">
+
         {/* Header */}
         {(title || subtitle || icon) && (
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-between mb-3 gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               {icon && <span className="text-gray-700">{icon}</span>}
-              {title && <h3 className="text-lg font-semibold text-gray-700">{title}</h3>}
+              {title && <h3 className="text-lg sm:text-xl md:text-2xl font-semibold text-gray-700">{title}</h3>}
             </div>
-            {subtitle && <div className="text-sm text-gray-500">{subtitle}</div>}
+            {subtitle && <div className="text-sm sm:text-base text-gray-500">{subtitle}</div>}
           </div>
         )}
 
@@ -41,12 +27,9 @@ const ChartWrapped = ({ title, icon, subtitle, children, className = "", legend 
         {legend && legend.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-3">
             {legend.map((l, i) => (
-              <div key={i} className="flex items-center gap-1">
-                <span
-                  className="w-3 h-3 rounded-full"
-                  style={{ backgroundColor: l.color }}
-                />
-                <span className="text-sm text-gray-700">
+              <div key={i} className="flex items-center gap-1 flex-wrap">
+                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: l.color }} />
+                <span className="text-sm sm:text-base text-gray-700">
                   {l.name} ({l.value})
                 </span>
               </div>
@@ -55,13 +38,10 @@ const ChartWrapped = ({ title, icon, subtitle, children, className = "", legend 
         )}
 
         {/* Gráfico / Contenido */}
-        <div className="flex-1 w-full min-h-[220px]">
+        <div className="flex-1 w-full min-h-[220px] sm:min-h-[280px] md:min-h-[320px] lg:min-h-[360px]">
           {React.Children.map(children, (child) => {
-            // Si el hijo es un Tooltip y se pasó un formatter, clonarlo con la prop
-            if (
-              tf &&
-              child?.type?.displayName === "Tooltip"
-            ) {
+            // Clonar tooltip si se pasó un formatter
+            if (tf && child?.type?.displayName === "Tooltip") {
               return React.cloneElement(child, { formatter: tf });
             }
             return child;
