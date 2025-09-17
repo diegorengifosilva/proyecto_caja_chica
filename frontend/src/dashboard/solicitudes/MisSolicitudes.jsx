@@ -81,101 +81,96 @@ const MisSolicitudes = ({ open, onClose }) => {
         </DialogHeader>
 
         {/* Filtros */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-4">
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium">Estado:</label>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-3 mb-3 sm:mb-4 text-sm">
+          <div className="flex items-center gap-1 sm:gap-2">
+            <label className="font-medium">Estado:</label>
             <select
               value={filtro}
               onChange={(e) => setFiltro(e.target.value)}
-              className="border rounded-md px-2 py-1 text-sm"
+              className="border rounded-md px-1 sm:px-2 py-1 text-xs sm:text-sm"
             >
               <option value="Todos">Todos</option>
               {Object.keys(STATE_CLASSES).map((estado, idx) => (
-                <option key={idx} value={estado}>
-                  {estado}
-                </option>
+                <option key={idx} value={estado}>{estado}</option>
               ))}
             </select>
           </div>
 
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium">Desde:</label>
+          <div className="flex items-center gap-1 sm:gap-2">
+            <label className="font-medium">Desde:</label>
             <input
               type="date"
               value={fechaInicio}
               onChange={(e) => setFechaInicio(e.target.value)}
-              className="border rounded-md px-2 py-1 text-sm"
+              className="border rounded-md px-1 sm:px-2 py-1 text-xs sm:text-sm"
             />
-            <label className="text-sm font-medium">Hasta:</label>
+            <label className="font-medium">Hasta:</label>
             <input
               type="date"
               value={fechaFin}
               onChange={(e) => setFechaFin(e.target.value)}
-              className="border rounded-md px-2 py-1 text-sm"
+              className="border rounded-md px-1 sm:px-2 py-1 text-xs sm:text-sm"
             />
           </div>
         </div>
 
         {/* Tabla */}
-        <Table
-          headers={[
-            "N° Solicitud",
-            "Tipo",
-            "Monto (S/.)",
-            "Monto ($)",
-            "Fecha",
-            "Concepto",
-            "Estado",
-            "Acción",
-          ]}
-          data={solicitudesFiltradas}
-          emptyMessage="No hay solicitudes en este estado o rango de fechas."
-          renderRow={(s) => (
-            <>
-              <td className="px-2 sm:px-4 py-2 sm:py-3 font-semibold text-center">
-                {s.numero_solicitud}
-              </td>
-              <td className="px-2 sm:px-4 py-2 sm:py-3 text-center">
-                <span
-                  className={`text-xs px-2 py-1 rounded-full ${
-                    TIPO_SOLICITUD_CLASSES[s.tipo_solicitud] || "bg-gray-200 text-gray-700"
-                  }`}
-                >
-                  {s.tipo_solicitud}
-                </span>
-              </td>
-              <td className="px-2 sm:px-4 py-2 sm:py-3 text-center">
-                {s.total_soles ? `S/. ${s.total_soles}` : "-"}
-              </td>
-              <td className="px-2 sm:px-4 py-2 sm:py-3 text-center">
-                {s.total_dolares ? `$ ${s.total_dolares}` : "-"}
-              </td>
-              <td className="px-2 sm:px-4 py-2 sm:py-3 text-center">{s.fecha}</td>
-              <td className="px-2 sm:px-4 py-2 sm:py-3 text-center">
-                {s.concepto_gasto ?? "-"}
-              </td>
-              <td className="px-2 sm:px-4 py-2 sm:py-3 text-center">
-                <span
-                  className={`text-xs px-2 py-1 rounded-full ${
-                    STATE_CLASSES[s.estado] || "bg-gray-200 text-gray-700"
-                  }`}
-                >
-                  {s.estado}
-                </span>
-              </td>
-              <td className="px-2 sm:px-4 py-2 sm:py-3 text-center">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleAccion(s.id, "Ver Detalle", s)}
-                  className="flex items-center gap-1"
-                >
-                  <Eye className="w-4 h-4" /> Detalle
-                </Button>
-              </td>
-            </>
-          )}
-        />
+        <div className="overflow-x-auto">
+          <Table
+            headers={[
+              "N°", "Tipo", "S/.", "$", "Fecha", "Concepto", "Estado", "Acción"
+            ]}
+            data={solicitudesFiltradas}
+            emptyMessage="No hay solicitudes en este estado o rango de fechas."
+            renderRow={(s) => (
+              <>
+                <td className="px-1 sm:px-2 py-1 sm:py-2 font-semibold text-center text-xs sm:text-sm">
+                  {s.numero_solicitud}
+                </td>
+                <td className="px-1 sm:px-2 py-1 sm:py-2 text-center text-xs sm:text-sm">
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] sm:text-xs ${
+                      TIPO_SOLICITUD_CLASSES[s.tipo_solicitud] || "bg-gray-200 text-gray-700"
+                    }`}
+                  >
+                    {s.tipo_solicitud}
+                  </span>
+                </td>
+                <td className="px-1 sm:px-2 py-1 sm:py-2 text-center text-xs sm:text-sm">
+                  {s.total_soles ? `S/. ${s.total_soles}` : "-"}
+                </td>
+                <td className="px-1 sm:px-2 py-1 sm:py-2 text-center text-xs sm:text-sm">
+                  {s.total_dolares ? `$ ${s.total_dolares}` : "-"}
+                </td>
+                <td className="px-1 sm:px-2 py-1 sm:py-2 text-center text-xs sm:text-sm">
+                  {s.fecha}
+                </td>
+                <td className="px-1 sm:px-2 py-1 sm:py-2 text-center text-xs sm:text-sm truncate max-w-[120px] sm:max-w-[200px]">
+                  {s.concepto_gasto ?? "-"}
+                </td>
+                <td className="px-1 sm:px-2 py-1 sm:py-2 text-center text-xs sm:text-sm">
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] sm:text-xs ${
+                      STATE_CLASSES[s.estado] || "bg-gray-200 text-gray-700"
+                    }`}
+                  >
+                    {s.estado}
+                  </span>
+                </td>
+                <td className="px-1 sm:px-2 py-1 sm:py-2 text-center text-xs sm:text-sm">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleAccion(s.id, "Ver Detalle", s)}
+                    className="flex items-center gap-1 px-2 py-1"
+                  >
+                    <Eye className="w-4 h-4" /> Detalle
+                  </Button>
+                </td>
+              </>
+            )}
+          />
+        </div>
 
         {/* Modal DetalleSolicitud */}
         {detalleOpen && solicitudSeleccionada && (

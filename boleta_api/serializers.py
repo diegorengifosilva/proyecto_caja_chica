@@ -361,7 +361,6 @@ class SolicitudLiquidacionSerializer(serializers.ModelSerializer):
 class DocumentoGastoSerializer(serializers.ModelSerializer):
     archivo_url = serializers.SerializerMethodField()
 
-    # Defaults y validaciones
     numero_documento = serializers.CharField(
         allow_null=True, required=False, default="ND"
     )
@@ -371,9 +370,6 @@ class DocumentoGastoSerializer(serializers.ModelSerializer):
     total = serializers.DecimalField(
         max_digits=15, decimal_places=2, allow_null=True, required=False, default=Decimal("0.00")
     )
-    concepto_gasto = serializers.CharField(
-        allow_null=True, required=False, default="Solicitud de gasto"
-    )
     tipo_documento = serializers.CharField(
         allow_null=True, required=False, default="Boleta"
     )
@@ -382,43 +378,10 @@ class DocumentoGastoSerializer(serializers.ModelSerializer):
         model = DocumentoGasto
         fields = [
             "id", "solicitud", "numero_operacion", "fecha", "tipo_documento",
-            "numero_documento", "ruc", "razon_social", "concepto_gasto",
+            "numero_documento", "ruc", "razon_social",
             "total", "nombre_archivo", "archivo", "archivo_url", "creado"
         ]
 
-    def get_archivo_url(self, obj):
-        """Devuelve URL absoluta del archivo si existe"""
-        if obj.archivo and hasattr(obj.archivo, "url"):
-            request = self.context.get("request", None)
-            return request.build_absolute_uri(obj.archivo.url) if request else obj.archivo.url
-        return None
-
-    def to_internal_value(self, data):
-        """
-        Limpia y normaliza el campo `total` para asegurar siempre un Decimal válido.
-        """
-        total = data.get("total")
-
-        if total is not None:
-            if isinstance(total, str):
-                total = total.replace("S/", "").replace("s/", "").replace(",", "").strip()
-
-            try:
-                data["total"] = Decimal(total)
-            except (InvalidOperation, TypeError, ValueError):
-                data["total"] = Decimal("0.00")
-
-        return super().to_internal_value(data)
-
-    def to_representation(self, instance):
-        """
-        Garantiza que `total` siempre se devuelva con 2 decimales.
-        """
-        rep = super().to_representation(instance)
-        if rep.get("total") is not None:
-            rep["total"] = str(Decimal(rep["total"]).quantize(Decimal("0.00")))
-        return rep
-  
 class CorreccionOCRSerializer(serializers.ModelSerializer):
     class Meta:
         model = CorreccionOCR

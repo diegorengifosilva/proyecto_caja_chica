@@ -162,7 +162,7 @@ export default function NuevaSolicitud({ open, onClose, onCreated }) {
   
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl sm:max-w-4xl w-[95%] max-h-[90vh] overflow-y-auto bg-white rounded-xl p-4 sm:p-6">
+      <DialogContent className="max-w-3xl sm:max-w-4xl lg:max-w-5xl w-[95%] max-h-[90vh] overflow-y-auto bg-white rounded-xl p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl font-bold text-gray-800">
             <FilePen className="w-5 h-5 sm:w-6 sm:h-6" /> Nueva Solicitud de Gasto

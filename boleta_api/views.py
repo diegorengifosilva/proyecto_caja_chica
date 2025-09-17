@@ -634,48 +634,89 @@ def liquidaciones_pendientes(request):
         return Response({"error": str(e)}, status=500)
 
 # Presentar Liquidacion
+@csrf_exempt
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 @parser_classes([MultiPartParser, FormParser])
 def presentar_liquidacion(request):
+    """
+    Guarda documentos asociados a una solicitud y crea la liquidación correspondiente.
+    Compatible con múltiples archivos y documentos JSON.
+    Eliminado el campo 'concepto_gasto' ya que no se usa.
+    """
     try:
         solicitud_id = request.data.get("id_solicitud")
-        documentos = request.data.get("documentos")  # JSON string
+        documentos_json = request.data.get("documentos")
         archivos = request.FILES.getlist("archivos")
 
-        if not solicitud_id or not documentos:
+        if not solicitud_id or not documentos_json:
             return Response({"error": "Datos incompletos"}, status=400)
 
-        documentos = json.loads(documentos)
+        solicitud = get_object_or_404(Solicitud, id=solicitud_id)
+        documentos = json.loads(documentos_json)
 
-        # 🔹 Guardar comprobantes en la DB
+        documentos_guardados = []
+
+        # Guardar cada documento
         for idx, doc in enumerate(documentos):
             archivo = archivos[idx] if idx < len(archivos) else None
-            DocumentoGasto.objects.create(
-                solicitud_id=solicitud_id,
-                tipo_documento=doc.get("tipo_documento"),
-                numero_documento=doc.get("numero_documento"),
-                fecha=doc.get("fecha"),
-                ruc=doc.get("ruc"),
-                razon_social=doc.get("razon_social"),
-                total=doc.get("total"),
-                archivo=archivo
+
+            # Limpiar total
+            total = doc.get("total") or "0.00"
+            try:
+                total = Decimal(str(total).replace("S/", "").replace("s/", "").strip())
+            except (InvalidOperation, TypeError):
+                total = Decimal("0.00")
+
+            # Crear documento
+            documento = DocumentoGasto.objects.create(
+                solicitud=solicitud,
+                tipo_documento=doc.get("tipo_documento") or "Boleta",
+                numero_documento=doc.get("numero_documento") or "ND",
+                fecha=doc.get("fecha") or date.today(),
+                ruc=doc.get("ruc") or "00000000000",
+                razon_social=doc.get("razon_social") or "RAZÓN SOCIAL DESCONOCIDA",
+                total=total,
+                archivo=archivo,
+                nombre_archivo=archivo.name if archivo else "ND",
+                numero_operacion=generar_numero_operacion("DOC"),
             )
+            documentos_guardados.append(documento)
 
-        # 🔹 Crear liquidación
+        # Crear liquidación
         liquidacion = Liquidacion.objects.create(
-            solicitud_id=solicitud_id,
-            estado="Enviada para Aprobación"
-        )
-
-        # 🔹 Actualizar solicitud
-        Solicitud.objects.filter(id=solicitud_id).update(
+            solicitud=solicitud,
+            usuario=request.user,
             estado="Liquidación enviada para Aprobación"
         )
 
-        return Response({"success": True, "id_liquidacion": liquidacion.id})
+        # Actualizar estado de la solicitud
+        solicitud.estado = "Liquidación enviada para Aprobación"
+        solicitud.save(update_fields=["estado"])
+
+        # Retornar info de documentos y liquidación
+        return Response({
+            "success": True,
+            "id_liquidacion": liquidacion.id,
+            "documentos": [
+                {
+                    "id": d.id,
+                    "tipo_documento": d.tipo_documento,
+                    "numero_documento": d.numero_documento,
+                    "fecha": str(d.fecha),
+                    "ruc": d.ruc,
+                    "razon_social": d.razon_social,
+                    "total": str(d.total),
+                    "archivo_url": request.build_absolute_uri(d.archivo.url) if d.archivo else None,
+                    "numero_operacion": d.numero_operacion,
+                }
+                for d in documentos_guardados
+            ]
+        }, status=201)
 
     except Exception as e:
-        return Response({"error": str(e)}, status=500)
+        print("❌ Error en presentar_liquidacion:", str(e))
+        return Response({"error": f"No se pudo presentar la liquidación: {str(e)}"}, status=500)
 
 # Endpoint de prueba OCR #
 @api_view(['POST'])

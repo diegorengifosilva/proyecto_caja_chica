@@ -190,17 +190,15 @@ class DocumentoGasto(models.Model):
     solicitud = models.ForeignKey(
         "Solicitud",
         on_delete=models.CASCADE,
-        related_name="documentos"  # ✅ solicitud.documentos.all()
+        related_name="documentos"
     )
     liquidacion = models.ForeignKey(
         "Liquidacion",
         on_delete=models.CASCADE,
-        related_name="documentos",  # ✅ liquidacion.documentos.all()
+        related_name="documentos",
         blank=True,
         null=True
     )
-
-    # Número único de operación
     numero_operacion = models.CharField(
         max_length=30,
         unique=True,
@@ -208,32 +206,15 @@ class DocumentoGasto(models.Model):
         null=True,
         verbose_name="Número de Operación",
     )
-
-    # Datos del documento
     fecha = models.DateField(blank=True, null=True)
     tipo_documento = models.CharField(max_length=50, blank=True, null=True)
     numero_documento = models.CharField(max_length=50, blank=True, null=True)
     ruc = models.CharField(max_length=20, blank=True, null=True)
     razon_social = models.CharField(max_length=255, blank=True, null=True)
-    concepto_gasto = models.TextField(blank=True, null=True)
-
-    # Solo guardamos el total
     total = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
-
-    # Archivo
     nombre_archivo = models.CharField(max_length=255, blank=True, null=True)
     archivo = models.FileField(upload_to="documentos/", blank=True, null=True)
-
-    # Metadatos
     creado = models.DateTimeField(auto_now_add=True)
-
-    def save(self, *args, **kwargs):
-        if not self.numero_operacion:
-            self.numero_operacion = generar_numero_operacion("DOC")
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-        return f"{self.numero_operacion or 'Sin Número'} - {self.tipo_documento or 'Desconocido'}"
 
 class Liquidacion(models.Model):
     NUM_PREFIX = "LIQ"
