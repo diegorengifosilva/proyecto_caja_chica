@@ -162,30 +162,29 @@ export default function NuevaSolicitud({ open, onClose, onCreated }) {
   
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-5xl w-[95%] max-h-[90vh] overflow-y-auto bg-white">
+      <DialogContent className="max-w-3xl sm:max-w-4xl w-[95%] max-h-[90vh] overflow-y-auto bg-white rounded-xl p-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl md:text-2xl font-bold text-gray-800">
+          <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl font-bold text-gray-800">
             <FilePen className="w-5 h-5 sm:w-6 sm:h-6" /> Nueva Solicitud de Gasto
           </DialogTitle>
         </DialogHeader>
 
-        <p className="text-gray-700 mb-6 text-xs sm:text-sm md:text-base">
+        <p className="text-gray-700 mb-4 text-sm sm:text-base">
           Completa los campos para registrar una nueva solicitud de gasto.
         </p>
 
         <div className="space-y-4">
           {/* Datos Generales */}
-          <h3 className="text-sm sm:text-base md:text-lg font-semibold border-b pb-1 flex items-center gap-2 text-gray-800">
+          <h3 className="text-sm sm:text-base font-semibold border-b pb-1 flex items-center gap-2 text-gray-800">
             <FolderClosed className="w-4 h-4 sm:w-5 sm:h-5" /> Datos Generales
           </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <InputField label="N° Solicitud" value={formulario.numero_solicitud} readOnly />
             <InputField label="Fecha" value={formulario.fecha} readOnly />
             <InputField label="Hora" value={formulario.hora} readOnly />
             <InputField label="Código" value={formulario.codigo} readOnly />
             <InputField label="Solicitante" value={user ? `${user.nombre} ${user.apellido}` : ""} readOnly />
             <SelectField label="Destinatario" name="destinatario_id" value={formulario.destinatario_id} onChange={handleChange} options={DESTINATARIOS} />
-
             <SelectField
               label="Tipo de Solicitud"
               name="tipo_solicitud"
@@ -202,20 +201,20 @@ export default function NuevaSolicitud({ open, onClose, onCreated }) {
           </div>
 
           {/* Monto y Fechas */}
-          <h3 className="text-sm sm:text-base md:text-lg font-semibold border-b pb-1 flex items-center gap-2 text-gray-800">
+          <h3 className="text-sm sm:text-base font-semibold border-b pb-1 flex items-center gap-2 text-gray-800">
             <Receipt className="w-4 h-4 sm:w-5 sm:h-5" /> Monto y Fechas
           </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <InputField label="Monto en Soles" name="monto_soles" value={formulario.monto_soles} onChange={handleChange} />
             <InputField label="Fecha Transferencia" type="date" name="fecha_transferencia" value={formulario.fecha_transferencia} onChange={handleChange} />
             <InputField label="Fecha Liquidación" type="date" name="fecha_liquidacion" value={formulario.fecha_liquidacion} onChange={handleChange} />
           </div>
 
           {/* Datos Bancarios */}
-          <h3 className="text-sm sm:text-base md:text-lg font-semibold border-b pb-1 flex items-center gap-2 text-gray-800">
+          <h3 className="text-sm sm:text-base font-semibold border-b pb-1 flex items-center gap-2 text-gray-800">
             <Landmark className="w-4 h-4 sm:w-5 sm:h-5" /> Datos Bancarios
           </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <SelectField label="Banco" name="banco" value={formulario.banco} onChange={handleChange} options={[
               { id: "BCP", nombre: "BCP", apellido: "" },
               { id: "Interbank", nombre: "Interbank", apellido: "" },
@@ -224,29 +223,19 @@ export default function NuevaSolicitud({ open, onClose, onCreated }) {
           </div>
 
           {/* Detalles del Gasto */}
-          <h3 className="text-sm sm:text-base md:text-lg font-semibold border-b pb-1 flex items-center gap-2 text-gray-800">
+          <h3 className="text-sm sm:text-base font-semibold border-b pb-1 flex items-center gap-2 text-gray-800">
             <Pin className="w-4 h-4 sm:w-5 sm:h-5" /> Detalles del Gasto
           </h3>
-          <div className="grid grid-cols-1 gap-4">
+          <div className="grid grid-cols-1 gap-3">
             <TextareaField label="Concepto de Gasto" name="concepto_gasto" value={formulario.concepto_gasto} onChange={handleChange} />
             <TextareaField label="Observación" name="observacion" value={formulario.observacion} onChange={handleChange} />
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex flex-col sm:flex-row justify-end gap-3 mt-6">
-          <Button
-            onClick={onClose}
-            className="bg-gradient-to-r from-gray-300 to-gray-400 hover:from-gray-400 hover:to-gray-500 text-white px-4 py-2 rounded-lg shadow-md flex items-center gap-2 transition"
-          >
-            Cancelar
-          </Button>
-          <Button
-            onClick={handleGuardar}
-            className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-2 rounded-lg shadow-md flex items-center gap-2 transition"
-          >
-            Guardar
-          </Button>
+        <div className="flex flex-col sm:flex-row justify-end gap-3 mt-4">
+          <Button onClick={onClose} className="bg-gray-300 hover:bg-gray-400 text-white px-3 py-2 rounded-lg w-full sm:w-auto">Cancelar</Button>
+          <Button onClick={handleGuardar} className="bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded-lg w-full sm:w-auto">Guardar</Button>
         </div>
       </DialogContent>
     </Dialog>

@@ -48,43 +48,37 @@ export default function SubirArchivoModal({
     try {
       setCargando(true);
 
-      // 1️⃣ Procesamos OCR
       const datosDetectados = await procesarDocumentoOCR(formData);
       console.log("📦 OCR recibido:", datosDetectados);
 
-      const totalDetectado = datosDetectados?.total
-        ? datosDetectados.total.toString().trim().replace(",", ".")
-        : "";
+      // Aseguramos que cada campo esté definido
+      const doc = {
+        nombre_archivo: archivo.name,
+        tipo_documento: tipoDocumento,
+        numero_documento: datosDetectados.numero_documento || "",
+        fecha: datosDetectados.fecha || "",
+        ruc: datosDetectados.ruc || "",
+        razon_social: datosDetectados.razon_social || "",
+        total: (datosDetectados.total && datosDetectados.total.toString().replace(",", ".")) || totalManual || "",
+        archivo,
+      };
 
-      if ((!totalDetectado || totalDetectado === "0.00") && !totalManual) {
-        alert("⚠️ El OCR no detectó el total. Ingresa el importe manualmente.");
+      if (!doc.total) {
+        alert("⚠️ Ingresa un total válido.");
         setCargando(false);
         return;
       }
 
-      const totalFinal = totalDetectado || totalManual;
-
-      // 2️⃣ Enviamos al componente padre para almacenar en memoria
-      onProcesado(
-        {
-          ...datosDetectados,
-          total: totalFinal,
-          tipo_documento: tipoDocumento,
-          nombre_archivo: archivo.name,
-          archivo, // lo dejamos en memoria
-        }
-      );
-
+      onProcesado(doc);
       onClose();
     } catch (error) {
       console.error("❌ Error procesando OCR:", error);
-      setErrorOCR(
-        "No se pudo procesar el documento. Intenta nuevamente."
-      );
+      setErrorOCR("No se pudo procesar el documento. Intenta nuevamente.");
     } finally {
       setCargando(false);
     }
   };
+
 
   return (
     <Dialog open={open} onOpenChange={onClose}>

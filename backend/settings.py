@@ -129,13 +129,14 @@ else:
     ]
     CSRF_TRUSTED_ORIGINS = [
         "https://proyecto-caja-chica-frontend.onrender.com",
-        "https://proyecto-caja-chica-api.onrender.com"
+        "https://proyecto-caja-chica-backend.onrender.com"
     ]
+
 
 CSRF_COOKIE_SECURE = not IS_LOCAL
 SESSION_COOKIE_SECURE = not IS_LOCAL
-CSRF_COOKIE_SAMESITE = "Lax"
-SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SAMESITE = "None"
+SESSION_COOKIE_SAMESITE = "None"
 
 AUTH_USER_MODEL = "boleta_api.CustomUser"
 

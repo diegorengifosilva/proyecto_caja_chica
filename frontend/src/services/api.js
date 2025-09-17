@@ -1,26 +1,30 @@
 // src/services/api.js
 import axios from "axios";
 
-// Tomar API_URL desde .env o fallback
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api/";
 
 const api = axios.create({
   baseURL: API_URL,
-  withCredentials: false,
-  headers: { "Content-Type": "application/json", Accept: "application/json" },
+  withCredentials: false, // JWT en headers, no cookies
+  headers: {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  },
 });
 
-// Interceptor para añadir token
+// Interceptor: añade token a cada request
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("access_token");
-    if (token) config.headers.Authorization = `Bearer ${token}`;
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// Interceptor para refrescar token expirado
+// Interceptor: maneja expiración de token
 api.interceptors.response.use(
   (res) => res,
   async (err) => {
@@ -32,12 +36,14 @@ api.interceptors.response.use(
 
       if (!refreshToken) {
         localStorage.clear();
-        window.location.href = "/login";
+        window.location.replace("/login");
         return Promise.reject(err);
       }
 
       try {
-        const res = await axios.post(`${API_URL}token/refresh/`, { refresh: refreshToken });
+        const res = await axios.post(`${API_URL}token/refresh/`, {
+          refresh: refreshToken,
+        });
         const newAccess = res.data.access;
 
         localStorage.setItem("access_token", newAccess);
@@ -47,7 +53,7 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (e) {
         localStorage.clear();
-        window.location.href = "/login";
+        window.location.replace("/login");
         return Promise.reject(e);
       }
     }

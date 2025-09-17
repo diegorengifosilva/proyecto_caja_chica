@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Plus, X, Send, FileText, User, Tag, DollarSign, WalletMinimal, Calendar, BadgeAlert, ClipboardList, FilePlus2 } from "lucide-react";
 import api from "@/services/api";
@@ -19,72 +19,86 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
   if (!solicitud) return null;
 
   const { totalSoles, totalDolares } = useMemo(() => {
-    const totalS = documentos.reduce(
-      (sum, doc) => sum + parseFloat(doc.total || 0),
-      0
-    );
+    const totalS = documentos.reduce((sum, doc) => sum + parseFloat(doc.total || 0), 0);
     return { totalSoles: totalS, totalDolares: totalS / TIPO_CAMBIO };
   }, [documentos]);
 
-  // Agrega documento subido al estado
   const handleArchivoSubido = (doc) => {
     setDocumentos((prev) => [...prev, doc]);
     console.log("✅ Documento agregado:", doc);
   };
 
-  // Eliminar documento de la lista antes de presentar
   const handleEliminarDocumento = (doc) => {
     setDocumentos((prev) => prev.filter((d) => d !== doc));
   };
 
-  // Abrir archivo en nueva pestaña
   const handleAbrirArchivo = (archivo) => {
     if (!archivo) return;
     const url = URL.createObjectURL(archivo);
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
-  // Enviar liquidación al backend y guardar documentos
   const handlePresentarLiquidacion = async () => {
     if (documentos.length === 0) return alert("⚠️ Agrega al menos un comprobante.");
 
     try {
       setLoading(true);
 
+      const token = localStorage.getItem("access_token"); // JWT guardado
+      if (!token) return alert("⚠️ No se encontró token. Debes iniciar sesión.");
+
       const formData = new FormData();
       formData.append("id_solicitud", solicitud.id);
 
-      // 🔹 Enviar documentos sin el archivo
+      // Datos sin archivo
       const documentosSinArchivo = documentos.map(doc => ({
         tipo_documento: doc.tipo_documento,
         numero_documento: doc.numero_documento,
         fecha: doc.fecha,
         ruc: doc.ruc,
         razon_social: doc.razon_social,
-        total: doc.total,
+        total: parseFloat(doc.total),
       }));
       formData.append("documentos", JSON.stringify(documentosSinArchivo));
 
-      // 🔹 Archivos separados con la misma clave
-      documentos.forEach(doc => {
-        formData.append("archivos", doc.archivo);
+      // Archivos
+      documentos.forEach((doc) => {
+        if (doc.archivo) formData.append("archivos", doc.archivo);
       });
 
+      // 🔹 DEBUG: ver qué se envía
+      console.log("📤 Enviando FormData:");
+      for (let pair of formData.entries()) {
+        if (pair[1] instanceof File) {
+          console.log(pair[0], pair[1].name, pair[1].size, pair[1].type);
+        } else {
+          console.log(pair[0], pair[1]);
+        }
+      }
+
+      // POST con JWT en Authorization
       const res = await api.post("/api/boleta/documentos/guardar/", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
+        headers: {
+          "Content-Type": "multipart/form-data",
+          Authorization: `Bearer ${token}`, // ⚡ JWT
+        },
       });
 
-      alert("✅ Liquidación presentada correctamente");
+      console.log("✅ Liquidación presentada:", res.data);
+
+      // Actualizar estado local (opcional)
       onClose();
+      alert("✅ Liquidación presentada correctamente");
+
     } catch (error) {
-      console.error("❌ Error presentando liquidación:", error);
-      alert("❌ Ocurrió un error al presentar la liquidación");
+      console.error("❌ Error guardando documento:", error.response?.data || error);
+      alert("❌ Ocurrió un error al presentar la liquidación. Revisa consola.");
     } finally {
       setLoading(false);
     }
   };
 
-  return (
+ return (
     <>
       <Dialog open={open} onOpenChange={onClose}>
         <DialogContent className="w-full max-w-5xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
@@ -139,7 +153,6 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
                     Comprobantes OCR
                   </h3>
 
-                  {/* Agregar Comprobantes */}
                   <Button
                     size="sm"
                     onClick={() => setShowSubirArchivoModal(true)}
@@ -149,7 +162,7 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
                   </Button>
                 </div>
 
-                {/* Tabla OCR */}
+                {/* Tabla OCR usando Table.jsx */}
                 <Table
                   headers={[
                     "Nombre del Archivo",
@@ -162,22 +175,20 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
                   ]}
                   data={documentos}
                   emptyMessage="No se han agregado comprobantes todavía."
-                  renderRow={(doc) => (
-                    <>
-                      <td
-                        className="px-3 py-3 text-center cursor-pointer text-blue-600 hover:underline"
-                        onClick={() => handleAbrirArchivo(doc.archivo)}
-                      >
-                        {doc.nombre_archivo}
-                      </td>
-                      <td className="px-3 py-3 text-center">{doc.numero_documento}</td>
-                      <td className="px-3 py-3 text-center">{doc.tipo_documento}</td>
-                      <td className="px-3 py-3 text-center">{doc.fecha}</td>
-                      <td className="px-3 py-3 text-center">{doc.ruc}</td>
-                      <td className="px-3 py-3 text-center">{doc.razon_social}</td>
-                      <td className="px-3 py-3 text-center">{doc.total}</td>
-                    </>
-                  )}
+                  renderRow={(doc) => [
+                    <span
+                      className="cursor-pointer text-blue-600 hover:underline"
+                      onClick={() => handleAbrirArchivo(doc.archivo)}
+                    >
+                      {doc.nombre_archivo}
+                    </span>,
+                    doc.numero_documento,
+                    doc.tipo_documento,
+                    doc.fecha,
+                    doc.ruc,
+                    doc.razon_social,
+                    doc.total,
+                  ]}
                   onDeleteRow={(doc) => handleEliminarDocumento(doc)}
                 />
 
