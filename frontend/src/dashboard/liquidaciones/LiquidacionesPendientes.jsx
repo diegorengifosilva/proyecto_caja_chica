@@ -203,7 +203,7 @@ export default function LiquidacionesPendientes() {
               <XAxis type="number" />
               <YAxis dataKey="name" type="category" width={100} />
               <Tooltip formatter={(val) => `S/ ${val.toLocaleString()}`} />
-              <Bar dataKey="value" barSize={25}>
+              <Bar dataKey="value" barSize={50}>
                 {dataMontoPorTipo.map((entry, i) => (
                   <Cell key={i} fill={TYPE_COLORS[entry.name] || "#9CA3AF"} />
                 ))}
@@ -296,39 +296,46 @@ export default function LiquidacionesPendientes() {
       </div>
 
       {/* Tabla */}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto max-h-[70vh]">
         <Table
           headers={[
-            "N° Solicitud",
-            "Tipo",
-            "Monto (S/.)",
-            "Monto ($)",
-            "Fecha",
-            "Concepto",
-            "Estado",
-            "Acción",
+            "N°", "Tipo", "S/.", "$", "Fecha", "Concepto", "Estado", "Acción"
           ]}
           data={solicitudesFiltradas}
           emptyMessage="No hay solicitudes en este estado o rango de fechas."
           renderRow={(s) => (
             <>
-              <td className="px-2 sm:px-3 py-2 text-center font-semibold">{s.numero_solicitud}</td>
-              <td className="px-2 sm:px-3 py-2 text-center">
-                <span className={`text-xs px-2 py-1 rounded-full ${TIPO_SOLICITUD_CLASSES[s.tipo_solicitud] || "bg-gray-200 text-gray-700"}`}>{s.tipo_solicitud}</span>
+              <td className="px-1 sm:px-2 py-1 sm:py-2 font-semibold text-center text-xs sm:text-sm">
+                {s.numero_solicitud}
               </td>
-              <td className="px-2 sm:px-3 py-2 text-center">{s.total_soles ? `S/. ${s.total_soles}` : "-"}</td>
-              <td className="px-2 sm:px-3 py-2 text-center">{s.total_dolares ? `$ ${s.total_dolares}` : "-"}</td>
-              <td className="px-2 sm:px-3 py-2 text-center">{s.fecha}</td>
-              <td className="px-2 sm:px-3 py-2 text-center">{s.concepto_gasto ?? "-"}</td>
-              <td className="px-2 sm:px-3 py-2 text-center">
-                <span className={`text-xs px-2 py-1 rounded-full ${STATE_CLASSES[s.estado] || "bg-gray-200 text-gray-700"}`}>{s.estado}</span>
+              <td className="px-1 sm:px-2 py-1 sm:py-2 text-center text-xs sm:text-sm">
+                <span className={`px-2 py-0.5 rounded-full text-[10px] sm:text-xs ${TIPO_SOLICITUD_CLASSES[s.tipo_solicitud] || "bg-gray-200 text-gray-700"}`}>
+                  {s.tipo_solicitud}
+                </span>
               </td>
-              <td className="px-2 sm:px-3 py-2 text-center">
+              <td className="px-1 sm:px-2 py-1 sm:py-2 text-center text-xs sm:text-sm">
+                {s.total_soles ? `S/. ${s.total_soles}` : "-"}
+              </td>
+              <td className="px-1 sm:px-2 py-1 sm:py-2 text-center text-xs sm:text-sm">
+                {s.total_dolares ? `$ ${s.total_dolares}` : "-"}
+              </td>
+              <td className="px-1 sm:px-2 py-1 sm:py-2 text-center text-xs sm:text-sm">
+                {s.fecha}
+              </td>
+              <td className="px-1 sm:px-2 py-1 sm:py-2 text-center text-xs sm:text-sm truncate max-w-[120px] sm:max-w-[200px]">
+                {s.concepto_gasto ?? "-"}
+              </td>
+              <td className="px-1 sm:px-2 py-1 sm:py-2 text-center text-xs sm:text-sm">
+                <span className={`px-2 py-0.5 rounded-full text-[10px] sm:text-xs ${STATE_CLASSES[s.estado] || "bg-gray-200 text-gray-700"}`}>
+                  {s.estado}
+                </span>
+              </td>
+              <td className="px-1 sm:px-2 py-1 sm:py-2 text-center text-xs sm:text-sm">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => handleAccion(s.id, "Presentar Documentación", s)}
-                  className="flex items-center justify-center gap-1 w-full sm:w-auto"
+                  className="flex items-center gap-1 px-2 py-1"
                 >
                   <FileText className="w-4 h-4" /> Presentar
                 </Button>
