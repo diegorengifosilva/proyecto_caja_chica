@@ -105,7 +105,7 @@ USE_TZ = True
 
 # --- Archivos estáticos ---
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [os.path.join(BASE_DIR, "frontend", "dist", "assets")]
+STATICFILES_DIRS = [os.path.join(BASE_DIR, "frontend", "dist")]  # <-- aquí iba assets, pero dist es correcto
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
@@ -120,7 +120,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CORS_ALLOW_CREDENTIALS = True
 
 if IS_LOCAL:
-    CORS_ALLOW_ALL_ORIGINS = True  # local: permite localhost
+    CORS_ALLOW_ALL_ORIGINS = True
     CSRF_TRUSTED_ORIGINS = ["http://localhost:5173"]
 else:
     CORS_ALLOW_ALL_ORIGINS = False
@@ -131,7 +131,6 @@ else:
         "https://proyecto-caja-chica-frontend.onrender.com",
         "https://proyecto-caja-chica-backend.onrender.com"
     ]
-
 
 CSRF_COOKIE_SECURE = not IS_LOCAL
 SESSION_COOKIE_SECURE = not IS_LOCAL
