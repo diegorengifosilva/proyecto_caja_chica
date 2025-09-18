@@ -150,6 +150,23 @@ def get_csrf_token(request):
     return JsonResponse({'message': 'CSRF token set correctly.'}, status=200)
 
 
+
+def tesseract_debug(request):
+    info = {
+        "platform": platform.system(),
+        "tesseract_cmd": pytesseract.pytesseract.tesseract_cmd,
+        "tessdata_prefix": os.environ.get("TESSDATA_PREFIX"),
+        "tesseract_exists": os.path.exists(pytesseract.pytesseract.tesseract_cmd),
+        "tessdata_exists": os.path.exists(os.environ.get("TESSDATA_PREFIX", "")),
+        "list_tessdata": []
+    }
+
+    # Listar contenido de la carpeta de tessdata si existe
+    if os.path.exists(os.environ.get("TESSDATA_PREFIX", "")):
+        info["list_tessdata"] = os.listdir(os.environ.get("TESSDATA_PREFIX"))
+
+    return JsonResponse(info)
+
 #========================================================================================
 
 #====================#

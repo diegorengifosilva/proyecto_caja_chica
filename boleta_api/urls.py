@@ -19,6 +19,7 @@ from .views import (
     detalle_liquidacion_view,
     presentar_liquidacion,
     liquidaciones_pendientes_view,
+    tesseract_debug,
     EmailTokenObtainPairView,
     RegisterView,
     SolicitudGastoHistorialViewSet,
@@ -95,6 +96,10 @@ urlpatterns = [
     # OTROS
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+
+
+    path('debug/tesseract/', tesseract_debug),
+
 
 
     path('solicitudes/aprobar/<int:solicitud_id>/', aprobar_solicitud_view, name='aprobar-solicitud'),
