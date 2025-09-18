@@ -2,10 +2,13 @@
 import re
 import requests
 import unicodedata
-from typing import Optional, Dict
+from typing import Optional, Dict, List, Union
 from datetime import datetime, date, timedelta
 from django.db import transaction
 from django.core.exceptions import ValidationError
+from pdf2image import convert_from_bytes, PDFInfoNotInstalledError, PDFPageCountError
+from PIL import Image, UnidentifiedImageError
+
 
 # =======================#
 # CAMPOS CLAVE ESPERADOS #
@@ -216,9 +219,6 @@ def detectar_ruc(texto: str) -> Optional[str]:
             return ruc
     return None
 
-import re
-from typing import Optional
-
 def detectar_razon_social(texto: str) -> Optional[str]:
     if not texto:
         return "RAZÓN SOCIAL DESCONOCIDA"
@@ -279,7 +279,6 @@ def detectar_razon_social(texto: str) -> Optional[str]:
         return lineas_validas[0]
 
     return "RAZÓN SOCIAL DESCONOCIDA"
-
 
 def detectar_total(texto: str) -> str:
     """
@@ -357,6 +356,47 @@ def procesar_datos_ocr(texto: str) -> Dict[str, Optional[str]]:
         "total": total,
     }
 
+# ===================#
+# CONVERSION DE PDFs #
+# ===================#
+def archivo_a_imagenes(archivo) -> List[Image.Image]:
+    """
+    Convierte un archivo PDF o imagen a una lista de objetos PIL.Image.
+    
+    Args:
+        archivo: archivo tipo file-like object (PDF o imagen).
+
+    Returns:
+        List[Image.Image]: Lista de imágenes PIL. Lista vacía si falla la conversión.
+    """
+    imagenes: List[Image.Image] = []
+
+    try:
+        archivo.seek(0)  # Reinicia el puntero del archivo
+        if archivo.name.lower().endswith(".pdf"):
+            try:
+                pdf_bytes = archivo.read()
+                imagenes = convert_from_bytes(pdf_bytes, dpi=300)
+            except PDFInfoNotInstalledError:
+                print("❌ Poppler no está instalado o no se encuentra en el PATH.")
+            except PDFPageCountError:
+                print(f"❌ PDF corrupto o ilegible: {archivo.name}")
+            except Exception as e:
+                print(f"❌ Error convirtiendo PDF a imágenes ({archivo.name}): {e}")
+        else:
+            try:
+                img = Image.open(archivo)
+                img.load()  # Asegura que la imagen esté completamente cargada
+                imagenes = [img]
+            except UnidentifiedImageError:
+                print(f"❌ Archivo no es una imagen válida: {archivo.name}")
+            except Exception as e:
+                print(f"❌ Error abriendo imagen ({archivo.name}): {e}")
+    except Exception as e:
+        print(f"❌ Error procesando el archivo ({archivo.name}): {e}")
+
+    return imagenes
+        
 # ============================#
 # GENERAR NUMERO DE OPERACIÓN #
 # ============================#
