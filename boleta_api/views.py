@@ -115,14 +115,29 @@ from .extraccion import (
     procesar_datos_ocr
 )
 
-# Detectar entorno
+# ---------------------------
+# Configuración Tesseract
+# ---------------------------
 if platform.system() == "Windows":
+    # Local Windows
     pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
     os.environ["TESSDATA_PREFIX"] = r"C:\Program Files\Tesseract-OCR\tessdata"
 else:
     # Linux / Render
     pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
+    # Ajusta según la versión de Tesseract instalada en Render
     os.environ["TESSDATA_PREFIX"] = "/usr/share/tesseract-ocr/5/tessdata"
+
+# ---------------------------
+# Debug para Render
+# ---------------------------
+if platform.system() != "Windows":
+    print("🔹 Entorno Render detectado")
+    print("Tesseract cmd:", pytesseract.pytesseract.tesseract_cmd)
+    print("TESSDATA_PREFIX:", os.environ["TESSDATA_PREFIX"])
+    print("Existe tesseract?", os.path.exists(pytesseract.pytesseract.tesseract_cmd))
+    print("Existe tessdata?", os.path.exists(os.environ["TESSDATA_PREFIX"]))
+
 PLANTILLAS_DIR = os.path.join(os.path.dirname(__file__), "plantillas")
 
 # ===== Obtener y asegurar token CSRF =====
