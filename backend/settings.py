@@ -8,7 +8,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # --- Seguridad ---
 SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-dev-key")
 DEBUG = os.environ.get("DEBUG", "False") == "True"
-ALLOWED_HOSTS = ["*"]  # en producción puedes restringir
+ALLOWED_HOSTS = [
+    "proyecto-caja-chica-backend.onrender.com",
+    "localhost",
+    "127.0.0.1"
+]
 
 # --- Detectar entorno ---
 ENVIRONMENT = os.environ.get("DJANGO_ENV", "local")  # 'local' o 'production'
