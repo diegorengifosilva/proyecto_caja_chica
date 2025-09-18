@@ -6,16 +6,16 @@ import { ToastContainer } from "react-toastify";
 import 'react-toastify/dist/ReactToastify.css';
 import 'react-confirm-alert/src/react-confirm-alert.css';
 
-import { AuthProvider } from "@/context/AuthContext";
-import ProtectedRoute from "@/components/layout/ProtectedRoute";
+import { AuthProvider } from "@/context/AuthContext.jsx";
+import ProtectedRoute from "@/components/layout/ProtectedRoute.jsx";
 
 // AUTH
 import LoginPage from "../auth/login/LoginPage.jsx";
-import RegisterPage from "../auth/register/RegisterPage";
+import RegisterPage from "../auth/register/RegisterPage.jsx";
 
 
 // LAYOUT PRINCIPAL
-import DashboardLayout from "../dashboard/layout/DashboardLayout";
+import DashboardLayout from "../dashboard/layout/DashboardLayout.jsx";
 
 
 // DASHBOARD PRINCIPAL
@@ -25,19 +25,19 @@ import LiquidacionesHome from "../dashboard/caja_chica/CajaChica.jsx";
 import DashboardHome from "../dashboard/principal/DashboardHome.jsx";
 
 /* PROGRAMACIÓN */
-import Programacion from "../dashboard/programacion";
+import Programacion from "../dashboard/programacion/index.js";
 
 /* SOLICITUD DE GASTO */
-import SolicitudDashboard from "@/dashboard/solicitudes/SolicitudDashboard";
+import SolicitudDashboard from "@/dashboard/solicitudes/SolicitudDashboard.jsx";
 import NuevaSolicitud from "@/dashboard/solicitudes/NuevaSolicitud.jsx";
 import MisSolicitudes from "@/dashboard/solicitudes/MisSolicitudes.jsx";
-import DetallesSolicitud from "@/dashboard/solicitudes/DetallesSolicitud";
+import DetallesSolicitud from "@/dashboard/solicitudes/DetallesSolicitud.jsx";
 
 /* ATENCIÓN DE SOLICITUDES */
 import AtencionSolicitudes from "@/dashboard/atencion_solicitudes/AtencionSolicitudes.jsx";
 
 /* LIQUIDACIONES */
-import LiquidacionesPendientes from "@/dashboard/liquidaciones/LiquidacionesPendientes";
+import LiquidacionesPendientes from "@/dashboard/liquidaciones/LiquidacionesPendientes.jsx";
 import PresentarDocumentacionModal from "@/dashboard/liquidaciones/PresentarDocumentacionModal.jsx";
 import SubirArchivoModal from "@/dashboard/liquidaciones/SubirArchivoModal.jsx";
 
@@ -45,16 +45,16 @@ import SubirArchivoModal from "@/dashboard/liquidaciones/SubirArchivoModal.jsx";
 import AprobacionLiquidaciones from "@/dashboard/aprobacion_liquidacion/AprobacionLiquidaciones.jsx";
 
 /* CAJA CHICA */
-import CajaChica from "@/dashboard/caja_chica/CajaChica";
+import CajaChica from "@/dashboard/caja_chica/CajaChica.jsx";
 
 /* REGISTRO DE ACTIVIDADES */
-import RegistroActividades from "@/dashboard/registro_actividades/RegistroActividades";
+import RegistroActividades from "@/dashboard/registro_actividades/RegistroActividades.jsx";
 
 /* GUIAS DE SALIDAS */
-import GuiasSalida from "@/dashboard/guias_salidas/GuiasSalida";
+import GuiasSalida from "@/dashboard/guias_salidas/GuiasSalida.jsx";
 
 /* ESTADÍSTICAS Y REPORTES */
-import Reportes from '@/dashboard/reportes/Reportes';
+import Reportes from '@/dashboard/reportes/Reportes.jsx';
 
 /* EDITAR PERFIL */
 
