@@ -1,15 +1,34 @@
 // src/dashboard/liquidaciones/PresentarDocumentacionModal.jsx
 import React, { useState, useMemo } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, X, Send, FileText, User, Tag, DollarSign, WalletMinimal, Calendar, BadgeAlert, ClipboardList, FilePlus2 } from "lucide-react";
+import {
+  Plus,
+  X,
+  Send,
+  FileText,
+  User,
+  Tag,
+  DollarSign,
+  WalletMinimal,
+  Calendar,
+  BadgeAlert,
+  ClipboardList,
+  FilePlus2,
+} from "lucide-react";
 import api from "@/services/api";
 import Table from "@/components/ui/table";
 import SubirArchivoModal from "./SubirArchivoModal";
 
 const TIPO_CAMBIO = 3.52; // 1 USD = 3.52 S/
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // ✅ 10 MB
 
 const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
   const [documentos, setDocumentos] = useState([]);
@@ -19,7 +38,10 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
   if (!solicitud) return null;
 
   const { totalSoles, totalDolares } = useMemo(() => {
-    const totalS = documentos.reduce((sum, doc) => sum + parseFloat(doc.total || 0), 0);
+    const totalS = documentos.reduce(
+      (sum, doc) => sum + parseFloat(doc.total || 0),
+      0
+    );
     return { totalSoles: totalS, totalDolares: totalS / TIPO_CAMBIO };
   }, [documentos]);
 
@@ -39,7 +61,8 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
   };
 
   const handlePresentarLiquidacion = async () => {
-    if (documentos.length === 0) return alert("⚠️ Agrega al menos un comprobante.");
+    if (documentos.length === 0)
+      return alert("⚠️ Agrega al menos un comprobante.");
 
     try {
       setLoading(true);
@@ -48,12 +71,10 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
       if (!token) return alert("⚠️ No se encontró token. Debes iniciar sesión.");
 
       const formData = new FormData();
-
-      // 🔹 Cambiado para que el backend reciba lo que espera
       formData.append("solicitud_id", solicitud.id);
 
       // Datos de los documentos (sin archivos)
-      const documentosSinArchivo = documentos.map(doc => ({
+      const documentosSinArchivo = documentos.map((doc) => ({
         tipo_documento: doc.tipo_documento,
         numero_documento: doc.numero_documento,
         fecha: doc.fecha,
@@ -63,18 +84,23 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
       }));
       formData.append("documentos", JSON.stringify(documentosSinArchivo));
 
-      // Archivos
-      documentos.forEach((doc) => {
-        if (doc.archivo) formData.append("archivos", doc.archivo);
-      });
-
-      // 🔹 DEBUG
-      console.log("📤 Enviando FormData:");
-      for (let pair of formData.entries()) {
-        if (pair[1] instanceof File) {
-          console.log(pair[0], pair[1].name, pair[1].size, pair[1].type);
-        } else {
-          console.log(pair[0], pair[1]);
+      // Archivos con validación
+      const validTypes = ["image/jpeg", "image/png", "application/pdf"];
+      for (let doc of documentos) {
+        if (doc.archivo instanceof File) {
+          if (doc.archivo.size > MAX_FILE_SIZE) {
+            alert(`⚠️ El archivo ${doc.archivo.name} supera el límite de 10MB.`);
+            setLoading(false);
+            return;
+          }
+          if (!validTypes.includes(doc.archivo.type)) {
+            alert(
+              `⚠️ El archivo ${doc.archivo.name} no tiene un formato válido. Usa JPG, PNG o PDF.`
+            );
+            setLoading(false);
+            return;
+          }
+          formData.append("archivos", doc.archivo);
         }
       }
 
@@ -89,7 +115,6 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
       console.log("✅ Liquidación presentada:", res.data);
       onClose();
       alert("✅ Liquidación presentada correctamente");
-
     } catch (error) {
       console.error("❌ Error guardando documento:", error.response?.data || error);
       alert("❌ Ocurrió un error al presentar la liquidación. Revisa consola.");
@@ -98,10 +123,10 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
     }
   };
 
- return (
+  return (
     <>
       <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent className="w-full max-w-full sm:max-w-3xl md:max-w-4xl lg:max-w-5xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+        <DialogContent className="w-[95vw] sm:max-w-3xl md:max-w-4xl lg:max-w-5xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-sm sm:text-base md:text-lg">
               <FileText className="w-5 h-5 text-gray-700" />
@@ -116,31 +141,38 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                   <p className="flex items-center gap-1">
                     <ClipboardList className="w-4 h-4 text-gray-800" />
-                    <span className="font-semibold">Solicitud:</span> {solicitud.numero_solicitud}
+                    <span className="font-semibold">Solicitud:</span>{" "}
+                    {solicitud.numero_solicitud}
                   </p>
                   <p className="flex items-center gap-1">
                     <User className="w-4 h-4 text-gray-800" />
-                    <span className="font-semibold">Solicitante:</span> {solicitud.solicitante || "—"}
+                    <span className="font-semibold">Solicitante:</span>{" "}
+                    {solicitud.solicitante || "—"}
                   </p>
                   <p className="flex items-center gap-1">
                     <Tag className="w-4 h-4 text-gray-800" />
-                    <span className="font-semibold">Tipo:</span> {solicitud.tipo_solicitud || "—"}
+                    <span className="font-semibold">Tipo:</span>{" "}
+                    {solicitud.tipo_solicitud || "—"}
                   </p>
                   <p className="flex items-center gap-1">
                     <WalletMinimal className="w-4 h-4 text-gray-800" />
-                    <span className="font-semibold">Monto Soles (S/.):</span> {solicitud.total_soles || solicitud.monto || "—"}
+                    <span className="font-semibold">Monto Soles (S/.):</span>{" "}
+                    {solicitud.total_soles || solicitud.monto || "—"}
                   </p>
                   <p className="flex items-center gap-1">
                     <DollarSign className="w-4 h-4 text-gray-800" />
-                    <span className="font-semibold">Monto Dólares ($):</span> {solicitud.total_dolares || "—"}
+                    <span className="font-semibold">Monto Dólares ($):</span>{" "}
+                    {solicitud.total_dolares || "—"}
                   </p>
                   <p className="flex items-center gap-1">
                     <Calendar className="w-4 h-4 text-gray-800" />
-                    <span className="font-semibold">Fecha:</span> {solicitud.fecha || "—"}
+                    <span className="font-semibold">Fecha:</span>{" "}
+                    {solicitud.fecha || "—"}
                   </p>
                   <p className="flex items-center gap-1 col-span-full sm:col-span-2 lg:col-span-3">
                     <BadgeAlert className="w-4 h-4 text-gray-800" />
-                    <span className="font-semibold">Estado actual:</span> {solicitud.estado || "Pendiente"}
+                    <span className="font-semibold">Estado actual:</span>{" "}
+                    {solicitud.estado || "Pendiente"}
                   </p>
                 </div>
               </CardContent>
@@ -216,7 +248,8 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
               disabled={loading || documentos.length === 0}
               className="bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white text-sm px-4 py-2 rounded-lg flex items-center gap-2 w-full sm:w-auto"
             >
-              <Send className="w-4 h-4" /> {loading ? "Presentando..." : "Presentar Liquidación"}
+              <Send className="w-4 h-4" />{" "}
+              {loading ? "Presentando..." : "Presentar Liquidación"}
             </Button>
           </DialogFooter>
         </DialogContent>

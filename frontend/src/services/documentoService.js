@@ -1,33 +1,51 @@
 // src/services/documentoService.js
-
 import axios from "axios";
 
-const API_BASE = "http://localhost:8000/api/boleta/documentos";
+/* 🌐 Cliente Axios con URL dinámica */
+const api = axios.create({
+  baseURL:
+    import.meta.env.MODE === "development"
+      ? "http://localhost:8000/api/boleta/documentos"
+      : "https://proyecto-caja-chica-backend.onrender.com/api/boleta/documentos",
+  timeout: 60000,
+  headers: {
+    Accept: "application/json",
+  },
+});
+
+/* 🔄 Manejo centralizado de errores */
+const manejarError = (error, mensajeDefault) => {
+  console.error("❌ Error en servicio documentos:", error);
+
+  if (error.response) {
+    console.error("📡 Respuesta backend:", error.response.data);
+    throw new Error(error.response.data.error || mensajeDefault);
+  } else if (error.request) {
+    console.error("📡 Sin respuesta del servidor:", error.request);
+    throw new Error("No hay respuesta del servidor. Revisa tu conexión.");
+  } else {
+    throw new Error(mensajeDefault);
+  }
+};
 
 /* ========== 🧩 SERVICIO DE DOCUMENTOS OCR Y GASTOS ========== */
 
 /**
  * Procesa un documento (imagen/PDF) con OCR en el backend.
-* Endpoint: /boleta/documentos/procesar/
- * 
- * @param {FormData} formData - Incluye: imagen, tipo_documento, solicitud_id
- * @returns {Object} - Datos extraídos (fecha, ruc, total, etc.)
  */
 export const procesarDocumentoOCR = async (formData) => {
   try {
-    const response = await axios.post(
-      `${API_BASE}/procesar/`,
-      formData,
-      {
-        headers: { "Content-Type": "multipart/form-data" },
-      }
-    );
+    // ⚡ DEBUG: mostrar payload
+    for (let pair of formData.entries()) {
+      console.log("📤 Enviando:", pair[0], pair[1]);
+    }
+
+    const response = await api.post("/procesar/", formData);
 
     const { datos_detectados } = response.data || {};
-
     console.log("✅ OCR recibido:", datos_detectados);
 
-    // Validaciones mínimas en campos críticos
+    // Validaciones mínimas
     const camposObligatorios = ["ruc"];
     const faltantes = camposObligatorios.filter(
       (campo) =>
@@ -42,75 +60,56 @@ export const procesarDocumentoOCR = async (formData) => {
 
     return datos_detectados || {};
   } catch (error) {
-    console.error("❌ Error procesando OCR:", error);
-
-    throw new Error(
-      error.response?.data?.error ||
-        "No se pudo procesar el documento. Intenta nuevamente con otra imagen."
+    manejarError(
+      error,
+      "No se pudo procesar el documento. Intenta nuevamente con otra imagen o revisa tu conexión."
     );
   }
 };
 
 /**
  * Prueba de OCR con un documento de ejemplo (debug).
- * Endpoint: /boleta/documentos/test-ocr/
  */
 export const testOCR = async () => {
   try {
-    const response = await axios.get(`${API_BASE}/test-ocr/`);
+    const response = await api.get("/test-ocr/");
     console.log("🧪 Test OCR:", response.data);
     return response.data;
   } catch (error) {
-    console.error("❌ Error en test OCR:", error);
-    throw new Error("No se pudo ejecutar el test de OCR.");
+    manejarError(error, "No se pudo ejecutar el test de OCR.");
   }
 };
 
 /**
- * Guarda un documento de gasto procesado (pos-OCR, editable por usuario).
- * Endpoint: /boleta/documentos/guardar/
- * 
- * @param {FormData} formData - Incluye: solicitud_id, imagen, ruc, total, etc.
- * @returns {Object} - Confirmación del backend
+ * Guarda un documento de gasto procesado (pos-OCR).
  */
 export const guardarDocumentoGasto = async (formData) => {
   try {
-    const response = await axios.post(
-      `${API_BASE}/guardar/`,   // 🔥 Corregido (quitamos el "documentos" duplicado)
-      formData,
-      {
-        headers: { "Content-Type": "multipart/form-data" },
-      }
-    );
-
+    const response = await api.post("/guardar/", formData);
     console.log("✅ Documento guardado:", response.data);
     return response.data;
   } catch (error) {
-    console.error("❌ Error guardando documento:", error);
-
-    throw new Error(
-      error.response?.data?.detail ||
-        "Error al guardar el documento. Verifica los datos e intenta nuevamente."
+    manejarError(
+      error,
+      "Error al guardar el documento. Verifica los datos e intenta nuevamente."
     );
   }
 };
 
 /**
  * Obtiene todos los documentos vinculados a una solicitud.
- * Endpoint: /boleta/documentos/solicitud/<id>/
- * 
- * @param {number} solicitudId - ID de la solicitud
- * @returns {Array} - Lista de documentos de esa solicitud
  */
 export const obtenerDocumentosPorSolicitud = async (solicitudId) => {
   try {
-    const response = await axios.get(`${API_BASE}/solicitud/${solicitudId}/`);
-
+    const response = await api.get(`/solicitud/${solicitudId}/`, {
+      timeout: 30000,
+    });
     console.log(`📥 Documentos de solicitud ${solicitudId}:`, response.data);
     return response.data;
   } catch (error) {
-    console.error("❌ Error obteniendo documentos por solicitud:", error);
-
-    throw new Error("No se pudieron cargar los documentos de la solicitud.");
+    manejarError(
+      error,
+      "No se pudieron cargar los documentos de la solicitud."
+    );
   }
 };
