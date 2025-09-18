@@ -10,6 +10,7 @@ import requests
 import traceback
 import unicodedata
 import pandas as pd
+import platform
 
 # ─── Librerías de terceros ──────────────────────────
 import cv2
@@ -114,9 +115,14 @@ from .extraccion import (
     procesar_datos_ocr
 )
 
-pytesseract.pytesseract.tesseract_cmd = r"C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
-os.environ["TESSDATA_PREFIX"] = r"C:\\Program Files\\Tesseract-OCR\\tessdata"
-
+# Detectar entorno
+if platform.system() == "Windows":
+    pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+    os.environ["TESSDATA_PREFIX"] = r"C:\Program Files\Tesseract-OCR\tessdata"
+else:
+    # Linux / Render
+    pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
+    os.environ["TESSDATA_PREFIX"] = "/usr/share/tesseract-ocr/5/tessdata"
 PLANTILLAS_DIR = os.path.join(os.path.dirname(__file__), "plantillas")
 
 # ===== Obtener y asegurar token CSRF =====
