@@ -289,87 +289,94 @@ def detectar_ruc(texto: str) -> Optional[str]:
     return None
 
 
-def detectar_razon_social(texto: str) -> Optional[str]:
+def detectar_razon_social(texto: str, ruc: Optional[str] = None) -> Optional[str]:
+    """
+    Detecta la razón social de una boleta o factura electrónica.
+    Intenta priorizar empresas, luego personas naturales.
+    """
     if not texto:
         return "RAZÓN SOCIAL DESCONOCIDA"
 
+    # Normalización básica OCR
     texto_norm = texto.upper()
     texto_norm = re.sub(r"\s{2,}", " ", texto_norm)
 
-    # Correcciones OCR comunes
     reemplazos = {
-        "5. A OY": "S.A.",
-        "5. A": "S.A.",
+        "5A": "S.A",
         "$.A.C": "S.A.C",
+        "S , A": "S.A",
         "S . A . C": "S.A.C",
         "S . A": "S.A",
-        "3.A.C.":"S.A.C.",
-        "5A": "S.A",
+        "3.A.C.": "S.A.C.",
         "SA.": "S.A.",
-        "S , A": "S.A",
         "SAC.": "S.A.C",
-        "RETALE": "RETAIL",  # corrección mínima
+        "RETALE": "RETAIL",
     }
     for k, v in reemplazos.items():
         texto_norm = texto_norm.replace(k, v)
 
+    # Separar líneas y limpiar
     lineas = [l.strip(" ,.-") for l in texto_norm.splitlines() if l.strip()]
 
-    # Filtrar direcciones y etiquetas
+    # Excluir líneas con palabras de dirección o etiquetas
     lineas_validas = [
         l for l in lineas[:15]  # primeras 15 líneas
         if not re.match(r"^(CAL\.|AV\.|JR\.|PSJE\.|RUC\.|BOLETA|FACTURA)", l)
     ]
 
-    # Buscar patrón S.A./S.A.C./SAC
-    patrones = [
-        r"([A-Z0-9ÁÉÍÓÚÑ\s\.\-&']+S\.?\s*A\.?\s*C\.?)",  # S.A.C
-        r"([A-Z0-9ÁÉÍÓÚÑ\s\.\-&']+S\.?\s*A\.?)",        # S.A
-        r"([A-Z0-9ÁÉÍÓÚÑ\s\.\-&']+SAC)",                # SAC
-        r"([A-Z0-9ÁÉÍÓÚÑ\s\.\-&']+SA)",                 # SA
+    # Buscar patrones de empresa
+    patrones_empresa = [
+        r".*\bS\.?\s*A\.?\s*C\.?\b.*",  # S.A.C
+        r".*\bS\.?\s*A\.?\b.*",         # S.A
+        r".*\bSAC\b.*",                  # SAC
+        r".*\bSA\b.*",                   # SA
+        r".*\bSOCIEDAD ANONIMA CERRADA\b.*",
+        r".*\bEIRL\b.*",                 # Empresa Individual de Responsabilidad Limitada
     ]
+
     for linea in lineas_validas:
-        for patron in patrones:
-            m = re.search(patron, linea)
-            if m:
-                return m.group(1).strip()
+        for patron in patrones_empresa:
+            if re.search(patron, linea):
+                return linea.strip()
 
-    # Fallback: primera línea válida antes del RUC
-    ruc_match = re.search(r"\b\d{11}\b", texto_norm)
-    if ruc_match:
-        idx_ruc = next((i for i, l in enumerate(lineas) if ruc_match.group(0) in l), None)
-        if idx_ruc and idx_ruc > 0:
-            for i in range(idx_ruc - 1, -1, -1):
-                posible_razon = lineas[i]
-                if len(posible_razon) > 4 and not re.match(r"^(CAL\.|AV\.|JR\.|PSJE\.)", posible_razon):
-                    return posible_razon
+    # Fallback persona natural: línea antes del RUC
+    if ruc:
+        for idx, l in enumerate(lineas):
+            if ruc in l:
+                if idx > 0:
+                    posible = lineas[idx - 1].strip()
+                    if posible:
+                        return posible
 
-    # Última opción: primera línea válida de las 15 primeras
+    # Última opción: primera línea válida
     if lineas_validas:
         return lineas_validas[0]
 
     return "RAZÓN SOCIAL DESCONOCIDA"
 
+
 def detectar_total(texto: str) -> str:
     """
-    Detecta el importe total del OCR.
+    Detecta el importe total del OCR en boletas/facturas.
     Estrategia jerárquica:
-      1) Buscar montos en líneas con palabras clave (TOTAL, IMPORTE, MONTO, NETO).
+      1) Buscar montos en líneas con palabras clave (TOTAL, IMPORTE TOTAL, TOTAL A PAGAR, MONTO TOTAL).
       2) Buscar montos con prefijo S/.
       3) Fallback: el monto más alto de todo el texto.
-    Siempre retorna un string '0.00' si no se encuentra nada.
+    Retorna '0.00' si no se encuentra nada.
     """
-
     if not texto:
         return "0.00"
 
     texto_norm = texto.upper()
 
-    # 🔹 Paso 1: Escanear línea por línea
+    # Correcciones OCR para S/
+    texto_norm = texto_norm.replace("S . /", "S/").replace("S-/", "S/").replace("S.", "S/")
+
+    # 🔹 Paso 1: Escanear línea por línea con palabras clave
     lineas = texto_norm.splitlines()
     candidatos_prioritarios = []
     for linea in lineas:
-        if re.search(r"(TOTAL|IMP\.?\s*TOTAL|IMPORTE\s+TOTAL|MONTO\s+TOTAL|NETO)", linea):
+        if re.search(r"(TOTAL\s+A\s+PAGAR|IMPORTE\s+TOTAL|MONTO\s+TOTAL|TOTAL\s+FACTURA|TOTAL\s*$)", linea):
             montos = re.findall(r"\d{1,3}(?:[.,]\d{3})*[.,]\d{2}", linea)
             for m in montos:
                 normal = normalizar_monto(m)
@@ -380,13 +387,13 @@ def detectar_total(texto: str) -> str:
         return f"{max(candidatos_prioritarios):.2f}"
 
     # 🔹 Paso 2: Buscar montos con prefijo S/
-    m = re.search(r"(?:S/?\.?)\s*([\d.,]+\s?[.,]\d{2})", texto_norm)
+    m = re.search(r"S/?\s*([\d.,]+\s?[.,]\d{2})", texto_norm)
     if m:
         normal = normalizar_monto(m.group(1))
         if normal:
             return normal.strip()
 
-    # 🔹 Paso 3: Fallback global – el mayor número decimal de todo el texto
+    # 🔹 Paso 3: Fallback global – el mayor número decimal del texto
     decs = re.findall(r"\d{1,3}(?:[.,]\d{3})*[.,]\d{2}", texto_norm)
     if decs:
         montos = []
@@ -400,8 +407,9 @@ def detectar_total(texto: str) -> str:
         if montos:
             return f"{max(montos):.2f}"
 
-    # 🔹 Fallback final: si nada se encontró
+    # 🔹 Fallback final
     return "0.00"
+
 
 # ==========================#
 # PROCESAMIENTO GENERAL OCR #
