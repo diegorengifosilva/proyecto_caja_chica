@@ -118,6 +118,7 @@ from .extraccion import (
     archivo_a_imagenes,
 )
 
+
 # ---------------------------
 # Configuración Tesseract
 # ---------------------------
@@ -128,18 +129,33 @@ if platform.system() == "Windows":
 else:
     # Linux / Render
     pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
-    # Ajusta según la versión de Tesseract instalada en Render
     os.environ["TESSDATA_PREFIX"] = "/usr/share/tesseract-ocr/5/tessdata"
 
 # ---------------------------
-# Debug para Render
+# Debug completo
 # ---------------------------
+def debug_tesseract():
+    t_cmd = pytesseract.pytesseract.tesseract_cmd
+    t_data = os.environ.get("TESSDATA_PREFIX", "")
+
+    print("🔹 Entorno Render detectado" if platform.system() != "Windows" else "🔹 Entorno Windows")
+    print("Tesseract cmd:", t_cmd)
+    print("TESSDATA_PREFIX:", t_data)
+    print("Existe tesseract?", os.path.isfile(t_cmd))
+    print("Existe tessdata?", os.path.isdir(t_data))
+
+    # Intentar ejecutar Tesseract para confirmar
+    try:
+        import subprocess
+        version = subprocess.check_output([t_cmd, '--version']).decode('utf-8').splitlines()[0]
+        print("Versión de Tesseract detectada:", version)
+    except Exception as e:
+        print("Error al ejecutar Tesseract:", e)
+
+# Ejecutar debug solo en Linux / Render para evitar imprimir en producción Windows
 if platform.system() != "Windows":
-    print("🔹 Entorno Render detectado")
-    print("Tesseract cmd:", pytesseract.pytesseract.tesseract_cmd)
-    print("TESSDATA_PREFIX:", os.environ["TESSDATA_PREFIX"])
-    print("Existe tesseract?", os.path.exists(pytesseract.pytesseract.tesseract_cmd))
-    print("Existe tessdata?", os.path.exists(os.environ["TESSDATA_PREFIX"]))
+    debug_tesseract()
+
 
 PLANTILLAS_DIR = os.path.join(os.path.dirname(__file__), "plantillas")
 

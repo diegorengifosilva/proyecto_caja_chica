@@ -2,11 +2,13 @@
 import re
 import requests
 import unicodedata
+import pytesseract
 from typing import Optional, Dict, List, Union
 from datetime import datetime, date, timedelta
 from django.db import transaction
 from django.core.exceptions import ValidationError
-from pdf2image import convert_from_bytes, PDFInfoNotInstalledError, PDFPageCountError
+from pdf2image import convert_from_bytes
+from pdf2image.exceptions import PDFInfoNotInstalledError, PDFPageCountError
 from PIL import Image, UnidentifiedImageError
 
 
@@ -104,25 +106,58 @@ def normalizar_monto(monto_txt: str) -> Optional[str]:
 # DETECTORES INDIVIDUALES #
 # ========================#
 def detectar_numero_documento(texto: str) -> Optional[str]:
+    """
+    Detecta el número de documento (boleta o factura) en el texto OCR.
+    Ejemplos: E001-97, E001-447
+    """
     if not texto:
         return "ND"
 
-    # Normalizar OCR
-    texto = texto.replace("O", "0").replace("I", "1").replace("E", "6").upper()
+    # --- Normalizar OCR ---
+    texto_norm = texto.upper().replace("O", "0").replace("I", "1").replace("E", "6").replace(" ", "")
 
-    # Nuevo patrón: acepta B, BA, F, FA + 2-3 dígitos de serie y 6-8 del correlativo
-    patron = r"[.\s]*([BF]A?\d{2,3})[- ]?(\d{6,8})"
-    match = re.search(patron, texto)
-    if match:
-        serie, correlativo = match.groups()
-        return f"{serie}-{correlativo}"
+    # --- Patrón principal: serie-correlativo ---
+    # Serie: 1 letra (B o F) + 2-3 dígitos
+    # Correlativo: 2-8 dígitos
+    patron = r"([BF]\d{2,3})[-]?(\d{2,8})"
+
+    # Buscar primero líneas que están justo debajo de RUC
+    lineas = texto.splitlines()
+    ruc_idx = None
+    ruc_match = re.search(r"\b\d{11}\b", texto)
+    if ruc_match:
+        for i, l in enumerate(lineas):
+            if ruc_match.group(0) in l:
+                ruc_idx = i
+                break
+
+    posibles = []
+    for i, linea in enumerate(lineas):
+        # Dar prioridad a línea inmediatamente debajo del RUC
+        prioridad = ruc_idx is not None and i == ruc_idx + 1
+        match = re.search(patron, linea.replace(" ", ""))
+        if match:
+            serie, correlativo = match.groups()
+            numero = f"{serie}-{correlativo}"
+            if prioridad:
+                return numero  # Retornar inmediatamente si está justo debajo del RUC
+            posibles.append(numero)
+
+    # Si no encontramos debajo del RUC, retornamos el primer match
+    if posibles:
+        return posibles[0]
 
     return "ND"
 
-def detectar_fecha(texto: str) -> str:
+
+def detectar_fecha(texto: str) -> Optional[str]:
     """
-    Detecta fechas en distintos formatos y corrige errores comunes de OCR.
+    Detecta la fecha de emisión en boletas o facturas electrónicas.
     Normaliza a YYYY-MM-DD.
+    Prioriza:
+      1. FECHA DE EMISION
+      2. FECHA
+    Ignora FECHA DE VENCIMIENTO.
     """
 
     if not texto:
@@ -130,94 +165,129 @@ def detectar_fecha(texto: str) -> str:
 
     texto_mayus = texto.upper()
 
-    # Correcciones típicas de OCR antes de buscar
+    # Correcciones OCR típicas
     reemplazos = {
-        "E/": "11/",   # E -> 11
-        "O/": "01/",   # O -> 0
-        "I/": "1/",    # I -> 1
-        "l/": "1/",    # l -> 1
-        "S/": "5/",    # S -> 5
+        "E/": "11/",
+        "O/": "01/",
+        "I/": "1/",
+        "l/": "1/",
+        "S/": "5/",
     }
     for k, v in reemplazos.items():
         texto_mayus = texto_mayus.replace(k, v)
 
-    # Patrones ampliados
-    patrones = [
-        r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b",  # dd/mm/yyyy o dd-mm-yy
-        r"\b\d{4}[/-]\d{1,2}[/-]\d{1,2}\b",    # yyyy-mm-dd
-        r"\b\d{1,2}\s+(ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO|SEP|OCT|NOV|DIC)[A-Z]*\s+\d{2,4}\b",  
-        r"\b(ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO|SEP|OCT|NOV|DIC)[A-Z]*\s+\d{1,2},?\s+\d{2,4}\b",
-    ]
+    lineas = texto_mayus.splitlines()
+    posibles = []
 
-    fechas_crudas = []
-    for patron in patrones:
-        fechas_crudas.extend(re.findall(patron, texto_mayus))
+    for linea in lineas:
+        if "VENCIMIENTO" in linea:
+            continue  # ignorar fecha de vencimiento
+        if "FECHA DE EMISION" in linea or "FECHA EMISION" in linea:
+            posibles.append(linea)
+        elif "FECHA" in linea:
+            posibles.append(linea)
 
-    if not fechas_crudas:
+    if not posibles:
         return None
 
+    # Buscar patrones de fecha en las líneas candidatas
+    patrones = [
+        r"\d{1,2}[/-]\d{1,2}[/-]\d{2,4}",
+        r"\d{4}[/-]\d{1,2}[/-]\d{1,2}",
+        r"\d{1,2}\s+(ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO|SEP|OCT|NOV|DIC)[A-Z]*\s+\d{2,4}",
+        r"(ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO|SEP|OCT|NOV|DIC)[A-Z]*\s+\d{1,2},?\s+\d{2,4}"
+    ]
+
     fechas_validas = []
-    for f in fechas_crudas:
-        f = f.strip()
-        f = f.replace("-", "/")
+    meses = {
+        "ENE": 1, "FEB": 2, "MAR": 3, "ABR": 4, "MAY": 5, "JUN": 6,
+        "JUL": 7, "AGO": 8, "SEP": 9, "OCT": 10, "NOV": 11, "DIC": 12
+    }
 
-        # Diccionario meses
-        meses = {
-            "ENE": 1, "FEB": 2, "MAR": 3, "ABR": 4, "MAY": 5, "JUN": 6,
-            "JUL": 7, "AGO": 8, "SEP": 9, "OCT": 10, "NOV": 11, "DIC": 12
-        }
+    for linea in posibles:
+        for patron in patrones:
+            for f in re.findall(patron, linea):
+                f = f.replace("-", "/").strip()
+                fecha_obj = None
+                try:
+                    # dd/mm/yyyy
+                    partes = f.split("/")
+                    if len(partes) == 3:
+                        d, m, y = partes
+                        if len(d) == 1: d = "0"+d
+                        if len(m) == 1: m = "0"+m
+                        if len(y) == 2: y = "20"+y
+                        fecha_obj = datetime.strptime(f"{d}/{m}/{y}", "%d/%m/%Y")
+                except:
+                    pass
 
-        fecha_obj = None
+                if not fecha_obj:
+                    # fecha con mes texto
+                    for abbr, num in meses.items():
+                        if abbr in f:
+                            f_tmp = f.replace(abbr, str(num))
+                            f_tmp = re.sub(r"\s+", "/", f_tmp)
+                            try:
+                                fecha_obj = datetime.strptime(f_tmp, "%d/%m/%Y")
+                            except:
+                                try:
+                                    fecha_obj = datetime.strptime(f_tmp, "%m/%d/%Y")
+                                except:
+                                    pass
 
-        # Caso dd/mm/yyyy o dd/mm/yy
-        try:
-            partes = f.split("/")
-            if len(partes) == 3:
-                d, m, y = partes
-                if len(d) == 1: d = "0" + d
-                if len(m) == 1: m = "0" + m
-                if len(y) == 2: y = "20" + y
-                fecha_obj = datetime.strptime(f"{d}/{m}/{y}", "%d/%m/%Y")
-        except Exception:
-            pass
-
-        # Caso con mes texto
-        if not fecha_obj:
-            for abbr, num in meses.items():
-                if abbr in f:
-                    f_tmp = f.replace(abbr, str(num))
-                    f_tmp = re.sub(r"\s+", "/", f_tmp)
-                    try:
-                        fecha_obj = datetime.strptime(f_tmp, "%d/%m/%Y")
-                    except:
-                        try:
-                            fecha_obj = datetime.strptime(f_tmp, "%m/%d/%Y")
-                        except:
-                            pass
-
-        if fecha_obj:
-            if datetime.now() - timedelta(days=5*365) <= fecha_obj <= datetime.now():
-                fechas_validas.append(fecha_obj)
+                if fecha_obj:
+                    # solo fechas razonables (últimos 5 años)
+                    if datetime.now() - timedelta(days=5*365) <= fecha_obj <= datetime.now():
+                        fechas_validas.append(fecha_obj)
 
     if not fechas_validas:
         return None
 
+    # Retornar la más reciente (o única)
     mejor_fecha = max(fechas_validas)
     return mejor_fecha.strftime("%Y-%m-%d")
 
+
 def detectar_ruc(texto: str) -> Optional[str]:
     """
-    Detecta un RUC válido de 11 dígitos, excluyendo los propios (lista negra).
-    - Busca cualquier grupo de 11 dígitos y devuelve el primero que NO esté en la lista negra.
+    Detecta un RUC válido de 11 dígitos en boletas o facturas electrónicas.
+    Prioriza líneas con 'RUC' y evita RUC bloqueado.
     """
-    # RUC Excluido
-    RUC_EXCLUIDOS= {"20508558997"}
+    if not texto:
+        return None
 
-    posibles = re.findall(r"\b\d{11}\b", texto)
-    for ruc in posibles:
-        if ruc not in RUC_EXCLUIDOS:
-            return ruc
+    # RUC que no debe ser detectado
+    RUC_EXCLUIDOS = {"20508558997"}
+
+    # Normalización OCR básica
+    texto = texto.upper()
+    texto = texto.replace("O", "0").replace("I", "1").replace("L", "1")
+
+    lineas = texto.splitlines()
+    # Revisar solo primeras 15 líneas
+    lineas = lineas[:15]
+
+    posibles_ruc = []
+    for linea in lineas:
+        if "RUC" in linea:
+            # Buscar primer número de 11 dígitos
+            rucs = re.findall(r"\b\d{11}\b", linea)
+            for r in rucs:
+                if r not in RUC_EXCLUIDOS:
+                    posibles_ruc.append(r)
+
+    if posibles_ruc:
+        return posibles_ruc[0]  # retornar el primero que aparezca
+
+    # Fallback: cualquier RUC en las primeras 15 líneas
+    for linea in lineas:
+        rucs = re.findall(r"\b\d{11}\b", linea)
+        for r in rucs:
+            if r not in RUC_EXCLUIDOS:
+                return r
+
     return None
+
 
 def detectar_razon_social(texto: str) -> Optional[str]:
     if not texto:
@@ -396,7 +466,29 @@ def archivo_a_imagenes(archivo) -> List[Image.Image]:
         print(f"❌ Error procesando el archivo ({archivo.name}): {e}")
 
     return imagenes
-        
+
+def debug_ocr_pdf(archivo):
+    """
+    Convierte un PDF o imagen a texto usando pytesseract
+    y muestra línea por línea el OCR crudo.
+    """
+    try:
+        archivo.seek(0)
+        if archivo.name.lower().endswith(".pdf"):
+            pdf_bytes = archivo.read()
+            imagenes = convert_from_bytes(pdf_bytes, dpi=300)
+        else:
+            img = Image.open(archivo)
+            img.load()
+            imagenes = [img]
+
+        for i, img in enumerate(imagenes):
+            texto_crudo = pytesseract.image_to_string(img, lang="spa")
+            print(f"\n📄 Página {i+1} texto crudo:\n{'-'*50}\n{texto_crudo}\n{'-'*50}")
+
+    except Exception as e:
+        print(f"❌ Error procesando OCR: {e}")
+          
 # ============================#
 # GENERAR NUMERO DE OPERACIÓN #
 # ============================#
