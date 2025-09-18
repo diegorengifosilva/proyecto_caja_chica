@@ -6,12 +6,16 @@ ENV PYTHONUNBUFFERED=1
 ENV POETRY_VIRTUALENVS_CREATE=false
 ENV PATH="/usr/local/bin:$PATH"
 
-# Instalar dependencias del sistema necesarias
-RUN apt-get update && apt-get install -y \
+# Instalar dependencias del sistema necesarias para Django + Tesseract
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
+    libleptonica-dev \
+    libtesseract-dev \
     tesseract-ocr \
     tesseract-ocr-spa \
+    pkg-config \
+    poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Crear directorio de la app
