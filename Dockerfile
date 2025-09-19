@@ -38,7 +38,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Configurar locales para evitar errores de encoding
+# Configurar locales
 RUN locale-gen en_US.UTF-8
 ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US:en
@@ -52,12 +52,10 @@ RUN which pdftoppm && pdftoppm -v
 # Directorio de la app
 # ---------------------------
 WORKDIR /app
-
-# Crear directorio media con permisos completos
 RUN mkdir -p /app/media /app/staticfiles && chmod -R 777 /app/media /app/staticfiles
 
 # ---------------------------
-# Copiar requirements y instalar
+# Instalar Python requirements
 # ---------------------------
 COPY requirements.txt /app/
 RUN pip install --upgrade pip \
@@ -69,11 +67,15 @@ RUN pip install --upgrade pip \
 COPY . /app/
 
 # ---------------------------
-# Exponer puerto
+# Exponer puerto (Render usará $PORT)
 # ---------------------------
 EXPOSE 8000
 
 # ---------------------------
-# Comando Gunicorn
+# Comando Gunicorn estable para Render
 # ---------------------------
-CMD ["sh", "-c", "gunicorn backend.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers $(nproc) --timeout 120"]
+CMD exec gunicorn backend.wsgi:application \
+    --bind 0.0.0.0:$PORT \
+    --workers 3 \
+    --timeout 120 \
+    --log-level info

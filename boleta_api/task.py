@@ -15,9 +15,6 @@ import os
 def procesar_documento_celery(ruta_archivo, nombre_archivo, tipo_documento="Boleta", concepto="Solicitud de gasto"):
     """
     Tarea Celery: procesa OCR usando procesar_datos_ocr directamente.
-    - ruta_archivo: path al archivo temporal en disco
-    - nombre_archivo: nombre original del archivo
-    - tipo_documento y concepto opcionales
     """
     resultados = []
 
@@ -38,6 +35,11 @@ def procesar_documento_celery(ruta_archivo, nombre_archivo, tipo_documento="Bole
                     "concepto": concepto,
                     "nombre_archivo": nombre_archivo,
                 })
+
+                # 🔹 Imprimir en consola para depuración
+                print(f"[Celery OCR] Página {idx + 1}:")
+                print(f"Texto extraído (primeros 200 chars): {texto_crudo[:200]}")
+                print(f"Datos detectados: {datos}\n")
 
                 resultados.append({
                     "pagina": idx + 1,
@@ -60,6 +62,11 @@ def procesar_documento_celery(ruta_archivo, nombre_archivo, tipo_documento="Bole
                     "nombre_archivo": nombre_archivo,
                 })
 
+                # 🔹 Imprimir en consola para depuración
+                print(f"[Celery OCR] Página {idx + 1}:")
+                print(f"Texto extraído (primeros 200 chars): {texto_crudo[:200]}")
+                print(f"Datos detectados: {datos}\n")
+
                 # Convertir imagen a Base64
                 buffer_img = BytesIO()
                 img.save(buffer_img, format="PNG")
@@ -81,4 +88,5 @@ def procesar_documento_celery(ruta_archivo, nombre_archivo, tipo_documento="Bole
         return resultados
 
     except Exception as e:
+        print(f"[Celery OCR] Error: {e}")
         return {"error": f"Ocurrió un error en Celery OCR: {str(e)}"}

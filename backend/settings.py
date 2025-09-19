@@ -18,13 +18,13 @@ ALLOWED_HOSTS = [
 ]
 
 # ---------------------------
-# Detectar entorno
+# Entorno
 # ---------------------------
 ENVIRONMENT = os.environ.get("DJANGO_ENV", "local")
 IS_LOCAL = ENVIRONMENT == "local"
 
 # ---------------------------
-# Apps
+# Apps instaladas
 # ---------------------------
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -144,13 +144,13 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 # ---------------------------
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-os.makedirs(MEDIA_ROOT, exist_ok=True)  # asegura que exista
+os.makedirs(MEDIA_ROOT, exist_ok=True)
 
 # ---------------------------
 # Límites de subida
 # ---------------------------
-DATA_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024  # hasta 50MB
-FILE_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024  # hasta 50MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024
 
 # ---------------------------
 # Defaults
@@ -161,11 +161,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # CORS y CSRF
 # ---------------------------
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_HEADERS = list(default_headers) + [
-    "content-type",
-    "authorization",
-]
-CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+CORS_ALLOW_HEADERS = list(default_headers) + ["content-type", "authorization"]
+CORS_ALLOW_METHODS = ["GET","POST","PUT","PATCH","DELETE","OPTIONS"]
 
 if IS_LOCAL:
     CORS_ALLOW_ALL_ORIGINS = True
@@ -206,8 +203,8 @@ SIMPLE_JWT = {
 # ---------------------------
 # CELERY
 # ---------------------------
-CELERY_BROKER_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
-CELERY_RESULT_BACKEND = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+CELERY_BROKER_URL = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
+CELERY_RESULT_BACKEND = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
@@ -215,7 +212,7 @@ CELERY_TIMEZONE = 'UTC'
 CELERY_ENABLE_UTC = True
 
 # ---------------------------
-# Seguridad adicional para producción
+# Seguridad adicional producción
 # ---------------------------
 if not IS_LOCAL:
     SECURE_BROWSER_XSS_FILTER = True
@@ -229,23 +226,15 @@ if not IS_LOCAL:
 # ---------------------------
 # OCR / PDF extras
 # ---------------------------
-# Permite que pytesseract y pdf2image accedan correctamente a Tesseract y Poppler
 TESSDATA_PREFIX = os.environ.get("TESSDATA_PREFIX", "/usr/share/tesseract-ocr/5/tessdata")
-POPPLER_PATH = os.environ.get("POPPLER_PATH", "/usr/bin")  # para pdf2image
+POPPLER_PATH = os.environ.get("POPPLER_PATH", "/usr/bin")
 
 # ---------------------------
-# Logs para debugging de producción
+# Logs
 # ---------------------------
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-        },
-    },
-    'root': {
-        'handlers': ['console'],
-        'level': 'INFO',
-    },
+    'handlers': {'console': {'class': 'logging.StreamHandler'}},
+    'root': {'handlers': ['console'], 'level': 'INFO'},
 }
