@@ -129,6 +129,7 @@ if platform.system() == "Windows":
 else:
     # Ruta en Linux / Docker / Render
     pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
+    # Forzar el prefijo dentro del código
     os.environ["TESSDATA_PREFIX"] = "/usr/share/tesseract-ocr/5/tessdata"
 
 # ---------------------------
@@ -144,6 +145,9 @@ def debug_tesseract():
     print(f"TESSDATA_PREFIX: {t_data}")
     print("Existe tesseract?:", os.path.isfile(t_cmd))
     print("Existe tessdata?:", os.path.isdir(t_data))
+    print("Tesseract encontrado?", os.path.isfile(pytesseract.pytesseract.tesseract_cmd))
+    print("Tessdata existe?", os.path.isdir(os.environ["TESSDATA_PREFIX"]))
+    subprocess.run([pytesseract.pytesseract.tesseract_cmd, '--version'])
 
     # Intentar ejecutar Tesseract para confirmar que funciona
     try:

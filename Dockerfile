@@ -22,8 +22,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr-spa \
     pkg-config \
     poppler-utils \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    libgl1 \
+    && ln -s $(which tesseract) /usr/bin/tesseract \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # ---------------------------
 # Directorio de la app
