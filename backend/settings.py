@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from datetime import timedelta
 import dj_database_url
-from corsheaders.defaults import default_headers  # <- Import necesario
+from corsheaders.defaults import default_headers
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -20,7 +20,7 @@ ALLOWED_HOSTS = [
 # ---------------------------
 # Detectar entorno
 # ---------------------------
-ENVIRONMENT = os.environ.get("DJANGO_ENV", "local")  # 'local' o 'production'
+ENVIRONMENT = os.environ.get("DJANGO_ENV", "local")
 IS_LOCAL = ENVIRONMENT == "local"
 
 # ---------------------------
@@ -44,7 +44,7 @@ INSTALLED_APPS = [
 # Middleware
 # ---------------------------
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',  # Siempre arriba
+    'corsheaders.middleware.CorsMiddleware',  # siempre arriba
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -146,10 +146,10 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # ---------------------------
-# Limites de subida
+# Límites de subida
 # ---------------------------
-DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10 MB por request
-FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10 MB por archivo
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 
 # ---------------------------
 # Defaults
@@ -162,11 +162,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CORS_ALLOW_CREDENTIALS = True
 
 if IS_LOCAL:
-    # Desarrollo local
     CORS_ALLOW_ALL_ORIGINS = True
     CSRF_TRUSTED_ORIGINS = ["http://localhost:5173"]
 else:
-    # Producción
     CORS_ALLOW_ALL_ORIGINS = False
     CORS_ALLOWED_ORIGINS = [
         "https://proyecto-caja-chica-frontend.onrender.com",
@@ -175,19 +173,15 @@ else:
         "https://proyecto-caja-chica-frontend.onrender.com",
         "https://proyecto-caja-chica-backend.onrender.com",
     ]
-    # Aseguramos headers extra que Axios pueda enviar
-    CORS_ALLOW_HEADERS = list(default_headers) + [
-        "content-type",
-        "authorization",
-        "x-csrftoken",
-        "accept",
-        "origin",
-        "user-agent",
-        "accept-encoding",
-        "connection",
-    ]
-    # Métodos permitidos
-    CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+
+# Headers extra para que Axios funcione
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    "content-type",
+    "authorization",
+    "x-csrftoken",
+]
+
+CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 
 CSRF_COOKIE_SECURE = not IS_LOCAL
 SESSION_COOKIE_SECURE = not IS_LOCAL
@@ -207,3 +201,14 @@ SIMPLE_JWT = {
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
+
+# ---------------------------
+# CELERY
+# ---------------------------
+CELERY_BROKER_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+CELERY_RESULT_BACKEND = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'UTC'
+CELERY_ENABLE_UTC = True

@@ -119,6 +119,8 @@ from .extraccion import (
     archivo_a_imagenes,
 )
 
+from .task import procesar_documento_celery
+
 # ---------------------------
 # Configuración Tesseract
 # ---------------------------
@@ -576,74 +578,10 @@ def procesar_documento(request):
     if not archivo:
         return Response({"error": "No se envió ningún archivo"}, status=400)
 
-    resultados = []
+    archivo_bytes = archivo.read()
+    task = procesar_documento_celery.delay(archivo_bytes, archivo.name, request.data.get("tipo_documento", "Boleta"), request.data.get("concepto", "Solicitud de gasto"))
 
-    try:
-        # Convertir archivo a imágenes + extraer textos nativos si PDF
-        imagenes, textos_nativos = archivo_a_imagenes(archivo)
-
-        if textos_nativos:
-            # Si hay texto nativo, usamos texto directamente
-            for idx, texto_crudo in enumerate(textos_nativos):
-                texto_norm = normalizar_texto_ocr(texto_crudo)
-                datos = procesar_datos_ocr(texto_norm)
-
-                datos.update({
-                    "tipo_documento": request.data.get("tipo_documento", "Boleta"),
-                    "concepto": request.data.get("concepto", "Solicitud de gasto"),
-                    "nombre_archivo": archivo.name,
-                    "numero_documento": datos.get("numero_documento") or "ND",
-                    "fecha": datos.get("fecha") or date.today().strftime("%Y-%m-%d"),
-                    "total": datos.get("total") or "0.00",
-                    "razon_social": datos.get("razon_social") or "RAZÓN SOCIAL DESCONOCIDA",
-                    "ruc": datos.get("ruc") or "00000000000",
-                })
-
-                resultados.append({
-                    "pagina": idx + 1,
-                    "texto_extraido": texto_crudo,
-                    "datos_detectados": datos,
-                    "imagen_base64": None,
-                })
-        else:
-            # OCR sobre imágenes
-            for idx, img in enumerate(imagenes):
-                try:
-                    texto_crudo = pytesseract.image_to_string(img, lang="spa")
-                    texto_norm = normalizar_texto_ocr(texto_crudo)
-                    datos = procesar_datos_ocr(texto_norm)
-                except Exception as e:
-                    print(f"⚠️ OCR fallo página {idx+1}: {e}")
-                    texto_crudo, datos = "", {}
-
-                datos.update({
-                    "tipo_documento": request.data.get("tipo_documento", "Boleta"),
-                    "concepto": request.data.get("concepto", "Solicitud de gasto"),
-                    "nombre_archivo": archivo.name,
-                    "numero_documento": datos.get("numero_documento") or "ND",
-                    "fecha": datos.get("fecha") or date.today().strftime("%Y-%m-%d"),
-                    "total": datos.get("total") or "0.00",
-                    "razon_social": datos.get("razon_social") or "RAZÓN SOCIAL DESCONOCIDA",
-                    "ruc": datos.get("ruc") or "00000000000",
-                })
-
-                buffer = BytesIO()
-                img.save(buffer, format="PNG")
-                img_b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
-
-                resultados.append({
-                    "pagina": idx + 1,
-                    "texto_extraido": texto_crudo,
-                    "datos_detectados": datos,
-                    "imagen_base64": f"data:image/png;base64,{img_b64}",
-                })
-
-        return Response({"resultado": resultados}, status=200)
-
-    except Exception as e:
-        print(f"❌ Error procesando documento: {e}")
-        return Response({"error": f"Ocurrió un error procesando OCR: {str(e)}"}, status=500)
-
+    return Response({"task_id": task.id, "mensaje": "OCR en proceso, revisa el resultado más tarde"}, status=202)
 # Liquidaciones Pendientes View
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
