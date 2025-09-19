@@ -1,5 +1,6 @@
 asgiref==3.9.1
 certifi==2025.8.3
+celery>=5.3.0
 charset-normalizer==3.4.2
 dj-database-url==3.0.1
 Django==5.2.4
@@ -24,6 +25,7 @@ pdfplumber==0.11.4
 pdfminer.six==20231228
 python-dateutil==2.9.0.post0
 pytz==2025.2
+redis>=5.3.1
 reportlab==4.4.3
 requests==2.32.4
 six==1.17.0
