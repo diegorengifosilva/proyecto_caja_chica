@@ -11,6 +11,7 @@ import traceback
 import unicodedata
 import pandas as pd
 import platform
+import subprocess
 
 # ─── Librerías de terceros ──────────────────────────
 import cv2
@@ -122,36 +123,37 @@ from .extraccion import (
 # Configuración Tesseract
 # ---------------------------
 if platform.system() == "Windows":
-    # Local Windows
+    # Ruta local en Windows
     pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
     os.environ["TESSDATA_PREFIX"] = r"C:\Program Files\Tesseract-OCR\tessdata"
 else:
-    # Linux / Render
+    # Ruta en Linux / Docker / Render
     pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
     os.environ["TESSDATA_PREFIX"] = "/usr/share/tesseract-ocr/5/tessdata"
 
 # ---------------------------
-# Debug completo
+# Función de debug (opcional)
 # ---------------------------
 def debug_tesseract():
     t_cmd = pytesseract.pytesseract.tesseract_cmd
     t_data = os.environ.get("TESSDATA_PREFIX", "")
 
-    print("🔹 Entorno Render detectado" if platform.system() != "Windows" else "🔹 Entorno Windows")
-    print("Tesseract cmd:", t_cmd)
-    print("TESSDATA_PREFIX:", t_data)
-    print("Existe tesseract?", os.path.isfile(t_cmd))
-    print("Existe tessdata?", os.path.isdir(t_data))
+    env_name = "Windows" if platform.system() == "Windows" else "Linux/Render"
+    print(f"🔹 Entorno detectado: {env_name}")
+    print(f"Tesseract cmd: {t_cmd}")
+    print(f"TESSDATA_PREFIX: {t_data}")
+    print("Existe tesseract?:", os.path.isfile(t_cmd))
+    print("Existe tessdata?:", os.path.isdir(t_data))
 
-    # Intentar ejecutar Tesseract para confirmar
+    # Intentar ejecutar Tesseract para confirmar que funciona
     try:
-        import subprocess
-        version = subprocess.check_output([t_cmd, '--version']).decode('utf-8').splitlines()[0]
+        version_output = subprocess.check_output([t_cmd, "--version"], stderr=subprocess.STDOUT)
+        version = version_output.decode("utf-8").splitlines()[0]
         print("Versión de Tesseract detectada:", version)
     except Exception as e:
-        print("Error al ejecutar Tesseract:", e)
+        print("❌ Error al ejecutar Tesseract:", e)
 
-# Ejecutar debug solo en Linux / Render para evitar imprimir en producción Windows
+# Ejecutar debug solo en Linux/Render (no en Windows) para monitoreo
 if platform.system() != "Windows":
     debug_tesseract()
 
@@ -186,12 +188,6 @@ def home(request):
     </html>
     """
     return HttpResponse(html)
-
-#========================================================================================
-
-##==============##
-## PROGRAMACIÓN ##
-##==============##
 
 #========================================================================================
 
