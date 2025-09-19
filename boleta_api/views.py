@@ -572,85 +572,76 @@ class SolicitudGastoViewSetCRUD(viewsets.ModelViewSet):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def procesar_documento(request):
-    """
-    Procesa un archivo (PDF o imagen) y extrae automáticamente:
-    número de documento, tipo, fecha, RUC, razón social, concepto y total.
-
-    Estrategia híbrida:
-      - Si es PDF → intenta extraer texto con pdfplumber; si no hay datos → OCR.
-      - Si es imagen → OCR directo.
-
-    Retorna JSON uniforme:
-      {"resultado": [ { pagina, texto_extraido, datos_detectados, imagen_base64 } ]}
-    """
     archivo = request.FILES.get("archivo")
     if not archivo:
         return Response({"error": "No se envió ningún archivo"}, status=400)
 
-    try:
-        resultados = []
+    resultados = []
 
-        # Convertir archivo a imágenes y extraer texto nativo si hay PDF
+    try:
+        # Convertir archivo a imágenes + extraer textos nativos si PDF
         imagenes, textos_nativos = archivo_a_imagenes(archivo)
 
-        # Si hay texto nativo, lo usamos; si no, OCR sobre las imágenes
         if textos_nativos:
+            # Si hay texto nativo, usamos texto directamente
             for idx, texto_crudo in enumerate(textos_nativos):
                 texto_norm = normalizar_texto_ocr(texto_crudo)
-                datos_extraidos = procesar_datos_ocr(texto_norm)
+                datos = procesar_datos_ocr(texto_norm)
 
-                datos_extraidos.update({
+                datos.update({
                     "tipo_documento": request.data.get("tipo_documento", "Boleta"),
                     "concepto": request.data.get("concepto", "Solicitud de gasto"),
-                    "nombre_archivo": archivo.name
+                    "nombre_archivo": archivo.name,
+                    "numero_documento": datos.get("numero_documento") or "ND",
+                    "fecha": datos.get("fecha") or date.today().strftime("%Y-%m-%d"),
+                    "total": datos.get("total") or "0.00",
+                    "razon_social": datos.get("razon_social") or "RAZÓN SOCIAL DESCONOCIDA",
+                    "ruc": datos.get("ruc") or "00000000000",
                 })
-                datos_extraidos["numero_documento"] = datos_extraidos.get("numero_documento") or "ND"
-                datos_extraidos["fecha"] = datos_extraidos.get("fecha") or date.today().strftime("%Y-%m-%d")
-                datos_extraidos["total"] = datos_extraidos.get("total") or "0.00"
-                if not datos_extraidos.get("razon_social"):
-                    datos_extraidos["razon_social"] = "RAZÓN SOCIAL DESCONOCIDA"
-                datos_extraidos["ruc"] = datos_extraidos.get("ruc") or "00000000000"
 
                 resultados.append({
                     "pagina": idx + 1,
                     "texto_extraido": texto_crudo,
-                    "datos_detectados": datos_extraidos,
-                    "imagen_base64": None  # Ya hay texto nativo
+                    "datos_detectados": datos,
+                    "imagen_base64": None,
                 })
         else:
             # OCR sobre imágenes
             for idx, img in enumerate(imagenes):
-                texto_crudo = pytesseract.image_to_string(img, lang="spa")
-                texto_norm = normalizar_texto_ocr(texto_crudo)
-                datos_extraidos = procesar_datos_ocr(texto_norm)
+                try:
+                    texto_crudo = pytesseract.image_to_string(img, lang="spa")
+                    texto_norm = normalizar_texto_ocr(texto_crudo)
+                    datos = procesar_datos_ocr(texto_norm)
+                except Exception as e:
+                    print(f"⚠️ OCR fallo página {idx+1}: {e}")
+                    texto_crudo, datos = "", {}
 
-                datos_extraidos.update({
+                datos.update({
                     "tipo_documento": request.data.get("tipo_documento", "Boleta"),
                     "concepto": request.data.get("concepto", "Solicitud de gasto"),
-                    "nombre_archivo": archivo.name
+                    "nombre_archivo": archivo.name,
+                    "numero_documento": datos.get("numero_documento") or "ND",
+                    "fecha": datos.get("fecha") or date.today().strftime("%Y-%m-%d"),
+                    "total": datos.get("total") or "0.00",
+                    "razon_social": datos.get("razon_social") or "RAZÓN SOCIAL DESCONOCIDA",
+                    "ruc": datos.get("ruc") or "00000000000",
                 })
-                datos_extraidos["numero_documento"] = datos_extraidos.get("numero_documento") or "ND"
-                datos_extraidos["fecha"] = datos_extraidos.get("fecha") or date.today().strftime("%Y-%m-%d")
-                datos_extraidos["total"] = datos_extraidos.get("total") or "0.00"
-                if not datos_extraidos.get("razon_social"):
-                    datos_extraidos["razon_social"] = "RAZÓN SOCIAL DESCONOCIDA"
-                datos_extraidos["ruc"] = datos_extraidos.get("ruc") or "00000000000"
 
                 buffer = BytesIO()
                 img.save(buffer, format="PNG")
                 img_b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
-                img_data = f"data:image/png;base64,{img_b64}"
 
                 resultados.append({
                     "pagina": idx + 1,
                     "texto_extraido": texto_crudo,
-                    "datos_detectados": datos_extraidos,
-                    "imagen_base64": img_data
+                    "datos_detectados": datos,
+                    "imagen_base64": f"data:image/png;base64,{img_b64}",
                 })
 
         return Response({"resultado": resultados}, status=200)
 
     except Exception as e:
+        print(f"❌ Error procesando documento: {e}")
         return Response({"error": f"Ocurrió un error procesando OCR: {str(e)}"}, status=500)
 
 # Liquidaciones Pendientes View
@@ -811,50 +802,34 @@ def test_ocr(request):
 @permission_classes([IsAuthenticated])
 @parser_classes([MultiPartParser, FormParser])
 def guardar_documento(request):
-    """
-    Guarda documentos asociados a una solicitud.
-    Soporta imágenes individuales o PDFs multipágina.
-    Usa OCR para extraer campos críticos y aplica valores por defecto si faltan.
-    Cada página de un PDF se guarda como documento independiente.
-    """
     try:
-        # Validar solicitud
         solicitud_id = request.data.get("solicitud_id") or request.data.get("solicitud")
         if not solicitud_id:
             return Response({"error": "Falta el ID de la solicitud."}, status=400)
         solicitud = get_object_or_404(Solicitud, id=solicitud_id)
 
-        # Obtener documentos JSON
         documentos_json = request.data.get("documentos")
         if not documentos_json:
             return Response({"error": "No se enviaron datos de documentos"}, status=400)
         documentos = json.loads(documentos_json)
 
-        # Archivos enviados
         archivos = request.FILES.getlist("archivos")
-        print(f"🔹 Archivos recibidos: {[f.name for f in archivos]}")
-
         documentos_guardados = []
 
-        # Iterar por cada documento JSON
         for idx, doc in enumerate(documentos):
             archivo = archivos[idx] if idx < len(archivos) else None
-
-            # Convertir archivo a imágenes (PDF multipágina o imagen simple)
-            imagenes = archivo_a_imagenes(archivo) if archivo else []
+            imagenes, _ = archivo_a_imagenes(archivo) if archivo else ([], [])
 
             for pagina_idx, img in enumerate(imagenes):
                 datos_extraidos = {}
 
-                # Procesar OCR
                 try:
                     texto_crudo = pytesseract.image_to_string(img, lang="spa")
                     texto_norm = normalizar_texto_ocr(texto_crudo)
                     datos_extraidos = procesar_datos_ocr(texto_norm)
-                except Exception as ocr_error:
-                    print(f"⚠️ OCR falló para {archivo.name} página {pagina_idx+1}: {ocr_error}")
+                except Exception as e:
+                    print(f"⚠️ OCR falló {archivo.name} página {pagina_idx+1}: {e}")
 
-                # Completar campos desde JSON y OCR
                 datos_extraidos.update({
                     "tipo_documento": doc.get("tipo_documento") or "Boleta",
                     "numero_documento": doc.get("numero_documento") or datos_extraidos.get("numero_documento") or "ND",
@@ -875,22 +850,20 @@ def guardar_documento(request):
                 except (InvalidOperation, TypeError):
                     datos_extraidos["total"] = Decimal("0.00")
 
-                # Guardar con serializer
                 serializer = DocumentoGastoSerializer(data=datos_extraidos, context={"request": request})
                 if serializer.is_valid():
-                    documento_guardado = serializer.save()
+                    doc_guardado = serializer.save()
                     documentos_guardados.append({
                         **serializer.data,
-                        "archivo_url": request.build_absolute_uri(documento_guardado.archivo.url) if archivo else None
+                        "archivo_url": request.build_absolute_uri(doc_guardado.archivo.url) if archivo else None
                     })
                 else:
-                    print(f"❌ Error guardando documento {idx} página {pagina_idx+1}: {serializer.errors}")
+                    print(f"❌ Error guardando documento página {pagina_idx+1}: {serializer.errors}")
 
-        # 🔹 Actualizar estado de la solicitud si corresponde
         if solicitud.estado == "Atendido, Pendiente de Liquidación":
             solicitud.estado = "Liquidación enviada para Aprobación"
             solicitud.save(update_fields=["estado"])
-            print(f"✅ Estado de solicitud {solicitud.id} actualizado a '{solicitud.estado}'")
+            print(f"✅ Estado solicitud {solicitud.id} actualizado a '{solicitud.estado}'")
 
         return Response({
             "mensaje": "Documentos guardados correctamente",

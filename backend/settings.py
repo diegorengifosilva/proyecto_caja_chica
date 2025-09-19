@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 from datetime import timedelta
 import dj_database_url
+from corsheaders.defaults import default_headers  # <- Import necesario
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -145,6 +146,12 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # ---------------------------
+# Limites de subida
+# ---------------------------
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10 MB por request
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10 MB por archivo
+
+# ---------------------------
 # Defaults
 # ---------------------------
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -167,16 +174,11 @@ else:
         "https://proyecto-caja-chica-backend.onrender.com",
     ]
 
-# Permitir headers y métodos necesarios para AJAX / Axios
-CORS_ALLOW_HEADERS = [
+# Headers y métodos CORS extendidos
+CORS_ALLOW_HEADERS = list(default_headers) + [
     "content-type",
     "authorization",
     "x-csrftoken",
-    "accept",
-    "origin",
-    "user-agent",
-    "accept-encoding",
-    "connection",
 ]
 CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 
