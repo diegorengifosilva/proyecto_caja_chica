@@ -35,7 +35,7 @@ INSTALLED_APPS = [
 
 # --- Middleware ---
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',  # Debe estar arriba
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -69,9 +69,12 @@ TEMPLATES = [
 # --- Base de datos ---
 DATABASES = {
     'default': dj_database_url.config(
-        default=os.environ.get('DATABASE_URL', 'postgres://boleta_user:270509@localhost:5432/proyecto_db'),
+        default=os.environ.get(
+            'DATABASE_URL',
+            'postgres://boleta_user:270509@localhost:5432/proyecto_db'
+        ),
         conn_max_age=600,
-        ssl_require=not IS_LOCAL,  # SSL solo en producción
+        ssl_require=not IS_LOCAL,
     )
 }
 
@@ -109,7 +112,7 @@ USE_TZ = True
 
 # --- Archivos estáticos ---
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [os.path.join(BASE_DIR, "frontend", "dist")]  # <-- aquí iba assets, pero dist es correcto
+STATICFILES_DIRS = [os.path.join(BASE_DIR, "frontend", "dist")]
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
@@ -141,6 +144,7 @@ SESSION_COOKIE_SECURE = not IS_LOCAL
 CSRF_COOKIE_SAMESITE = "None"
 SESSION_COOKIE_SAMESITE = "None"
 
+# --- Usuario personalizado ---
 AUTH_USER_MODEL = "boleta_api.CustomUser"
 
 # --- JWT ---
