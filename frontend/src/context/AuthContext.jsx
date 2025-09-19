@@ -8,7 +8,7 @@ export const AuthProvider = ({ children }) => {
   const [authUser, setAuthUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchUserFromBackend = async () => {
+  const fetchUser = async () => {
     try {
       const res = await api.get("usuarios/actual/");
       setAuthUser(res.data);
@@ -16,18 +16,18 @@ export const AuthProvider = ({ children }) => {
     } catch (err) {
       console.error("❌ No se pudo obtener usuario actual:", err.response?.status, err);
       if (err.response?.status === 401) logout();
-      else setAuthUser(null); // no logout si es otro error
+      else setAuthUser(null);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    const accessToken = localStorage.getItem("access_token");
+    const token = localStorage.getItem("access_token");
     const userData = localStorage.getItem("auth_user");
 
-    if (accessToken) {
-      api.defaults.headers.common["Authorization"] = `Bearer ${accessToken}`;
+    if (token) {
+      api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
       if (userData) {
         try {
           setAuthUser(JSON.parse(userData));
@@ -36,33 +36,35 @@ export const AuthProvider = ({ children }) => {
           return;
         }
       }
-      fetchUserFromBackend();
+      fetchUser();
     } else setLoading(false);
   }, []);
 
   const login = async ({ email, password }) => {
     try {
+      console.log("🔹 Enviando login:", { email, password });
+
       const res = await api.post("login/", { email, password });
       const { access, refresh, user } = res.data;
+
+      if (!access || !user) throw new Error("Token o usuario no recibido");
 
       localStorage.setItem("access_token", access);
       localStorage.setItem("refresh_token", refresh);
       localStorage.setItem("auth_user", JSON.stringify(user));
       api.defaults.headers.common["Authorization"] = `Bearer ${access}`;
-
       setAuthUser(user);
+
+      console.log("🔹 Login exitoso:", user);
       return { success: true };
     } catch (err) {
-      console.error("Error de inicio de sesión:", err);
+      console.error("❌ Error de inicio de sesión:", err.response?.data || err.message);
       return { success: false, message: "Credenciales inválidas o servidor no disponible" };
     }
   };
 
   const logout = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
-    localStorage.removeItem("auth_user");
-    delete api.defaults.headers.common["Authorization"];
+    localStorage.clear();
     setAuthUser(null);
     window.location.href = "/login";
   };
@@ -70,24 +72,22 @@ export const AuthProvider = ({ children }) => {
   const refreshToken = async () => {
     try {
       const refresh = localStorage.getItem("refresh_token");
-      if (!refresh) throw new Error("No refresh token");
+      if (!refresh) throw new Error("No hay refresh token");
 
       const res = await api.post("token/refresh/", { refresh });
       const { access } = res.data;
       localStorage.setItem("access_token", access);
       api.defaults.headers.common["Authorization"] = `Bearer ${access}`;
 
-      await fetchUserFromBackend();
+      await fetchUser();
     } catch (err) {
-      console.error("Error al refrescar token:", err);
+      console.error("❌ Error al refrescar token:", err);
       logout();
     }
   };
 
   return (
-    <AuthContext.Provider
-      value={{ authUser, setAuthUser, login, logout, refreshToken, loading }}
-    >
+    <AuthContext.Provider value={{ authUser, setAuthUser, login, logout, refreshToken, loading }}>
       {children}
     </AuthContext.Provider>
   );

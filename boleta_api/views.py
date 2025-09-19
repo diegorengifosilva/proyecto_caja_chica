@@ -756,11 +756,13 @@ def test_ocr(request):
 @parser_classes([MultiPartParser, FormParser])
 def guardar_documento(request):
     try:
+        # Obtener solicitud
         solicitud_id = request.data.get("solicitud_id") or request.data.get("solicitud")
         if not solicitud_id:
             return Response({"error": "Falta el ID de la solicitud."}, status=400)
         solicitud = get_object_or_404(Solicitud, id=solicitud_id)
 
+        # Documentos enviados desde frontend (ya contienen los datos extraídos desde Celery/extraccion.py)
         documentos_json = request.data.get("documentos")
         if not documentos_json:
             return Response({"error": "No se enviaron datos de documentos"}, status=400)
@@ -771,35 +773,24 @@ def guardar_documento(request):
 
         for idx, doc in enumerate(documentos):
             archivo = archivos[idx] if idx < len(archivos) else None
+
+            # Procesar cada página si es PDF multipágina
             imagenes, _ = archivo_a_imagenes(archivo) if archivo else ([], [])
 
             for pagina_idx, img in enumerate(imagenes):
-                datos_extraidos = {}
-
-                try:
-                    texto_crudo = pytesseract.image_to_string(img, lang="spa")
-                    texto_norm = normalizar_texto_ocr(texto_crudo)
-                    datos_extraidos = procesar_datos_ocr(texto_norm)
-                except Exception as e:
-                    print(f"⚠️ OCR falló {archivo.name} página {pagina_idx+1}: {e}")
+                # Datos ya extraídos desde extraccion.py / Celery
+                datos_extraidos = doc.copy()
 
                 datos_extraidos.update({
-                    "tipo_documento": doc.get("tipo_documento") or "Boleta",
-                    "numero_documento": doc.get("numero_documento") or datos_extraidos.get("numero_documento") or "ND",
-                    "fecha": doc.get("fecha") or datos_extraidos.get("fecha") or date.today().strftime("%Y-%m-%d"),
-                    "ruc": doc.get("ruc") or datos_extraidos.get("ruc") or "00000000000",
-                    "razon_social": doc.get("razon_social") or datos_extraidos.get("razon_social") or "RAZÓN SOCIAL DESCONOCIDA",
-                    "total": doc.get("total") or datos_extraidos.get("total") or "0.00",
-                    "concepto_gasto": doc.get("concepto") or "Solicitud de gasto",
                     "solicitud": solicitud.id,
                     "archivo": archivo,
                     "nombre_archivo": f"{archivo.name}_p{pagina_idx+1}" if archivo else "ND",
                     "numero_operacion": generar_numero_operacion("DOC"),
                 })
 
-                # Limpiar total
+                # Convertir total a Decimal si no está limpio
                 try:
-                    datos_extraidos["total"] = Decimal(str(datos_extraidos["total"]).replace("S/", "").replace("s/", "").strip())
+                    datos_extraidos["total"] = Decimal(str(datos_extraidos.get("total", "0")).replace("S/", "").replace("s/", "").strip())
                 except (InvalidOperation, TypeError):
                     datos_extraidos["total"] = Decimal("0.00")
 
@@ -813,6 +804,7 @@ def guardar_documento(request):
                 else:
                     print(f"❌ Error guardando documento página {pagina_idx+1}: {serializer.errors}")
 
+        # Actualizar estado de la solicitud
         if solicitud.estado == "Atendido, Pendiente de Liquidación":
             solicitud.estado = "Liquidación enviada para Aprobación"
             solicitud.save(update_fields=["estado"])

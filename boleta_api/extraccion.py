@@ -200,7 +200,6 @@ def detectar_fecha(texto: str) -> Optional[str]:
     # 🔹 Correcciones OCR generales
     reemplazos = {
         "E/": "11/",
-        "E": "11",
         "O/": "01/",
         "I/": "1/",
         "L/": "1/",
@@ -511,11 +510,15 @@ def detectar_total(texto: str) -> str:
 # ==========================#
 # PROCESAMIENTO GENERAL OCR #
 # ==========================#
-def procesar_datos_ocr(texto: str) -> Dict[str, Optional[str]]:
+def procesar_datos_ocr(texto: str, debug: bool = True) -> Dict[str, Optional[str]]:
     """
     Procesa el texto OCR de un documento (boleta/factura).
     Ejecuta los detectores de RUC, Razón Social, Nº de Documento, Fecha y Total.
     Devuelve un diccionario con los datos extraídos.
+    
+    Args:
+        texto (str): Texto extraído por OCR.
+        debug (bool): Si es True, imprime las primeras 50 líneas para análisis.
     """
 
     if not texto:
@@ -527,11 +530,17 @@ def procesar_datos_ocr(texto: str) -> Dict[str, Optional[str]]:
             "total": "0.00",
         }
 
-    # Debug opcional: mostrar primeras 50 líneas del OCR
     lineas = texto.splitlines()
-    print("📝 OCR LINEAS CRUDAS:")
-    for i, linea in enumerate(lineas[:50]):
-        print(f"{i+1:02d}: {linea}")
+
+    # --- Mostrar debug de las primeras 50 líneas ---
+    if debug:
+        print("\n📝 OCR LINEAS CRUDAS (máx 50 líneas):")
+        print("=" * 50)
+        for i, linea in enumerate(lineas[:50]):
+            # Limitar longitud para no saturar consola
+            linea_corta = (linea[:100] + '...') if len(linea) > 100 else linea
+            print(f"{i+1:02d}: {linea_corta}")
+        print("=" * 50 + "\n")
 
     # --- Detectores individuales ---
     ruc = detectar_ruc(texto)
@@ -540,7 +549,13 @@ def procesar_datos_ocr(texto: str) -> Dict[str, Optional[str]]:
     fecha = detectar_fecha(texto)
     total = detectar_total(texto)
 
-    # --- Retornar resultados consistentes ---
+    if debug:
+        print(f"🔹 RUC detectado       : {ruc}")
+        print(f"🔹 Razón Social detectada: {razon_social}")
+        print(f"🔹 Número Documento     : {numero_doc}")
+        print(f"🔹 Fecha detectada       : {fecha}")
+        print(f"🔹 Total detectado       : {total}\n")
+
     return {
         "ruc": ruc or None,
         "razon_social": razon_social or "RAZÓN SOCIAL DESCONOCIDA",

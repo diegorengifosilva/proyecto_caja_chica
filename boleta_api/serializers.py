@@ -35,7 +35,7 @@ User = get_user_model()
 #==================#
 # REGISTER Y LOGIN #
 #==================#
-# Serializador para registro de usuarios
+# Serializador de registro
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=6)
 
@@ -64,33 +64,42 @@ class RegisterSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data):
-        user = User.objects.create_user(**validated_data)
-        return user
+        return User.objects.create_user(**validated_data)
 
-# Serializador para obtener el token JWT usando el email
+
+# Serializador login con email
 class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
-        attrs['username'] = attrs.get('email')
-        data = super().validate(attrs)
+        email = attrs.get("email")
+        password = attrs.get("password")
+
+        if not email or not password:
+            raise serializers.ValidationError("Correo y contraseña son obligatorios.")
+
+        attrs["username"] = email  # SimpleJWT requiere username
+
+        try:
+            data = super().validate(attrs)
+        except Exception as e:
+            raise serializers.ValidationError(f"Error interno de login: {str(e)}")
 
         user = self.user
-        data['user'] = {
-            'id': user.id,
-            'email': user.email,
-            'nombre': user.nombre,
-            'apellido': user.apellido,
-            'rol': user.rol,
-            'area': user.area
+        data["user"] = {
+            "id": user.id,
+            "email": user.email,
+            "nombre": getattr(user, "nombre", ""),
+            "apellido": getattr(user, "apellido", ""),
+            "rol": getattr(user, "rol", ""),
+            "area": getattr(user, "area", None),
         }
 
         return data
 
     @classmethod
     def get_token(cls, user):
-        # Agrega info extra al token si deseas acceder sin depender del user object
         token = super().get_token(user)
-        token['nombre_completo'] = f"{user.nombre} {user.apellido}"
-        token['area'] = user.area
+        token["nombre_completo"] = f"{getattr(user, 'nombre', '')} {getattr(user, 'apellido', '')}"
+        token["area"] = getattr(user, "area", None)
         return token
 
 #========================================================================================
