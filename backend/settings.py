@@ -174,7 +174,6 @@ else:
         "https://proyecto-caja-chica-backend.onrender.com",
     ]
 
-# Headers extra para que Axios funcione
 CORS_ALLOW_HEADERS = list(default_headers) + [
     "content-type",
     "authorization",
@@ -185,7 +184,7 @@ CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 
 CSRF_COOKIE_SECURE = not IS_LOCAL
 SESSION_COOKIE_SECURE = not IS_LOCAL
-CSRF_COOKIE_SAMESITE = "None"
+CSRF_COOKIE_SAMESITE = "None"  # "None" para frontend en otro dominio
 SESSION_COOKIE_SAMESITE = "None"
 
 # ---------------------------
@@ -212,3 +211,15 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'UTC'
 CELERY_ENABLE_UTC = True
+
+# ---------------------------
+# Seguridad adicional para producción
+# ---------------------------
+if not IS_LOCAL:
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
+    SECURE_HSTS_SECONDS = 31536000  # 1 año
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_SSL_REDIRECT = True
