@@ -119,8 +119,6 @@ from .extraccion import (
     archivo_a_imagenes,
 )
 
-from .task import procesar_documento_celery
-
 # ---------------------------
 # Configuración Tesseract
 # ---------------------------
@@ -570,6 +568,7 @@ class SolicitudGastoViewSetCRUD(viewsets.ModelViewSet):
 ##===============##
 ## LIQUIDACIONES ##
 ##===============##
+from .task import procesar_documento_celery
 # Endpoint Principal
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -578,10 +577,26 @@ def procesar_documento(request):
     if not archivo:
         return Response({"error": "No se envió ningún archivo"}, status=400)
 
-    archivo_bytes = archivo.read()
-    task = procesar_documento_celery.delay(archivo_bytes, archivo.name, request.data.get("tipo_documento", "Boleta"), request.data.get("concepto", "Solicitud de gasto"))
+    # Guardar archivo temporalmente en disco
+    temp_path = os.path.join(settings.MEDIA_ROOT, archivo.name)
+    with open(temp_path, "wb") as f:
+        for chunk in archivo.chunks():
+            f.write(chunk)
 
-    return Response({"task_id": task.id, "mensaje": "OCR en proceso, revisa el resultado más tarde"}, status=202)
+    try:
+        # Ejecutar Celery de forma síncrona (solo si quieres mantener el flujo igual que antes)
+        resultados = procesar_documento_celery.apply(args=[
+            temp_path, archivo.name,
+            request.data.get("tipo_documento", "Boleta"),
+            request.data.get("concepto", "Solicitud de gasto")
+        ]).get()  # get() espera a que Celery termine
+
+        return Response({"resultado": resultados}, status=200)
+
+    except Exception as e:
+        print(f"❌ Error procesando documento: {e}")
+        return Response({"error": f"Ocurrió un error procesando OCR: {str(e)}"}, status=500)
+    
 # Liquidaciones Pendientes View
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])

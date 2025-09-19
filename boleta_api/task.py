@@ -3,19 +3,26 @@ from celery import shared_task
 from io import BytesIO
 import base64
 from datetime import date
-from decimal import Decimal, InvalidOperation
 from .extraccion import archivo_a_imagenes, procesar_datos_ocr
+from PIL import Image
+import pytesseract
+import os
 
 @shared_task
-def procesar_documento_celery(archivo_bytes, nombre_archivo, tipo_documento="Boleta", concepto="Solicitud de gasto"):
+def procesar_documento_celery(ruta_archivo, nombre_archivo, tipo_documento="Boleta", concepto="Solicitud de gasto"):
     """
     Tarea Celery: procesa OCR usando funciones de extraccion.py
+    - ruta_archivo: path al archivo temporal en disco
+    - nombre_archivo: nombre original del archivo
+    - tipo_documento y concepto opcionales
     """
-    from PIL import Image
     resultados = []
 
     try:
-        buffer = BytesIO(archivo_bytes)
+        # Abrir el archivo desde disco
+        with open(ruta_archivo, "rb") as f:
+            buffer = BytesIO(f.read())
+
         imagenes, textos_nativos = archivo_a_imagenes(buffer)
 
         if textos_nativos:
@@ -41,7 +48,6 @@ def procesar_documento_celery(archivo_bytes, nombre_archivo, tipo_documento="Bol
         else:
             for idx, img in enumerate(imagenes):
                 try:
-                    import pytesseract
                     texto_crudo = pytesseract.image_to_string(img, lang="spa")
                     datos = procesar_datos_ocr(texto_crudo)
                 except Exception:
@@ -68,6 +74,12 @@ def procesar_documento_celery(archivo_bytes, nombre_archivo, tipo_documento="Bol
                     "datos_detectados": datos,
                     "imagen_base64": f"data:image/png;base64,{img_b64}",
                 })
+
+        # Limpiar archivo temporal
+        try:
+            os.remove(ruta_archivo)
+        except Exception:
+            pass
 
         return resultados
 
