@@ -13,7 +13,7 @@ ENV PYTHONUNBUFFERED=1 \
     TESSDATA_PREFIX="/usr/share/tesseract-ocr/5/tessdata"
 
 # ---------------------------
-# Instalar dependencias del sistema y Tesseract
+# Instalar dependencias del sistema y Tesseract/OpenCV
 # ---------------------------
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -24,6 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr-spa \
     pkg-config \
     poppler-utils \
+    libgl1 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -43,7 +44,7 @@ RUN pip install --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
 # ---------------------------
-# Copiar proyecto
+# Copiar proyecto completo
 # ---------------------------
 COPY . /app/
 
