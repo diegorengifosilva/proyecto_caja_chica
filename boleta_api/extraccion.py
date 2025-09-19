@@ -3,14 +3,14 @@ import re
 import requests
 import unicodedata
 import pytesseract
-from typing import Optional, Dict, List, Union
+from typing import Optional, Dict, List, Union, Tuple
 from datetime import datetime, date, timedelta
 from django.db import transaction
 from django.core.exceptions import ValidationError
 from pdf2image import convert_from_bytes
 from pdf2image.exceptions import PDFInfoNotInstalledError, PDFPageCountError
 from PIL import Image, UnidentifiedImageError
-
+import pdfplumber
 
 # =======================#
 # CAMPOS CLAVE ESPERADOS #
@@ -437,43 +437,74 @@ def procesar_datos_ocr(texto: str) -> Dict[str, Optional[str]]:
 # ===================#
 # CONVERSION DE PDFs #
 # ===================#
-def archivo_a_imagenes(archivo) -> List[Image.Image]:
+def archivo_a_imagenes(archivo) -> Tuple[List[Image.Image], List[str]]:
     """
     Convierte un archivo PDF o imagen a una lista de objetos PIL.Image.
+    Estrategia híbrida:
+      1) Si es PDF, intenta extraer texto nativo con pdfplumber.
+      2) Si encuentra texto útil (RUC, TOTAL, FECHA, etc.), lo devuelve sin OCR.
+      3) Si no encuentra texto o es un escaneo, convierte a imágenes para OCR.
     
     Args:
         archivo: archivo tipo file-like object (PDF o imagen).
-
+    
     Returns:
-        List[Image.Image]: Lista de imágenes PIL. Lista vacía si falla la conversión.
+        Tuple[List[Image.Image], List[str]]: 
+            - Lista de imágenes PIL (para OCR si es necesario).
+            - Lista de textos nativos por página (si se detectaron).
     """
     imagenes: List[Image.Image] = []
+    textos_nativos: List[str] = []
 
     try:
         archivo.seek(0)  # Reinicia el puntero del archivo
-        if archivo.name.lower().endswith(".pdf"):
+        nombre = archivo.name.lower()
+
+        if nombre.endswith(".pdf"):
+            pdf_bytes = archivo.read()
+
+            # Paso 1: intentar extraer texto nativo
             try:
-                pdf_bytes = archivo.read()
+                with pdfplumber.open(archivo) as pdf:
+                    for page in pdf.pages:
+                        text = page.extract_text() or ""
+                        textos_nativos.append(text)
+                
+                # Si encontramos texto con palabras clave, devolvemos sin OCR
+                texto_completo = " ".join(textos_nativos).upper()
+                if any(palabra in texto_completo for palabra in ["RUC", "TOTAL", "FECHA", "IMPORTE"]):
+                    print("📄 Texto nativo detectado en PDF, se usará sin OCR.")
+                    return [], textos_nativos
+
+            except Exception as e:
+                print(f"⚠️ Error leyendo texto nativo del PDF: {e}")
+
+            # Paso 2: convertir PDF a imágenes si no se detectó texto útil
+            try:
                 imagenes = convert_from_bytes(pdf_bytes, dpi=300)
+                print("🖼️ PDF convertido a imágenes para OCR.")
             except PDFInfoNotInstalledError:
                 print("❌ Poppler no está instalado o no se encuentra en el PATH.")
             except PDFPageCountError:
                 print(f"❌ PDF corrupto o ilegible: {archivo.name}")
             except Exception as e:
                 print(f"❌ Error convirtiendo PDF a imágenes ({archivo.name}): {e}")
+
         else:
+            # Si es imagen normal
             try:
                 img = Image.open(archivo)
-                img.load()  # Asegura que la imagen esté completamente cargada
+                img.load()
                 imagenes = [img]
             except UnidentifiedImageError:
                 print(f"❌ Archivo no es una imagen válida: {archivo.name}")
             except Exception as e:
                 print(f"❌ Error abriendo imagen ({archivo.name}): {e}")
+
     except Exception as e:
         print(f"❌ Error procesando el archivo ({archivo.name}): {e}")
 
-    return imagenes
+    return imagenes, textos_nativos
 
 def debug_ocr_pdf(archivo):
     """

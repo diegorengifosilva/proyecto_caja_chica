@@ -42,8 +42,17 @@ export const procesarDocumentoOCR = async (formData) => {
 
     const response = await api.post("/procesar/", formData);
 
-    const { datos_detectados } = response.data || {};
-    console.log("✅ OCR recibido:", datos_detectados);
+    // ✅ Ajuste: el backend devuelve un array en `resultado`
+    const resultados = response.data?.resultado || [];
+    console.log("✅ OCR recibido:", resultados);
+
+    if (resultados.length === 0) {
+      console.warn("⚠️ No se detectaron datos en el OCR");
+      return {};
+    }
+
+    // Tomamos la primera página (puedes adaptar si necesitas todas)
+    const datos_detectados = resultados[0].datos_detectados || {};
 
     // Validaciones mínimas
     const camposObligatorios = ["ruc"];
@@ -58,7 +67,7 @@ export const procesarDocumentoOCR = async (formData) => {
       console.warn(`⚠️ OCR incompleto. Faltan: ${faltantes.join(", ")}`);
     }
 
-    return datos_detectados || {};
+    return datos_detectados;
   } catch (error) {
     manejarError(
       error,

@@ -1,12 +1,17 @@
-# Base image con Python 3.13
+# ---------------------------
+# Imagen base con Python 3.13 slim
+# ---------------------------
 FROM python:3.13-slim
 
-# Setea variables de entorno
-ENV PYTHONUNBUFFERED=1
-ENV POETRY_VIRTUALENVS_CREATE=false
-ENV PATH="/usr/local/bin:$PATH"
+# Variables de entorno
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    POETRY_VIRTUALENVS_CREATE=false \
+    PATH="/usr/local/bin:$PATH"
 
-# Instalar dependencias del sistema necesarias para Django + Tesseract
+# ---------------------------
+# Instalar dependencias del sistema
+# ---------------------------
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
@@ -16,21 +21,25 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr-spa \
     pkg-config \
     poppler-utils \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Crear directorio de la app
+# ---------------------------
+# Directorio de la app
+# ---------------------------
 WORKDIR /app
 
-# Copiar archivos de requirements
+# Copiar e instalar dependencias Python
 COPY requirements.txt /app/
-RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
+RUN pip install --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt
 
-# Copiar todo el contenido de tu proyecto
+# Copiar el proyecto completo
 COPY . /app/
 
-# Exponer puerto (Render usa $PORT)
+# ---------------------------
+# Exponer puerto y comando final
+# ---------------------------
 EXPOSE 8000
 
-# Comando para correr Gunicorn
 CMD ["sh", "-c", "gunicorn backend.wsgi:application --bind 0.0.0.0:${PORT:-8000}"]
