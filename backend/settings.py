@@ -162,9 +162,11 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CORS_ALLOW_CREDENTIALS = True
 
 if IS_LOCAL:
+    # Desarrollo local
     CORS_ALLOW_ALL_ORIGINS = True
     CSRF_TRUSTED_ORIGINS = ["http://localhost:5173"]
 else:
+    # Producción
     CORS_ALLOW_ALL_ORIGINS = False
     CORS_ALLOWED_ORIGINS = [
         "https://proyecto-caja-chica-frontend.onrender.com",
@@ -173,14 +175,19 @@ else:
         "https://proyecto-caja-chica-frontend.onrender.com",
         "https://proyecto-caja-chica-backend.onrender.com",
     ]
-
-# Headers y métodos CORS extendidos
-CORS_ALLOW_HEADERS = list(default_headers) + [
-    "content-type",
-    "authorization",
-    "x-csrftoken",
-]
-CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+    # Aseguramos headers extra que Axios pueda enviar
+    CORS_ALLOW_HEADERS = list(default_headers) + [
+        "content-type",
+        "authorization",
+        "x-csrftoken",
+        "accept",
+        "origin",
+        "user-agent",
+        "accept-encoding",
+        "connection",
+    ]
+    # Métodos permitidos
+    CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 
 CSRF_COOKIE_SECURE = not IS_LOCAL
 SESSION_COOKIE_SECURE = not IS_LOCAL
