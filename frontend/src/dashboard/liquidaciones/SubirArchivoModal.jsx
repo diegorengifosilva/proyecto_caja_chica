@@ -71,23 +71,28 @@ export default function SubirArchivoModal({
 
     try {
       setCargando(true);
+      setErrorOCR(null);
 
-      const datosDetectados = await procesarDocumentoOCR(formData, {
-        headers: { "Content-Type": "multipart/form-data" }, // 👈 clave para móviles
-      });
-      console.log("📦 OCR recibido:", datosDetectados);
+      const ocrResponse = await procesarDocumentoOCR(formData);
+      console.log("📦 OCR recibido:", ocrResponse);
+
+      // Ahora el objeto ya está directamente en ocrResponse[0]
+      const datos = Array.isArray(ocrResponse) && ocrResponse.length ? ocrResponse[0] : {};
+
+      let total = datos.total?.toString().replace(",", ".") || totalManual;
+      if (total) {
+        total = parseFloat(total);
+        if (isNaN(total)) total = null;
+      }
 
       const doc = {
         nombre_archivo: archivo.name,
         tipo_documento: tipoDocumento,
-        numero_documento: datosDetectados.numero_documento || "",
-        fecha: datosDetectados.fecha || "",
-        ruc: datosDetectados.ruc || "",
-        razon_social: datosDetectados.razon_social || "",
-        total:
-          (datosDetectados.total && datosDetectados.total.toString().replace(",", ".")) ||
-          totalManual ||
-          "",
+        numero_documento: datos.numero_documento || "",
+        fecha: datos.fecha || "",
+        ruc: datos.ruc || "",
+        razon_social: datos.razon_social || "",
+        total: total || "",
         archivo,
       };
 

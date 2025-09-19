@@ -578,12 +578,11 @@ def procesar_documento(request):
     número de documento, tipo, fecha, RUC, razón social, concepto y total.
 
     Estrategia híbrida:
-      - Si es PDF → primero intenta extraer texto con pdfplumber.
-      - Si el texto es insuficiente → convierte a imágenes y aplica OCR.
-      - Si es imagen → va directo a OCR.
+      - Si es PDF → intenta extraer texto con pdfplumber; si no hay datos → OCR.
+      - Si es imagen → OCR directo.
 
-    Para PDFs multipágina, procesa cada página y devuelve un arreglo;
-    si es una sola página, retorna directamente en 'datos_detectados'.
+    Retorna JSON uniforme:
+      {"resultado": [ { pagina, texto_extraido, datos_detectados, imagen_base64 } ]}
     """
     archivo = request.FILES.get("archivo")
     if not archivo:
@@ -592,73 +591,35 @@ def procesar_documento(request):
     try:
         resultados = []
 
-        # 🔹 Caso PDF → primero intentamos extracción nativa
-        if archivo.name.lower().endswith(".pdf"):
-            try:
-                import pdfplumber
-                from pdf2image import convert_from_bytes
+        # Convertir archivo a imágenes y extraer texto nativo si hay PDF
+        imagenes, textos_nativos = archivo_a_imagenes(archivo)
 
-                archivo.seek(0)
-                pdf_bytes = archivo.read()
-                with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-                    paginas_img = convert_from_bytes(pdf_bytes, dpi=300)
+        # Si hay texto nativo, lo usamos; si no, OCR sobre las imágenes
+        if textos_nativos:
+            for idx, texto_crudo in enumerate(textos_nativos):
+                texto_norm = normalizar_texto_ocr(texto_crudo)
+                datos_extraidos = procesar_datos_ocr(texto_norm)
 
-                    for idx, page in enumerate(pdf.pages):
-                        texto_crudo = page.extract_text() or ""
-                        print(f"📄 Texto nativo pág.{idx+1}: {texto_crudo[:200]}...")
+                datos_extraidos.update({
+                    "tipo_documento": request.data.get("tipo_documento", "Boleta"),
+                    "concepto": request.data.get("concepto", "Solicitud de gasto"),
+                    "nombre_archivo": archivo.name
+                })
+                datos_extraidos["numero_documento"] = datos_extraidos.get("numero_documento") or "ND"
+                datos_extraidos["fecha"] = datos_extraidos.get("fecha") or date.today().strftime("%Y-%m-%d")
+                datos_extraidos["total"] = datos_extraidos.get("total") or "0.00"
+                if not datos_extraidos.get("razon_social"):
+                    datos_extraidos["razon_social"] = "RAZÓN SOCIAL DESCONOCIDA"
+                datos_extraidos["ruc"] = datos_extraidos.get("ruc") or "00000000000"
 
-                        texto_mayus = texto_crudo.upper()
-                        usar_ocr = not any(
-                            palabra in texto_mayus
-                            for palabra in ["RUC", "TOTAL", "FECHA", "FACTURA", "BOLETA"]
-                        )
-
-                        if usar_ocr:
-                            print(f"⚠️ Pág.{idx+1}: sin datos clave → usando OCR…")
-                            img = paginas_img[idx]
-                            texto_crudo = pytesseract.image_to_string(img, lang="spa")
-                        else:
-                            img = None
-                            print(f"✅ Pág.{idx+1}: usando texto nativo pdfplumber")
-
-                        texto_norm = normalizar_texto_ocr(texto_crudo)
-                        datos_extraidos = procesar_datos_ocr(texto_norm)
-
-                        # Completar campos faltantes
-                        datos_extraidos.update({
-                            "tipo_documento": request.data.get("tipo_documento", "Boleta"),
-                            "concepto": request.data.get("concepto", "Solicitud de gasto"),
-                            "nombre_archivo": archivo.name
-                        })
-                        datos_extraidos["numero_documento"] = datos_extraidos.get("numero_documento") or "ND"
-                        datos_extraidos["fecha"] = datos_extraidos.get("fecha") or date.today().strftime("%Y-%m-%d")
-                        datos_extraidos["total"] = datos_extraidos.get("total") or "0.00"
-                        if not datos_extraidos.get("razon_social"):
-                            datos_extraidos["razon_social"] = "RAZÓN SOCIAL DESCONOCIDA"
-                        datos_extraidos["ruc"] = datos_extraidos.get("ruc") or "00000000000"
-
-                        # Imagen opcional (solo si usamos OCR)
-                        img_data = None
-                        if img:
-                            buffer = BytesIO()
-                            img.save(buffer, format="PNG")
-                            img_b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
-                            img_data = f"data:image/png;base64,{img_b64}"
-
-                        resultados.append({
-                            "pagina": idx + 1,
-                            "texto_extraido": texto_crudo,
-                            "datos_detectados": datos_extraidos,
-                            "imagen_base64": img_data
-                        })
-
-            except Exception as e:
-                print("❌ Error leyendo PDF con pdfplumber:", e)
-                return Response({"error": f"No se pudo procesar el PDF: {str(e)}"}, status=500)
-
+                resultados.append({
+                    "pagina": idx + 1,
+                    "texto_extraido": texto_crudo,
+                    "datos_detectados": datos_extraidos,
+                    "imagen_base64": None  # Ya hay texto nativo
+                })
         else:
-            # 🔹 Caso Imagen → OCR directo
-            imagenes = archivo_a_imagenes(archivo)
+            # OCR sobre imágenes
             for idx, img in enumerate(imagenes):
                 texto_crudo = pytesseract.image_to_string(img, lang="spa")
                 texto_norm = normalizar_texto_ocr(texto_crudo)
@@ -688,14 +649,9 @@ def procesar_documento(request):
                     "imagen_base64": img_data
                 })
 
-        # 🔹 Si solo hay una página, devolver directamente datos_detectados
-        if len(resultados) == 1:
-            return Response({"datos_detectados": resultados[0]["datos_detectados"]}, status=200)
-
         return Response({"resultado": resultados}, status=200)
 
     except Exception as e:
-        print("❌ Error en procesar_documento:", str(e))
         return Response({"error": f"Ocurrió un error procesando OCR: {str(e)}"}, status=500)
 
 # Liquidaciones Pendientes View
