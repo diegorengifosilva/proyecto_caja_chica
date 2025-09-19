@@ -1,7 +1,7 @@
 // src/services/documentoService.js
 import axios from "axios";
 
-/* 🌐 Cliente Axios con URL dinámica */
+/* 🌐 Cliente Axios con URL dinámica y soporte CORS + credenciales */
 const api = axios.create({
   baseURL:
     import.meta.env.MODE === "development"
@@ -10,7 +10,9 @@ const api = axios.create({
   timeout: 60000,
   headers: {
     Accept: "application/json",
+    // ⚡ Content-Type se maneja automáticamente para FormData
   },
+  withCredentials: true, // 🔹 obligatorio para CORS con cookies/JWT
 });
 
 /* 🔄 Manejo centralizado de errores */
@@ -32,6 +34,7 @@ const manejarError = (error, mensajeDefault) => {
 
 /**
  * Procesa un documento (imagen/PDF) con OCR en el backend.
+ * @param {FormData} formData
  */
 export const procesarDocumentoOCR = async (formData) => {
   try {
@@ -61,20 +64,8 @@ export const procesarDocumentoOCR = async (formData) => {
 };
 
 /**
- * Prueba de OCR con un documento de ejemplo (debug).
- */
-export const testOCR = async () => {
-  try {
-    const response = await api.get("/test-ocr/");
-    console.log("🧪 Test OCR:", response.data);
-    return response.data;
-  } catch (error) {
-    manejarError(error, "No se pudo ejecutar el test de OCR.");
-  }
-};
-
-/**
- * Guarda un documento de gasto procesado (pos-OCR).
+ * Guarda un documento de gasto procesado (pos-OCR) en el backend.
+ * @param {FormData} formData
  */
 export const guardarDocumentoGasto = async (formData) => {
   try {
@@ -90,7 +81,8 @@ export const guardarDocumentoGasto = async (formData) => {
 };
 
 /**
- * Obtiene todos los documentos vinculados a una solicitud.
+ * Obtiene todos los documentos vinculados a una solicitud
+ * @param {number|string} solicitudId
  */
 export const obtenerDocumentosPorSolicitud = async (solicitudId) => {
   try {
@@ -104,5 +96,18 @@ export const obtenerDocumentosPorSolicitud = async (solicitudId) => {
       error,
       "No se pudieron cargar los documentos de la solicitud."
     );
+  }
+};
+
+/**
+ * Test rápido de OCR (debug)
+ */
+export const testOCR = async () => {
+  try {
+    const response = await api.get("/test-ocr/");
+    console.log("🧪 Test OCR:", response.data);
+    return response.data;
+  } catch (error) {
+    manejarError(error, "No se pudo ejecutar el test de OCR.");
   }
 };
