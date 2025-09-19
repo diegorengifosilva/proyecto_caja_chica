@@ -12,7 +12,8 @@ ENV PYTHONUNBUFFERED=1 \
     PATH="/usr/local/bin:$PATH" \
     TESSDATA_PREFIX="/usr/share/tesseract-ocr/5/tessdata" \
     DJANGO_SETTINGS_MODULE=backend.settings \
-    POPPLER_PATH="/usr/bin"
+    POPPLER_PATH="/usr/bin" \
+    PORT=10000
 
 # ---------------------------
 # Instalar dependencias del sistema
@@ -38,13 +39,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# ---------------------------
 # Configurar locales
+# ---------------------------
 RUN locale-gen en_US.UTF-8
 ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
 
+# ---------------------------
 # Verificar Tesseract y Poppler
+# ---------------------------
 RUN which tesseract && tesseract --version
 RUN which pdftoppm && pdftoppm -v
 
@@ -55,7 +60,7 @@ WORKDIR /app
 RUN mkdir -p /app/media /app/staticfiles && chmod -R 777 /app/media /app/staticfiles
 
 # ---------------------------
-# Instalar Python requirements
+# Instalar requirements de Python
 # ---------------------------
 COPY requirements.txt /app/
 RUN pip install --upgrade pip \
@@ -67,7 +72,18 @@ RUN pip install --upgrade pip \
 COPY . /app/
 
 # ---------------------------
-# Exponer puerto (Render usará $PORT)
+# Construir frontend (Vite/React) si es necesario
+# ---------------------------
+# Si ya lo construiste antes, puedes comentar estas líneas
+# RUN cd frontend && npm install && npm run build
+
+# ---------------------------
+# Recoger archivos estáticos de Django para producción
+# ---------------------------
+RUN python manage.py collectstatic --noinput
+
+# ---------------------------
+# Exponer puerto
 # ---------------------------
 EXPOSE 8000
 
