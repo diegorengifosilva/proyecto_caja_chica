@@ -1,35 +1,48 @@
-asgiref==3.9.1
-certifi==2025.8.3
-celery>=5.3.0
-charset-normalizer==3.4.2
-dj-database-url==3.0.1
+# Core Django y REST
 Django==5.2.4
-django-cors-headers==4.7.0
-django-simple-history==3.10.1
 djangorestframework==3.16.0
 djangorestframework_simplejwt==5.5.1
+django-cors-headers==4.7.0
+django-simple-history==3.10.1
+dj-database-url==3.0.1
+asgiref==3.9.1
+sqlparse==0.5.3
+tzdata==2025.2
 et_xmlfile==2.0.0
-gunicorn==23.0.0
-idna==3.10
-numpy==2.2.6
-opencv-python==4.12.0.88
 openpyxl==3.1.5
 packaging==25.0
 pandas==2.3.1
-pillow==11.3.0
-psycopg2-binary==2.9.10
+python-dateutil==2.9.0.post0
+six==1.17.0
+
+# Gunicorn y Caching
+gunicorn==23.0.0
+whitenoise==6.10.0
+
+# Networking y seguridad
+requests==2.32.4
+certifi==2025.8.3
+idna==3.10
+urllib3==2.5.0
 PyJWT==2.10.1
+charset-normalizer==3.4.2
+
+# Celery
+celery>=5.3.0
+redis>=5.3.1
+
+# Base de datos
+psycopg2-binary==2.9.10
+
+# Imagen y PDF
+numpy==2.2.6
+pillow==11.3.0
+opencv-python-headless==4.12.0.88   # headless para servidores sin GUI
 pytesseract==0.3.13
 pdf2image==1.17.0
 pdfplumber==0.11.4
 pdfminer.six==20231228
-python-dateutil==2.9.0.post0
-pytz==2025.2
-redis>=5.3.1
 reportlab==4.4.3
-requests==2.32.4
-six==1.17.0
-sqlparse==0.5.3
-tzdata==2025.2
-urllib3==2.5.0
-whitenoise==6.10.0
+
+# Opcional para compatibilidad avanzada con PDFs
+poppler-utils>=22.11.0

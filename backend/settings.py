@@ -144,12 +144,13 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 # ---------------------------
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+os.makedirs(MEDIA_ROOT, exist_ok=True)  # asegura que exista
 
 # ---------------------------
 # Límites de subida
 # ---------------------------
-DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
-FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+DATA_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024  # hasta 50MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024  # hasta 50MB
 
 # ---------------------------
 # Defaults
@@ -157,7 +158,7 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ---------------------------
-# CORS y CSRF (mejorado)
+# CORS y CSRF
 # ---------------------------
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = list(default_headers) + [
@@ -200,6 +201,8 @@ SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
     'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    'BLACKLIST_AFTER_ROTATION': True,
 }
 
 # ---------------------------
@@ -224,3 +227,27 @@ if not IS_LOCAL:
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
     SECURE_SSL_REDIRECT = True
+
+# ---------------------------
+# OCR / PDF extras
+# ---------------------------
+# Permite que pytesseract y pdf2image accedan correctamente a Tesseract y Poppler
+TESSDATA_PREFIX = os.environ.get("TESSDATA_PREFIX", "/usr/share/tesseract-ocr/5/tessdata")
+POPPLER_PATH = os.environ.get("POPPLER_PATH", "/usr/bin")  # para pdf2image
+
+# ---------------------------
+# Logs para debugging de producción
+# ---------------------------
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+}

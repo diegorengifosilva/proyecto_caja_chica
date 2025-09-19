@@ -11,7 +11,8 @@ ENV PYTHONUNBUFFERED=1 \
     POETRY_VIRTUALENVS_CREATE=false \
     PATH="/usr/local/bin:$PATH" \
     TESSDATA_PREFIX="/usr/share/tesseract-ocr/5/tessdata" \
-    DJANGO_SETTINGS_MODULE=backend.settings
+    DJANGO_SETTINGS_MODULE=backend.settings \
+    POPPLER_PATH="/usr/bin"
 
 # ---------------------------
 # Instalar dependencias del sistema
@@ -32,19 +33,28 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     wget \
     curl \
+    poppler-data \
+    locales \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Verificar Tesseract
+# Configurar locales para evitar errores de encoding
+RUN locale-gen en_US.UTF-8
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
+
+# Verificar Tesseract y Poppler
 RUN which tesseract && tesseract --version
+RUN which pdftoppm && pdftoppm -v
 
 # ---------------------------
 # Directorio de la app
 # ---------------------------
 WORKDIR /app
 
-# Crear directorio media con permisos
-RUN mkdir -p /app/media && chmod -R 777 /app/media
+# Crear directorio media con permisos completos
+RUN mkdir -p /app/media /app/staticfiles && chmod -R 777 /app/media /app/staticfiles
 
 # ---------------------------
 # Copiar requirements y instalar
