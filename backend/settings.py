@@ -5,20 +5,26 @@ import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# --- Seguridad ---
+# ---------------------------
+# Seguridad
+# ---------------------------
 SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-dev-key")
 DEBUG = os.environ.get("DEBUG", "False") == "True"
 ALLOWED_HOSTS = [
     "proyecto-caja-chica-backend.onrender.com",
     "localhost",
-    "127.0.0.1"
+    "127.0.0.1",
 ]
 
-# --- Detectar entorno ---
+# ---------------------------
+# Detectar entorno
+# ---------------------------
 ENVIRONMENT = os.environ.get("DJANGO_ENV", "local")  # 'local' o 'production'
 IS_LOCAL = ENVIRONMENT == "local"
 
-# --- Apps ---
+# ---------------------------
+# Apps
+# ---------------------------
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -33,9 +39,11 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
 ]
 
-# --- Middleware ---
+# ---------------------------
+# Middleware
+# ---------------------------
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',  # Debe estar arriba
+    'corsheaders.middleware.CorsMiddleware',  # Siempre arriba
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -49,7 +57,9 @@ MIDDLEWARE = [
 ROOT_URLCONF = 'backend.urls'
 WSGI_APPLICATION = 'backend.wsgi.application'
 
-# --- Templates ---
+# ---------------------------
+# Templates
+# ---------------------------
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -66,7 +76,9 @@ TEMPLATES = [
     },
 ]
 
-# --- Base de datos ---
+# ---------------------------
+# Base de datos
+# ---------------------------
 DATABASES = {
     'default': dj_database_url.config(
         default=os.environ.get(
@@ -78,7 +90,9 @@ DATABASES = {
     )
 }
 
-# --- DRF ---
+# ---------------------------
+# Django REST Framework
+# ---------------------------
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -87,7 +101,9 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 10,
 }
 
-# --- Cache ---
+# ---------------------------
+# Cache
+# ---------------------------
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
@@ -96,7 +112,9 @@ CACHES = {
     }
 }
 
-# --- Passwords ---
+# ---------------------------
+# Passwords
+# ---------------------------
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',},
@@ -104,26 +122,36 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',},
 ]
 
-# --- Internacionalización ---
+# ---------------------------
+# Internacionalización
+# ---------------------------
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
-# --- Archivos estáticos ---
+# ---------------------------
+# Archivos estáticos
+# ---------------------------
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [os.path.join(BASE_DIR, "frontend", "dist")]
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
-# --- Media ---
+# ---------------------------
+# Media
+# ---------------------------
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-# --- Defaults ---
+# ---------------------------
+# Defaults
+# ---------------------------
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# --- CORS y CSRF ---
+# ---------------------------
+# CORS y CSRF
+# ---------------------------
 CORS_ALLOW_CREDENTIALS = True
 
 if IS_LOCAL:
@@ -136,18 +164,35 @@ else:
     ]
     CSRF_TRUSTED_ORIGINS = [
         "https://proyecto-caja-chica-frontend.onrender.com",
-        "https://proyecto-caja-chica-backend.onrender.com"
+        "https://proyecto-caja-chica-backend.onrender.com",
     ]
+
+# Permitir headers y métodos necesarios para AJAX / Axios
+CORS_ALLOW_HEADERS = [
+    "content-type",
+    "authorization",
+    "x-csrftoken",
+    "accept",
+    "origin",
+    "user-agent",
+    "accept-encoding",
+    "connection",
+]
+CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 
 CSRF_COOKIE_SECURE = not IS_LOCAL
 SESSION_COOKIE_SECURE = not IS_LOCAL
 CSRF_COOKIE_SAMESITE = "None"
 SESSION_COOKIE_SAMESITE = "None"
 
-# --- Usuario personalizado ---
+# ---------------------------
+# Usuario personalizado
+# ---------------------------
 AUTH_USER_MODEL = "boleta_api.CustomUser"
 
-# --- JWT ---
+# ---------------------------
+# JWT
+# ---------------------------
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
