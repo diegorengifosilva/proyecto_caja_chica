@@ -7,10 +7,11 @@ FROM python:3.13-slim
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     POETRY_VIRTUALENVS_CREATE=false \
-    PATH="/usr/local/bin:$PATH"
+    PATH="/usr/local/bin:$PATH" \
+    TESSDATA_PREFIX="/usr/share/tesseract-ocr/5/tessdata"
 
 # ---------------------------
-# Instalar dependencias del sistema
+# Instalar dependencias del sistema y Tesseract
 # ---------------------------
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -29,12 +30,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # ---------------------------
 WORKDIR /app
 
+# ---------------------------
 # Copiar e instalar dependencias Python
+# ---------------------------
 COPY requirements.txt /app/
 RUN pip install --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
+# ---------------------------
 # Copiar el proyecto completo
+# ---------------------------
 COPY . /app/
 
 # ---------------------------
@@ -42,4 +47,5 @@ COPY . /app/
 # ---------------------------
 EXPOSE 8000
 
+# Usamos Gunicorn, adaptándonos a la variable PORT de Render
 CMD ["sh", "-c", "gunicorn backend.wsgi:application --bind 0.0.0.0:${PORT:-8000}"]
