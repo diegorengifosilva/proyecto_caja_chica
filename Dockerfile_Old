@@ -3,9 +3,7 @@
 # ---------------------------
 FROM python:3.13-slim
 
-# ---------------------------
 # Variables de entorno
-# ---------------------------
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     POETRY_VIRTUALENVS_CREATE=false \
@@ -24,11 +22,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr-spa \
     pkg-config \
     poppler-utils \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
-# Verificar Tesseract
-RUN which tesseract && tesseract --version
+    libgl1 \
+    && ln -s $(which tesseract) /usr/bin/tesseract \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # ---------------------------
 # Directorio de la app
@@ -36,19 +32,21 @@ RUN which tesseract && tesseract --version
 WORKDIR /app
 
 # ---------------------------
-# Copiar requirements y instalar
+# Copiar e instalar dependencias Python
 # ---------------------------
 COPY requirements.txt /app/
 RUN pip install --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
 # ---------------------------
-# Copiar proyecto
+# Copiar el proyecto completo
 # ---------------------------
 COPY . /app/
 
 # ---------------------------
-# Exponer puerto y comando
+# Exponer puerto y comando final
 # ---------------------------
 EXPOSE 8000
+
+# Usamos Gunicorn, adaptándonos a la variable PORT de Render
 CMD ["sh", "-c", "gunicorn backend.wsgi:application --bind 0.0.0.0:${PORT:-8000}"]
