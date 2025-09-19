@@ -10,10 +10,11 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     POETRY_VIRTUALENVS_CREATE=false \
     PATH="/usr/local/bin:$PATH" \
-    TESSDATA_PREFIX="/usr/share/tesseract-ocr/5/tessdata"
+    TESSDATA_PREFIX="/usr/share/tesseract-ocr/5/tessdata" \
+    DJANGO_SETTINGS_MODULE=backend.settings
 
 # ---------------------------
-# Instalar dependencias del sistema y Tesseract/OpenCV
+# Instalar dependencias del sistema
 # ---------------------------
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -22,9 +23,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libtesseract-dev \
     tesseract-ocr \
     tesseract-ocr-spa \
+    tesseract-ocr-eng \
     pkg-config \
     poppler-utils \
     libgl1 \
+    libsm6 \
+    libxext6 \
+    git \
+    wget \
+    curl \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -35,6 +42,9 @@ RUN which tesseract && tesseract --version
 # Directorio de la app
 # ---------------------------
 WORKDIR /app
+
+# Crear directorio media con permisos
+RUN mkdir -p /app/media && chmod -R 777 /app/media
 
 # ---------------------------
 # Copiar requirements y instalar
@@ -49,7 +59,11 @@ RUN pip install --upgrade pip \
 COPY . /app/
 
 # ---------------------------
-# Exponer puerto y comando
+# Exponer puerto
 # ---------------------------
 EXPOSE 8000
-CMD ["sh", "-c", "gunicorn backend.wsgi:application --bind 0.0.0.0:${PORT:-8000}"]
+
+# ---------------------------
+# Comando Gunicorn
+# ---------------------------
+CMD ["sh", "-c", "gunicorn backend.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers $(nproc) --timeout 120"]

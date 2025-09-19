@@ -1,5 +1,10 @@
 tesseract-ocr
 tesseract-ocr-spa
+tesseract-ocr-eng
 libtesseract-dev
+libleptonica-dev
 libgl1
+libsm6
+libxext6
 poppler-utils
+pkg-config
