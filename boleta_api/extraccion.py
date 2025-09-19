@@ -117,64 +117,72 @@ def normalizar_monto(monto_txt: str) -> Optional[str]:
 # ========================#
 # DETECTORES INDIVIDUALES #
 # ========================#
-def detectar_numero_documento(texto: str) -> Optional[str]:
+def detectar_numero_documento(texto: str, debug: bool = False) -> Optional[str]:
     """
     Detecta el número de documento (boleta o factura) en OCR de imágenes o PDFs.
-    Ejemplos válidos: F561-0166803, BA03-07128636, E001-97, B123-98765.
 
     Estrategia:
-      - Normaliza caracteres confusos del OCR (O→0, I→1, S→5 si necesario).
-      - Ignora espacios y caracteres extraños entre serie y correlativo.
-      - Busca patrón de serie-correlativo (una o dos letras + dígitos) opcionalmente con guion.
-      - Prioriza la línea justo debajo del RUC si existe.
-      - Fallback: cualquier patrón de 2-8 dígitos consecutivos con guion.
+    1. Normaliza errores típicos de OCR (O->0, I->1, L->1, S->5).
+    2. Ignora cualquier RUC detectado.
+    3. Busca patrones de serie+correlativo (letras+numeros) opcionalmente precedidos de Nro/No.
+    4. Prioriza líneas cercanas al RUC.
+    5. Devuelve la coincidencia más probable.
     """
+
+    from .extraccion import detectar_ruc  # usar tu detector de RUC existente
+
     if not texto:
         return "ND"
 
     # --- Normalizar OCR ---
     texto_norm = texto.upper()
-    texto_norm = (
-        texto_norm.replace("O", "0")
-                  .replace("I", "1")
-                  .replace(" ", "")
-                  .replace("L", "1")  # L → 1, típico error OCR
-                  .replace("S", "5")  # S → 5 en algunos casos
-    )
+    texto_norm = texto_norm.replace("O", "0").replace("I", "1").replace("L", "1").replace("S", "5").replace(" ", "")
 
     lineas = texto_norm.splitlines()
 
-    # --- Localizar índice del RUC si existe ---
+    # --- Detectar RUC ---
+    ruc_valor = detectar_ruc(texto)  # ignorar este número en la búsqueda
     ruc_idx = None
-    ruc_match = re.search(r"\b\d{11}\b", texto_norm)
-    if ruc_match:
+    if ruc_valor:
         for i, l in enumerate(lineas):
-            if ruc_match.group(0) in l:
+            if ruc_valor in l:
                 ruc_idx = i
                 break
 
-    # --- Patrón principal: serie (1-2 letras) + correlativo (2-8 dígitos) ---
-    patron = re.compile(r"\b([A-Z]{1,2}\d{1,3})[- ]?(\d{2,8})\b")
+    candidatos: List[tuple[str, int]] = []
 
-    posibles = []
+    # --- Patrón principal: opcional Nro/No + serie (1-2 letras) + números (2-8) + guion opcional ---
+    patron = re.compile(r"(?:NRO\.?|NO\.?:?)?([A-Z]{1,2}\d{1,3})[-]?(\d{2,8})")
+
     for i, linea in enumerate(lineas):
-        # Limpiar caracteres raros de OCR
-        linea_clean = re.sub(r"[^A-Z0-9\-]", "", linea)
+        linea_clean = re.sub(r"[^A-Z0-9\-.:]", "", linea)
         for match in patron.finditer(linea_clean):
             serie, correlativo = match.groups()
             numero = f"{serie}-{correlativo}"
-            # Si está justo debajo del RUC → máxima prioridad
-            if ruc_idx is not None and i == ruc_idx + 1:
-                return numero
-            posibles.append(numero)
 
-    # --- Si hay varios, devolver el primero encontrado ---
-    if posibles:
-        return posibles[0]
+            # Ignorar RUC detectado
+            if ruc_valor and numero.replace("-", "") == ruc_valor:
+                continue
 
-    # --- Fallback: patrón numérico simple, guion opcional ---
-    fallback = re.search(r"\b\d{2,4}[-]?\d{2,8}\b", texto_norm)
-    if fallback:
+            # Prioridad: más cerca del RUC, más probable
+            prioridad = 0
+            if ruc_idx is not None:
+                distancia = abs(i - ruc_idx)
+                if distancia <= 2:
+                    prioridad = 2  # línea inmediatamente debajo o arriba del RUC
+            candidatos.append((numero, prioridad))
+
+    if debug:
+        print("Candidatos detectados:", candidatos)
+
+    # --- Seleccionar el candidato con mayor prioridad ---
+    if candidatos:
+        candidatos.sort(key=lambda x: (-x[1], x[0]))
+        return candidatos[0][0]
+
+    # --- Fallback: patrón con letra+numeros, evitando RUC ---
+    fallback = re.search(r"\b[A-Z]+\d{2,4}-\d{2,8}\b", texto_norm)
+    if fallback and fallback.group(0).replace("-", "") != ruc_valor:
         return fallback.group(0)
 
     return "ND"
@@ -354,24 +362,25 @@ def detectar_ruc(texto: str) -> Optional[str]:
 
     return None
 
-def detectar_razon_social(texto: str, ruc: Optional[str] = None) -> str:
+def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = False) -> str:
     """
     Detecta la razón social del proveedor en boletas o facturas electrónicas.
-    - Prioriza empresas (S.A., S.A.C., EIRL, SOCIEDAD, CORPORACION, etc.)
-    - Combina líneas consecutivas si parecen parte de la misma razón social.
-    - Ignora nombres de clientes/usuarios y la propia empresa interna.
-    - Bloquea variantes de nuestra empresa.
-    - Corrige errores comunes de OCR en nombres de empresas (5,A → S.A., L al inicio, etc.)
-    """
 
+    Estrategia:
+    1. Normaliza errores típicos de OCR.
+    2. Ignora nuestra propia razón social y variantes.
+    3. Detecta nombres hasta terminaciones legales: S.A., S.A.C., EIRL, SOCIEDAD ANONIMA, etc.
+    4. Evita incluir RUC, direcciones o ciudades.
+    5. Combina líneas consecutivas si parecen parte del mismo nombre.
+    """
     if not texto:
         return "RAZÓN SOCIAL DESCONOCIDA"
 
-    # 🔹 Normalización OCR general
+    # --- Normalización general ---
     texto_norm = texto.upper()
     texto_norm = re.sub(r"\s{2,}", " ", texto_norm)
 
-    # 🔹 Reemplazos OCR específicos para empresas
+    # --- Correcciones OCR típicas ---
     reemplazos = {
         "5,A,": "S.A.",
         "5A": "S.A.",
@@ -384,68 +393,71 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None) -> str:
         "3.A.C.": "S.A.C",
         "SA.": "S.A.",
         "SAC.": "S.A.C",
-        "RETALE": "RETAIL",
-        ",": "",   # remover comas sueltas
+        "E.I.R.L.": "E.I.R.L",
+        "EIRL.": "E.I.R.L",
+        ",": "",  # remover comas sueltas
     }
     for k, v in reemplazos.items():
         texto_norm = texto_norm.replace(k, v)
 
-    # 🔹 Separar líneas y limpiar
+    # --- Separar líneas y limpiar caracteres extra ---
     lineas = [l.strip(" ,.-") for l in texto_norm.splitlines() if l.strip()]
 
-    # 🔹 Lista de exclusión explícita (nuestra empresa interna, todas variantes posibles)
+    # --- Exclusiones explícitas ---
     exclusiones = [
         r"V\s*&\s*C\s*CORPORATION",
         r"VC\s*CORPORATION",
+        r"V\&C",
     ]
-
-    # 🔹 Excluir líneas que claramente NO son razón social
-    excluir = r"^(RAZ\.SOCIAL|CAL\.|AV\.|JR\.|PSJE\.|MZA\.|LOTE\.|ASC\.|RUC|BOLETA|FACTURA|FECHA|DIRECCION|FORMA DE PAGO)"
     lineas_validas = [
-        l for l in lineas[:20]
-        if not re.match(excluir, l) and not any(re.search(pat, l) for pat in exclusiones)
+        l for l in lineas[:20]  # limitar a primeras 20 líneas
+        if not any(re.search(pat, l) for pat in exclusiones)
+        and not re.match(r"^(RUC|BOLETA|FACTURA|FECHA|DIRECCION|CAL|JR|AV|PSJE|MZA|LOTE|ASC)", l)
     ]
 
-    # 🔹 Patrón de empresa
-    patrones_empresa = [
-        r"S\.?\s*A\.?\s*C", r"S\.?\s*A\.?", r"SAC\b", r"SA\b",
-        r"SOCIEDAD ANONIMA CERRADA", r"SOCIEDAD", r"EIRL",
+    # --- Patrón de terminaciones legales ---
+    terminaciones = [
+        r"S\.?A\.?C\.?", r"S\.?A\.?", r"E\.?I\.?R\.?L\.?", r"SOCIEDAD ANONIMA CERRADA",
+        r"SOCIEDAD ANONIMA", r"SOCIEDAD", r"EMPRESA INDIVIDUAL DE RESPONSABILIDAD LIMITADA",
         r"CONSORCIO", r"CORPORACION", r"INVERSIONES", r"COMERCIAL"
     ]
 
-    # 🔹 Buscar bloque principal antes de "FACTURA"/"BOLETA"
     razon_social = []
     for idx, linea in enumerate(lineas_validas):
-        if any(pat in linea for pat in ["FACTURA", "BOLETA"]):
-            break  # detener búsqueda antes de la línea que contiene FACTURA/BOLETA
-        if any(re.search(pat, linea) for pat in patrones_empresa):
-            razon_social.append(linea)
+        if any(re.search(term, linea) for term in terminaciones):
+            # Captura solo hasta la terminación legal
+            match = re.search(rf"^(.*?({'|'.join([t.replace('.', r'\.') for t in terminaciones])}))", linea)
+            if match:
+                razon_social.append(match.group(1).strip())
 
-            # Combinar con siguientes líneas si parecen parte del mismo nombre
+            # Combinar con siguiente línea si parece parte del nombre (más de 1 palabra y no contiene RUC/BOLETA)
             j = idx + 1
-            while j < len(lineas_validas) and len(lineas_validas[j].split()) > 1 and not re.search(r"RUC|FECHA|BOLETA|FACTURA", lineas_validas[j]):
-                if not any(re.search(pat, lineas_validas[j]) for pat in exclusiones):
-                    razon_social.append(lineas_validas[j])
+            while j < len(lineas_validas):
+                siguiente = lineas_validas[j]
+                if len(siguiente.split()) < 2 or re.search(r"RUC|FECHA|BOLETA|FACTURA", siguiente):
+                    break
+                razon_social.append(siguiente)
                 j += 1
-            break  # ya encontramos el bloque principal
+            break  # solo capturamos el primer bloque válido
 
-    if razon_social:
-        return " ".join(razon_social).strip()
-
-    # 🔹 Fallback: línea antes del RUC
-    if ruc:
+    # --- Fallback: línea antes del RUC ---
+    if not razon_social and ruc:
         for idx, l in enumerate(lineas):
-            if ruc in l:
-                if idx > 0:
-                    posible = lineas[idx - 1].strip()
-                    if posible and len(posible.split()) >= 2:
-                        return posible
+            if ruc in l and idx > 0:
+                posible = lineas[idx - 1].strip()
+                if posible and len(posible.split()) >= 2:
+                    razon_social.append(posible)
+                    break
 
-    # 🔹 Última opción: primera línea válida
-    if lineas_validas:
-        return lineas_validas[0]
+    # --- Última opción: primera línea válida ---
+    if not razon_social and lineas_validas:
+        razon_social.append(lineas_validas[0])
 
-    return "RAZÓN SOCIAL DESCONOCIDA"
+    resultado = " ".join(razon_social).strip()
+    if debug:
+        print("🔹 Razón Social detectada:", resultado)
+
+    return resultado if resultado else "RAZÓN SOCIAL DESCONOCIDA"
 
 def detectar_total(texto: str) -> str:
     """
@@ -520,7 +532,6 @@ def procesar_datos_ocr(texto: str, debug: bool = True) -> Dict[str, Optional[str
         texto (str): Texto extraído por OCR.
         debug (bool): Si es True, imprime las primeras 50 líneas para análisis.
     """
-
     if not texto:
         return {
             "ruc": None,
@@ -535,12 +546,12 @@ def procesar_datos_ocr(texto: str, debug: bool = True) -> Dict[str, Optional[str
     # --- Mostrar debug de las primeras 50 líneas ---
     if debug:
         print("\n📝 OCR LINEAS CRUDAS (máx 50 líneas):")
-        print("=" * 50)
+        print("=" * 60)
         for i, linea in enumerate(lineas[:50]):
             # Limitar longitud para no saturar consola
-            linea_corta = (linea[:100] + '...') if len(linea) > 100 else linea
+            linea_corta = (linea[:120] + '...') if len(linea) > 120 else linea
             print(f"{i+1:02d}: {linea_corta}")
-        print("=" * 50 + "\n")
+        print("=" * 60 + "\n")
 
     # --- Detectores individuales ---
     ruc = detectar_ruc(texto)
@@ -550,11 +561,12 @@ def procesar_datos_ocr(texto: str, debug: bool = True) -> Dict[str, Optional[str
     total = detectar_total(texto)
 
     if debug:
-        print(f"🔹 RUC detectado       : {ruc}")
-        print(f"🔹 Razón Social detectada: {razon_social}")
-        print(f"🔹 Número Documento     : {numero_doc}")
-        print(f"🔹 Fecha detectada       : {fecha}")
-        print(f"🔹 Total detectado       : {total}\n")
+        print("🔹 Datos detectados por OCR:")
+        print(f"  - RUC              : {ruc}")
+        print(f"  - Razón Social     : {razon_social}")
+        print(f"  - Número Documento : {numero_doc}")
+        print(f"  - Fecha            : {fecha}")
+        print(f"  - Total            : {total}\n")
 
     return {
         "ruc": ruc or None,

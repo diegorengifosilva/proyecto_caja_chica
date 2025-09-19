@@ -569,6 +569,7 @@ class SolicitudGastoViewSetCRUD(viewsets.ModelViewSet):
 ## LIQUIDACIONES ##
 ##===============##
 from .task import procesar_documento_celery
+logger = logging.getLogger(__name__)
 # Endpoint Principal
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -577,26 +578,37 @@ def procesar_documento(request):
     if not archivo:
         return Response({"error": "No se envió ningún archivo"}, status=400)
 
-    # Guardar archivo temporalmente en disco
+    # --- Guardar archivo temporalmente ---
     temp_path = os.path.join(settings.MEDIA_ROOT, archivo.name)
-    with open(temp_path, "wb") as f:
-        for chunk in archivo.chunks():
-            f.write(chunk)
-
     try:
-        # Ejecutar Celery de forma síncrona (solo si quieres mantener el flujo igual que antes)
-        resultados = procesar_documento_celery.apply(args=[
-            temp_path, archivo.name,
-            request.data.get("tipo_documento", "Boleta"),
-            request.data.get("concepto", "Solicitud de gasto")
-        ]).get()  # get() espera a que Celery termine
+        with open(temp_path, "wb") as f:
+            for chunk in archivo.chunks():
+                f.write(chunk)
+
+        # --- Ejecutar OCR vía Celery (síncrono con .get()) ---
+        resultados = procesar_documento_celery.apply(
+            args=[
+                temp_path,
+                archivo.name,
+                request.data.get("tipo_documento", "Boleta"),
+                request.data.get("concepto", "Solicitud de gasto")
+            ]
+        ).get()
 
         return Response({"resultado": resultados}, status=200)
 
     except Exception as e:
-        print(f"❌ Error procesando documento: {e}")
+        logger.error(f"Error procesando documento {archivo.name}: {e}", exc_info=True)
         return Response({"error": f"Ocurrió un error procesando OCR: {str(e)}"}, status=500)
-    
+
+    finally:
+        # --- Limpiar archivo temporal ---
+        try:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+        except Exception as e:
+            logger.warning(f"No se pudo borrar el archivo temporal {temp_path}: {e}")
+
 # Liquidaciones Pendientes View
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
