@@ -1,11 +1,10 @@
-// src/services/api.js
 import axios from "axios";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api/";
 
 const api = axios.create({
   baseURL: API_URL,
-  withCredentials: false, // JWT en headers, no cookies
+  withCredentials: true, // 🔑 Cambiado a true para que funcione con cookies cross-site si las usaras
   headers: {
     "Content-Type": "application/json",
     Accept: "application/json",
@@ -30,6 +29,7 @@ api.interceptors.response.use(
   async (err) => {
     const originalRequest = err.config;
 
+    // Solo intenta refresh si es 401 y no lo habíamos hecho ya
     if (err.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       const refreshToken = localStorage.getItem("refresh_token");
@@ -41,9 +41,7 @@ api.interceptors.response.use(
       }
 
       try {
-        const res = await axios.post(`${API_URL}token/refresh/`, {
-          refresh: refreshToken,
-        });
+        const res = await axios.post(`${API_URL}token/refresh/`, { refresh: refreshToken });
         const newAccess = res.data.access;
 
         localStorage.setItem("access_token", newAccess);

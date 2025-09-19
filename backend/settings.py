@@ -157,13 +157,21 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ---------------------------
-# CORS y CSRF
+# CORS y CSRF (mejorado)
 # ---------------------------
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    "content-type",
+    "authorization",
+    "x-csrftoken",
+]
+CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 
 if IS_LOCAL:
     CORS_ALLOW_ALL_ORIGINS = True
     CSRF_TRUSTED_ORIGINS = ["http://localhost:5173"]
+    CSRF_COOKIE_SECURE = False
+    SESSION_COOKIE_SECURE = False
 else:
     CORS_ALLOW_ALL_ORIGINS = False
     CORS_ALLOWED_ORIGINS = [
@@ -173,18 +181,11 @@ else:
         "https://proyecto-caja-chica-frontend.onrender.com",
         "https://proyecto-caja-chica-backend.onrender.com",
     ]
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = True
 
-CORS_ALLOW_HEADERS = list(default_headers) + [
-    "content-type",
-    "authorization",
-    "x-csrftoken",
-]
-
-CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
-
-CSRF_COOKIE_SECURE = not IS_LOCAL
-SESSION_COOKIE_SECURE = not IS_LOCAL
-CSRF_COOKIE_SAMESITE = "None"  # "None" para frontend en otro dominio
+# Cookies cross-site
+CSRF_COOKIE_SAMESITE = "None"
 SESSION_COOKIE_SAMESITE = "None"
 
 # ---------------------------
@@ -219,7 +220,7 @@ if not IS_LOCAL:
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = 'DENY'
-    SECURE_HSTS_SECONDS = 31536000  # 1 año
+    SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
     SECURE_SSL_REDIRECT = True
