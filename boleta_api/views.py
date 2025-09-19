@@ -118,22 +118,42 @@ from .extraccion import (
     archivo_a_imagenes,
 )
 
-
 # ---------------------------
 # Configuración Tesseract
 # ---------------------------
 if platform.system() == "Windows":
+    # Local Windows
     pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
     os.environ["TESSDATA_PREFIX"] = r"C:\Program Files\Tesseract-OCR\tessdata"
 else:
+    # Linux / Render
     pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
     os.environ["TESSDATA_PREFIX"] = "/usr/share/tesseract-ocr/5/tessdata"
 
-# Debug
-print("Tesseract cmd:", pytesseract.pytesseract.tesseract_cmd)
-print("TESSDATA_PREFIX:", os.environ["TESSDATA_PREFIX"])
-print("Existe tesseract?", os.path.exists(pytesseract.pytesseract.tesseract_cmd))
-print("Existe tessdata?", os.path.exists(os.environ["TESSDATA_PREFIX"]))
+# ---------------------------
+# Debug completo
+# ---------------------------
+def debug_tesseract():
+    t_cmd = pytesseract.pytesseract.tesseract_cmd
+    t_data = os.environ.get("TESSDATA_PREFIX", "")
+
+    print("🔹 Entorno Render detectado" if platform.system() != "Windows" else "🔹 Entorno Windows")
+    print("Tesseract cmd:", t_cmd)
+    print("TESSDATA_PREFIX:", t_data)
+    print("Existe tesseract?", os.path.isfile(t_cmd))
+    print("Existe tessdata?", os.path.isdir(t_data))
+
+    # Intentar ejecutar Tesseract para confirmar
+    try:
+        import subprocess
+        version = subprocess.check_output([t_cmd, '--version']).decode('utf-8').splitlines()[0]
+        print("Versión de Tesseract detectada:", version)
+    except Exception as e:
+        print("Error al ejecutar Tesseract:", e)
+
+# Ejecutar debug solo en Linux / Render para evitar imprimir en producción Windows
+if platform.system() != "Windows":
+    debug_tesseract()
 
 
 PLANTILLAS_DIR = os.path.join(os.path.dirname(__file__), "plantillas")
@@ -556,55 +576,122 @@ def procesar_documento(request):
     """
     Procesa un archivo (PDF o imagen) y extrae automáticamente:
     número de documento, tipo, fecha, RUC, razón social, concepto y total.
+
+    Estrategia híbrida:
+      - Si es PDF → primero intenta extraer texto con pdfplumber.
+      - Si el texto es insuficiente → convierte a imágenes y aplica OCR.
+      - Si es imagen → va directo a OCR.
+
     Para PDFs multipágina, procesa cada página y devuelve un arreglo;
-    si es una sola página, retorna los datos directamente en 'datos_detectados'.
+    si es una sola página, retorna directamente en 'datos_detectados'.
     """
     archivo = request.FILES.get("archivo")
     if not archivo:
         return Response({"error": "No se envió ningún archivo"}, status=400)
 
     try:
-        # Convertir archivo a imágenes
-        imagenes = archivo_a_imagenes(archivo)
         resultados = []
 
-        for idx, img in enumerate(imagenes):
-            # OCR
-            texto_crudo = pytesseract.image_to_string(img, lang="spa")
-            texto_norm = normalizar_texto_ocr(texto_crudo)
-            datos_extraidos = procesar_datos_ocr(texto_norm)
+        # 🔹 Caso PDF → primero intentamos extracción nativa
+        if archivo.name.lower().endswith(".pdf"):
+            try:
+                import pdfplumber
+                from pdf2image import convert_from_bytes
 
-            # Completar campos faltantes
-            datos_extraidos.update({
-                "tipo_documento": request.data.get("tipo_documento", "Boleta"),
-                "concepto": request.data.get("concepto", "Solicitud de gasto"),
-                "nombre_archivo": archivo.name
-            })
-            datos_extraidos["numero_documento"] = datos_extraidos.get("numero_documento") or "ND"
-            datos_extraidos["fecha"] = datos_extraidos.get("fecha") or date.today().strftime("%Y-%m-%d")
-            datos_extraidos["total"] = datos_extraidos.get("total") or "0.00"
-            if not datos_extraidos.get("razon_social"):
-                datos_extraidos["razon_social"] = "RAZÓN SOCIAL DESCONOCIDA"
-            datos_extraidos["ruc"] = datos_extraidos.get("ruc") or "00000000000"
+                archivo.seek(0)
+                pdf_bytes = archivo.read()
+                with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+                    paginas_img = convert_from_bytes(pdf_bytes, dpi=300)
 
-            # Convertir imagen a base64 para frontend (opcional)
-            buffer = BytesIO()
-            img.save(buffer, format="PNG")
-            img_b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
-            img_data = f"data:image/png;base64,{img_b64}"
+                    for idx, page in enumerate(pdf.pages):
+                        texto_crudo = page.extract_text() or ""
+                        print(f"📄 Texto nativo pág.{idx+1}: {texto_crudo[:200]}...")
 
-            resultados.append({
-                "pagina": idx + 1,
-                "texto_extraido": texto_crudo,
-                "datos_detectados": datos_extraidos,
-                "imagen_base64": img_data
-            })
+                        texto_mayus = texto_crudo.upper()
+                        usar_ocr = not any(
+                            palabra in texto_mayus
+                            for palabra in ["RUC", "TOTAL", "FECHA", "FACTURA", "BOLETA"]
+                        )
+
+                        if usar_ocr:
+                            print(f"⚠️ Pág.{idx+1}: sin datos clave → usando OCR…")
+                            img = paginas_img[idx]
+                            texto_crudo = pytesseract.image_to_string(img, lang="spa")
+                        else:
+                            img = None
+                            print(f"✅ Pág.{idx+1}: usando texto nativo pdfplumber")
+
+                        texto_norm = normalizar_texto_ocr(texto_crudo)
+                        datos_extraidos = procesar_datos_ocr(texto_norm)
+
+                        # Completar campos faltantes
+                        datos_extraidos.update({
+                            "tipo_documento": request.data.get("tipo_documento", "Boleta"),
+                            "concepto": request.data.get("concepto", "Solicitud de gasto"),
+                            "nombre_archivo": archivo.name
+                        })
+                        datos_extraidos["numero_documento"] = datos_extraidos.get("numero_documento") or "ND"
+                        datos_extraidos["fecha"] = datos_extraidos.get("fecha") or date.today().strftime("%Y-%m-%d")
+                        datos_extraidos["total"] = datos_extraidos.get("total") or "0.00"
+                        if not datos_extraidos.get("razon_social"):
+                            datos_extraidos["razon_social"] = "RAZÓN SOCIAL DESCONOCIDA"
+                        datos_extraidos["ruc"] = datos_extraidos.get("ruc") or "00000000000"
+
+                        # Imagen opcional (solo si usamos OCR)
+                        img_data = None
+                        if img:
+                            buffer = BytesIO()
+                            img.save(buffer, format="PNG")
+                            img_b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+                            img_data = f"data:image/png;base64,{img_b64}"
+
+                        resultados.append({
+                            "pagina": idx + 1,
+                            "texto_extraido": texto_crudo,
+                            "datos_detectados": datos_extraidos,
+                            "imagen_base64": img_data
+                        })
+
+            except Exception as e:
+                print("❌ Error leyendo PDF con pdfplumber:", e)
+                return Response({"error": f"No se pudo procesar el PDF: {str(e)}"}, status=500)
+
+        else:
+            # 🔹 Caso Imagen → OCR directo
+            imagenes = archivo_a_imagenes(archivo)
+            for idx, img in enumerate(imagenes):
+                texto_crudo = pytesseract.image_to_string(img, lang="spa")
+                texto_norm = normalizar_texto_ocr(texto_crudo)
+                datos_extraidos = procesar_datos_ocr(texto_norm)
+
+                datos_extraidos.update({
+                    "tipo_documento": request.data.get("tipo_documento", "Boleta"),
+                    "concepto": request.data.get("concepto", "Solicitud de gasto"),
+                    "nombre_archivo": archivo.name
+                })
+                datos_extraidos["numero_documento"] = datos_extraidos.get("numero_documento") or "ND"
+                datos_extraidos["fecha"] = datos_extraidos.get("fecha") or date.today().strftime("%Y-%m-%d")
+                datos_extraidos["total"] = datos_extraidos.get("total") or "0.00"
+                if not datos_extraidos.get("razon_social"):
+                    datos_extraidos["razon_social"] = "RAZÓN SOCIAL DESCONOCIDA"
+                datos_extraidos["ruc"] = datos_extraidos.get("ruc") or "00000000000"
+
+                buffer = BytesIO()
+                img.save(buffer, format="PNG")
+                img_b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+                img_data = f"data:image/png;base64,{img_b64}"
+
+                resultados.append({
+                    "pagina": idx + 1,
+                    "texto_extraido": texto_crudo,
+                    "datos_detectados": datos_extraidos,
+                    "imagen_base64": img_data
+                })
 
         # 🔹 Si solo hay una página, devolver directamente datos_detectados
         if len(resultados) == 1:
             return Response({"datos_detectados": resultados[0]["datos_detectados"]}, status=200)
 
-        # 🔹 Caso multipágina
         return Response({"resultado": resultados}, status=200)
 
     except Exception as e:
