@@ -532,6 +532,7 @@ def procesar_datos_ocr(texto: str, debug: bool = True) -> Dict[str, Optional[str
         texto (str): Texto extraído por OCR.
         debug (bool): Si es True, imprime las primeras 50 líneas para análisis.
     """
+    print("🔥 DETECTOR NUMERO DOCUMENTO EJECUTADO")
     if not texto:
         return {
             "ruc": None,
