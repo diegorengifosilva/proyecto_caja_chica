@@ -1,4 +1,4 @@
-# boleta_api/services/ocr_service.py
+# boleta_project\boleta_api\ocr_service.py
 from io import BytesIO
 import base64
 from typing import List, Dict, Any

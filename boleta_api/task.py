@@ -3,7 +3,7 @@ from celery import shared_task
 import os
 import logging
 from django.conf import settings
-from . import ocr_service  # <-- Nueva capa con la lógica OCR
+from . import ocr_service
 
 # Configuración de logging para Celery
 logger = logging.getLogger(__name__)
