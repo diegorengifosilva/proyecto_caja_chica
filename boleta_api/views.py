@@ -576,22 +576,26 @@ def procesar_documento(request):
     if not archivo:
         return Response({"error": "No se envió ningún archivo"}, status=400)
 
-    # --- Guardar archivo temporalmente ---
     temp_path = os.path.join(settings.MEDIA_ROOT, archivo.name)
     try:
+        # Guardar temporalmente
         with open(temp_path, "wb") as f:
             for chunk in archivo.chunks():
                 f.write(chunk)
 
-        # --- Ejecutar OCR vía Celery (síncrono con .get()) ---
-        resultados = procesar_documento_celery.apply(
-            args=[
-                temp_path,
-                archivo.name,
-                request.data.get("tipo_documento", "Boleta"),
-                request.data.get("concepto", "Solicitud de gasto")
-            ]
-        ).get()
+        # ✅ Diferenciar entre LOCAL y RENDER
+        if settings.DEBUG:  # Local → procesar directo
+            imagenes, texto_completo = archivo_a_imagenes(temp_path)
+            resultados = procesar_datos_ocr(texto_completo)
+        else:  # Render → usar Celery
+            resultados = procesar_documento_celery.apply(
+                args=[
+                    temp_path,
+                    archivo.name,
+                    request.data.get("tipo_documento", "Boleta"),
+                    request.data.get("concepto", "Solicitud de gasto")
+                ]
+            ).get()
 
         return Response({"resultado": resultados}, status=200)
 
@@ -600,7 +604,6 @@ def procesar_documento(request):
         return Response({"error": f"Ocurrió un error procesando OCR: {str(e)}"}, status=500)
 
     finally:
-        # --- Limpiar archivo temporal ---
         try:
             if os.path.exists(temp_path):
                 os.remove(temp_path)
