@@ -577,40 +577,40 @@ def procesar_documento(request):
         return Response({"error": "No se envió ningún archivo"}, status=400)
 
     temp_path = os.path.join(settings.MEDIA_ROOT, archivo.name)
-
     try:
-        # Guardar archivo temporal
         with open(temp_path, "wb") as f:
             for chunk in archivo.chunks():
                 f.write(chunk)
 
-        # Llamar a la tarea Celery y esperar el resultado
+        # Llamar a Celery, pero no esperar el resultado
         async_result = procesar_documento_celery.delay(temp_path, archivo.name)
-        resultados = async_result.get(timeout=60)  # espera hasta 60s
 
-        if not resultados or (isinstance(resultados, dict) and not resultados.get("error") and all(v in [None, "", []] for v in resultados.values())):
-            return Response({
-                "success": False,
-                "mensaje": "No se detectaron datos en el OCR",
-                "resultado": {}
-            }, status=200)
-
+        # Responder inmediatamente con el ID de la tarea
         return Response({
             "success": True,
-            "resultado": resultados
-        }, status=200)
+            "task_id": async_result.id,
+            "mensaje": "El documento se está procesando"
+        }, status=202)
 
     except Exception as e:
-        logger.error(f"Error procesando documento {archivo.name}: {e}", exc_info=True)
+        logger.error(f"Error iniciando tarea para {archivo.name}: {e}", exc_info=True)
         return Response({"error": f"Ocurrió un error procesando OCR: {str(e)}"}, status=500)
 
-    finally:
-        # En caso Celery no lo haya limpiado
-        try:
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
-        except Exception as e:
-            logger.warning(f"No se pudo borrar el archivo temporal {temp_path}: {e}")
+# Resultado Celery
+from celery.result import AsyncResult
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def estado_tarea(request, task_id):
+    result = AsyncResult(task_id)
+    if result.ready():
+        return Response({
+            "status": "done",
+            "resultado": result.result
+        })
+    else:
+        return Response({
+            "status": "pending"
+        })
 
 # Liquidaciones Pendientes View
 @api_view(['GET'])
