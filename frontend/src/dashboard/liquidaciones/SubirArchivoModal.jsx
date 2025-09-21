@@ -1,6 +1,6 @@
 // src/dashboard/liquidaciones/SubirArchivoModal.jsx
 import React, { useState, useEffect } from "react";
-import { procesarDocumentoOCR } from "@/services/documentoService";
+import { procesarDocumentoOCR, obtenerEstadoOCR } from "@/services/documentoService";
 import { Camera, FileUp, X, CheckCircle, Paperclip, AlertCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";

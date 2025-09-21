@@ -126,3 +126,4 @@ export const testOCR = async () => {
     manejarError(error, "No se pudo ejecutar el test de OCR.");
   }
 };
+
