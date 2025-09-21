@@ -183,19 +183,13 @@ def detectar_numero_documento(texto: str, debug: bool = False) -> str:
 
     return "ND"
 
-
-def detectar_fecha(texto: str) -> Optional[str]:
+def detectar_fecha(texto: str, debug: bool = False) -> Optional[str]:
     """
     Detecta la fecha de emisión en boletas o facturas electrónicas.
     Normaliza a YYYY-MM-DD.
-    
-    Mejoras:
-      - Corrige errores comunes de OCR en fotos (E/ → 11/, O/ → 01/, I/ → 1/, L/ → 1/).
-      - Corrige específicamente "E/07/25" al inicio de línea.
-      - Ignora líneas con 'VENCIMIENTO'.
-      - Permite fechas con mes en texto (ENE, FEB...).
-      - Solo considera fechas válidas: últimos 5 años, no futuras.
     """
+    import re
+    from datetime import datetime, timedelta
 
     if not texto:
         return None
@@ -211,37 +205,40 @@ def detectar_fecha(texto: str) -> Optional[str]:
         "S/": "5/",
         "FECHA DE EMIS10N": "FECHA DE EMISION",
         "FECHA EMIS10N": "FECHA EMISION",
-        "FECHA DE EM1SION": "FECHA DE EMISION",
+        "FECHA DE EM1SION": "FECHA EMISION",
         "FECHA EM1SION": "FECHA EMISION",
-        "FECHA DE EMISI0N": "FECHA DE EMISION",
+        "FECHA DE EMISI0N": "FECHA EMISION",
     }
     for k, v in reemplazos.items():
         texto_mayus = texto_mayus.replace(k, v)
 
-    # 🔹 Separar líneas y corregir errores específicos al inicio
-    lineas = texto_mayus.splitlines()
-    for i, linea in enumerate(lineas):
-        # ⚡ Corrección específica para OCR de imágenes
-        # E/07/25 → 11/07/25 solo al inicio de línea
-        linea = re.sub(r"^\s*E/(\d{2}/\d{2})", r"11/\1", linea)
-        lineas[i] = linea
+    lineas = [l.strip() for l in texto_mayus.splitlines() if l.strip()]
 
-    posibles = []
-    for linea in lineas:
+    # 🔹 Buscar línea con "FECHA EMISION" o "FECHA DE EMISION"
+    fecha_linea_idx = None
+    for i, linea in enumerate(lineas):
         if "VENCIMIENTO" in linea:
             continue
-        if "FECHA DE EMISION" in linea or "FECHA EMISION" in linea:
-            posibles.append(linea)
-        elif "FECHA" in linea:
-            posibles.append(linea)
+        if "FECHA EMISION" in linea or "FECHA DE EMISION" in linea:
+            fecha_linea_idx = i
+            break
 
-    if not posibles:
-        return None
+    # 🔹 Candidate lines: línea siguiente a "FECHA EMISION" o líneas con "FECHA"
+    posibles = []
+    if fecha_linea_idx is not None and fecha_linea_idx + 1 < len(lineas):
+        posibles.append(lineas[fecha_linea_idx + 1])
+    else:
+        for l in lineas:
+            if "VENCIMIENTO" not in l and "FECHA" in l:
+                posibles.append(l)
+
+    if debug:
+        print("Posibles líneas de fecha:", posibles)
 
     # 🔹 Patrones de fecha
     patrones = [
-        r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b",  # 14/07/2025, 1-7-25
-        r"\b\d{4}[/-]\d{1,2}[/-]\d{1,2}\b",    # 2025/07/14
+        r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b",  # 24/01/2024, 1-7-25
+        r"\b\d{4}[/-]\d{1,2}[/-]\d{1,2}\b",    # 2024/01/24
         r"\d{1,2}\s+(ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO|SEP|OCT|NOV|DIC)[A-Z]*\s+\d{2,4}",
         r"(ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO|SEP|OCT|NOV|DIC)[A-Z]*\s+\d{1,2},?\s+\d{2,4}"
     ]
@@ -259,7 +256,7 @@ def detectar_fecha(texto: str) -> Optional[str]:
                 f = f.replace("-", "/").strip()
                 fecha_obj = None
 
-                # --- Caso dd/mm/yyyy o dd/mm/yy ---
+                # dd/mm/yyyy o dd/mm/yy
                 if "/" in f and f[0].isdigit():
                     partes = f.split("/")
                     if len(partes) == 3:
@@ -273,7 +270,7 @@ def detectar_fecha(texto: str) -> Optional[str]:
                         except:
                             pass
 
-                # --- Caso con mes en texto ---
+                # Fechas con mes en texto
                 if not fecha_obj:
                     for abbr, num in meses.items():
                         if abbr in f:
@@ -288,7 +285,6 @@ def detectar_fecha(texto: str) -> Optional[str]:
                                     pass
 
                 if fecha_obj:
-                    # Solo fechas válidas: últimos 5 años y no futuras
                     hoy = datetime.now()
                     if hoy - timedelta(days=5*365) <= fecha_obj <= hoy + timedelta(days=1):
                         fechas_validas.append(fecha_obj)
@@ -296,8 +292,14 @@ def detectar_fecha(texto: str) -> Optional[str]:
     if not fechas_validas:
         return None
 
-    # 🔹 Elegir la más reciente
-    mejor_fecha = max(fechas_validas)
+    # 🔹 Elegir la fecha más cercana a "FECHA EMISION"
+    if fecha_linea_idx is not None:
+        distancias = [(abs(idx - fecha_linea_idx), f) for idx, f in enumerate(fechas_validas)]
+        distancias.sort()
+        mejor_fecha = distancias[0][1]
+    else:
+        mejor_fecha = max(fechas_validas)
+
     return mejor_fecha.strftime("%Y-%m-%d")
 
 def detectar_ruc(texto: str) -> Optional[str]:
