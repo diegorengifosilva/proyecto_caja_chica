@@ -237,7 +237,7 @@ def detectar_fecha(texto: str, debug: bool = False) -> Optional[str]:
         "FEB": 2, "FEBRERO": 2,
         "MAR": 3, "MARZO": 3,
         "ABR": 4, "ABRIL": 4,
-        "MAY": 5,
+        "MAY": 5, "MAYO": 5,
         "JUN": 6, "JUNIO": 6,
         "JUL": 7, "JULIO": 7,
         "AGO": 8, "AGOSTO": 8,
