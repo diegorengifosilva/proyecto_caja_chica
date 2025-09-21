@@ -205,11 +205,20 @@ SIMPLE_JWT = {
 # ---------------------------
 CELERY_BROKER_URL = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
 CELERY_RESULT_BACKEND = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
+
+# Formato de mensajes
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
+
+# Zona horaria
 CELERY_TIMEZONE = 'UTC'
 CELERY_ENABLE_UTC = True
+
+# Opcional: para reintentos automáticos en tareas fallidas
+CELERY_TASK_ACKS_LATE = True        # marca la tarea como completada solo al terminar
+CELERY_TASK_RETRY_ON_TIMEOUT = True # reintenta si hay timeout
+CELERY_TASK_TIME_LIMIT = 300        # máximo 5 min por tarea
 
 # ---------------------------
 # Seguridad adicional producción

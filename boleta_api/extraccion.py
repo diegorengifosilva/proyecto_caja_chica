@@ -12,7 +12,7 @@ from pdf2image.exceptions import PDFInfoNotInstalledError, PDFPageCountError
 from PIL import Image, UnidentifiedImageError
 import pdfplumber
 from decimal import Decimal, InvalidOperation
-
+import logging
 
 # =======================#
 # CAMPOS CLAVE ESPERADOS #
@@ -522,17 +522,25 @@ def detectar_total(texto: str) -> str:
 # ==========================#
 # PROCESAMIENTO GENERAL OCR #
 # ==========================#
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 def procesar_datos_ocr(texto: str, debug: bool = True) -> Dict[str, Optional[str]]:
     """
     Procesa el texto OCR de un documento (boleta/factura).
     Ejecuta los detectores de RUC, Razón Social, Nº de Documento, Fecha y Total.
     Devuelve un diccionario con los datos extraídos.
-    
+
     Args:
         texto (str): Texto extraído por OCR.
-        debug (bool): Si es True, imprime las primeras 50 líneas para análisis.
+        debug (bool): Si es True, imprime o loggea las primeras 50 líneas para análisis.
     """
-    print("🔥 DETECTOR NUMERO DOCUMENTO EJECUTADO")
+    msg_inicio = "🔥 DETECTOR NUMERO DOCUMENTO EJECUTADO"
+    if debug:
+        print(msg_inicio)
+    else:
+        logger.info(msg_inicio)
+
     if not texto:
         return {
             "ruc": None,
@@ -544,15 +552,19 @@ def procesar_datos_ocr(texto: str, debug: bool = True) -> Dict[str, Optional[str
 
     lineas = texto.splitlines()
 
-    # --- Mostrar debug de las primeras 50 líneas ---
+    # --- Mostrar/loguear debug de las primeras 50 líneas ---
     if debug:
         print("\n📝 OCR LINEAS CRUDAS (máx 50 líneas):")
         print("=" * 60)
         for i, linea in enumerate(lineas[:50]):
-            # Limitar longitud para no saturar consola
             linea_corta = (linea[:120] + '...') if len(linea) > 120 else linea
             print(f"{i+1:02d}: {linea_corta}")
         print("=" * 60 + "\n")
+    else:
+        logger.info("📝 OCR LINEAS CRUDAS (máx 50 líneas):")
+        for i, linea in enumerate(lineas[:50]):
+            linea_corta = (linea[:120] + '...') if len(linea) > 120 else linea
+            logger.info(f"{i+1:02d}: {linea_corta}")
 
     # --- Detectores individuales ---
     ruc = detectar_ruc(texto)
@@ -561,13 +573,23 @@ def procesar_datos_ocr(texto: str, debug: bool = True) -> Dict[str, Optional[str
     fecha = detectar_fecha(texto)
     total = detectar_total(texto)
 
+    # --- Mostrar/loguear resultados detectados ---
+    msg_datos = [
+        f"  - RUC              : {ruc}",
+        f"  - Razón Social     : {razon_social}",
+        f"  - Número Documento : {numero_doc}",
+        f"  - Fecha            : {fecha}",
+        f"  - Total            : {total}"
+    ]
     if debug:
         print("🔹 Datos detectados por OCR:")
-        print(f"  - RUC              : {ruc}")
-        print(f"  - Razón Social     : {razon_social}")
-        print(f"  - Número Documento : {numero_doc}")
-        print(f"  - Fecha            : {fecha}")
-        print(f"  - Total            : {total}\n")
+        for m in msg_datos:
+            print(m)
+        print()
+    else:
+        logger.info("🔹 Datos detectados por OCR:")
+        for m in msg_datos:
+            logger.info(m)
 
     return {
         "ruc": ruc or None,
