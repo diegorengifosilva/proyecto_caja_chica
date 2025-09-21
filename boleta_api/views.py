@@ -579,23 +579,16 @@ def procesar_documento(request):
     temp_path = os.path.join(settings.MEDIA_ROOT, archivo.name)
 
     try:
+        # Guardar archivo temporal
         with open(temp_path, "wb") as f:
             for chunk in archivo.chunks():
                 f.write(chunk)
 
-        with open(temp_path, "rb") as f:
-            imagenes, textos_nativos = archivo_a_imagenes(f)
+        # Llamar a la tarea Celery y esperar el resultado
+        async_result = procesar_documento_celery.delay(temp_path, archivo.name)
+        resultados = async_result.get(timeout=60)  # espera hasta 60s
 
-        if textos_nativos:
-            texto_completo = "\n".join(textos_nativos)
-        else:
-            texto_completo = ""
-            for img in imagenes:
-                texto_completo += pytesseract.image_to_string(img, lang="spa") + "\n"
-
-        resultados = procesar_datos_ocr(texto_completo)
-
-        if not resultados or all(v in [None, "", []] for v in resultados.values()):
+        if not resultados or (isinstance(resultados, dict) and not resultados.get("error") and all(v in [None, "", []] for v in resultados.values())):
             return Response({
                 "success": False,
                 "mensaje": "No se detectaron datos en el OCR",
@@ -612,6 +605,7 @@ def procesar_documento(request):
         return Response({"error": f"Ocurrió un error procesando OCR: {str(e)}"}, status=500)
 
     finally:
+        # En caso Celery no lo haya limpiado
         try:
             if os.path.exists(temp_path):
                 os.remove(temp_path)
