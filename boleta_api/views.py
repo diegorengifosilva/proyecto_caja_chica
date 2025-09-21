@@ -600,7 +600,8 @@ def procesar_documento(request):
         # Procesar datos extraídos con los detectores
         resultados = procesar_datos_ocr(texto_completo)
 
-        return Response({"resultado": resultados}, status=200)
+        # 🔑 Siempre devolver como lista
+        return Response([resultados], status=200)
 
     except Exception as e:
         logger.error(f"Error procesando documento {archivo.name}: {e}", exc_info=True)
