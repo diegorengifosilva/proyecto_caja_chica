@@ -579,36 +579,39 @@ def procesar_documento(request):
     temp_path = os.path.join(settings.MEDIA_ROOT, archivo.name)
 
     try:
-        # Guardar temporalmente el archivo subido
         with open(temp_path, "wb") as f:
             for chunk in archivo.chunks():
                 f.write(chunk)
 
-        # Abrir archivo y convertir a imágenes/textos
         with open(temp_path, "rb") as f:
             imagenes, textos_nativos = archivo_a_imagenes(f)
 
-        # Si el PDF tiene texto nativo, no usamos OCR
         if textos_nativos:
             texto_completo = "\n".join(textos_nativos)
         else:
-            # Hacer OCR a cada imagen
             texto_completo = ""
             for img in imagenes:
                 texto_completo += pytesseract.image_to_string(img, lang="spa") + "\n"
 
-        # Procesar datos extraídos con los detectores
         resultados = procesar_datos_ocr(texto_completo)
 
-        # 🔑 Siempre devolver como lista
-        return Response([resultados], status=200)
+        if not resultados or all(v in [None, "", []] for v in resultados.values()):
+            return Response({
+                "success": False,
+                "mensaje": "No se detectaron datos en el OCR",
+                "resultado": {}
+            }, status=200)
+
+        return Response({
+            "success": True,
+            "resultado": resultados
+        }, status=200)
 
     except Exception as e:
         logger.error(f"Error procesando documento {archivo.name}: {e}", exc_info=True)
         return Response({"error": f"Ocurrió un error procesando OCR: {str(e)}"}, status=500)
 
     finally:
-        # Eliminar archivo temporal
         try:
             if os.path.exists(temp_path):
                 os.remove(temp_path)
