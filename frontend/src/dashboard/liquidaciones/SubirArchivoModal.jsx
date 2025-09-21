@@ -73,12 +73,31 @@ export default function SubirArchivoModal({
       setCargando(true);
       setErrorOCR(null);
 
-      const ocrResponse = await procesarDocumentoOCR(formData);
-      console.log("📦 OCR recibido:", ocrResponse);
+      // 1️⃣ Enviar archivo al endpoint que lanza Celery
+      const response = await procesarDocumentoOCR(formData);
+      if (!response.task_id) throw new Error("No se recibió task_id del servidor");
+      const taskId = response.task_id;
 
-      // Ahora el objeto ya está directamente en ocrResponse[0]
-      const datos = Array.isArray(ocrResponse) && ocrResponse.length ? ocrResponse[0] : {};
+      // 2️⃣ Polling con función helper
+      let resultado = null;
+      const maxIntentos = 30; // 30s máximo
+      for (let intentos = 0; intentos < maxIntentos; intentos++) {
+        const status = await obtenerEstadoOCR(taskId); // <-- ahora usamos el servicio
+        if (status.state === "SUCCESS") {
+          resultado = status.result;
+          break;
+        } else if (status.state === "FAILURE") {
+          throw new Error(status.error || "Error procesando OCR");
+        }
+        await new Promise((r) => setTimeout(r, 1000));
+      }
 
+      if (!resultado) throw new Error("Timeout: OCR tardó demasiado en procesarse");
+
+      console.log("📦 OCR recibido:", resultado);
+
+      // 3️⃣ Construir objeto documento
+      const datos = Array.isArray(resultado) && resultado.length ? resultado[0] : {};
       let total = datos.total?.toString().replace(",", ".") || totalManual;
       if (total) {
         total = parseFloat(total);
@@ -106,7 +125,7 @@ export default function SubirArchivoModal({
       onClose();
     } catch (error) {
       console.error("❌ Error procesando OCR:", error);
-      setErrorOCR("No se pudo procesar el documento. Intenta nuevamente.");
+      setErrorOCR(error.message || "No se pudo procesar el documento. Intenta nuevamente.");
     } finally {
       setCargando(false);
     }

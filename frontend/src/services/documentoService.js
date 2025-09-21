@@ -33,7 +33,8 @@ const manejarError = (error, mensajeDefault) => {
 /* ========== 🧩 SERVICIO DE DOCUMENTOS OCR Y GASTOS ========== */
 
 /**
- * Procesa un documento (imagen/PDF) con OCR en el backend.
+ * Procesa un documento (imagen/PDF) con OCR en el backend usando Celery.
+ * Retorna task_id para polling sin bloquear la UI.
  * @param {FormData} formData
  */
 export const procesarDocumentoOCR = async (formData) => {
@@ -45,20 +46,34 @@ export const procesarDocumentoOCR = async (formData) => {
 
     const response = await api.post("/procesar/", formData);
 
-    const resultados = response.data?.resultado || [];
-    console.log("✅ OCR recibido:", resultados);
-
-    if (resultados.length === 0) {
-      console.warn("⚠️ No se detectaron datos en el OCR");
-      return null;
+    const taskId = response.data?.task_id;
+    if (!taskId) {
+      throw new Error("No se recibió task_id del servidor");
     }
 
-    // Retornamos directamente todos los resultados (por si hay varias páginas)
-    return resultados.map((r) => r.datos_detectados || {});
+    console.log("✅ Tarea OCR iniciada, task_id:", taskId);
+    return { task_id: taskId };
   } catch (error) {
     manejarError(
       error,
       "No se pudo procesar el documento. Intenta nuevamente con otra imagen o revisa tu conexión."
+    );
+  }
+};
+
+/**
+ * Obtiene el estado y resultado de una tarea OCR por task_id (Celery)
+ * @param {string} taskId
+ */
+export const obtenerEstadoOCR = async (taskId) => {
+  try {
+    const response = await api.get(`/status/${taskId}/`);
+    console.log(`📡 Estado OCR task_id ${taskId}:`, response.data);
+    return response.data;
+  } catch (error) {
+    manejarError(
+      error,
+      `No se pudo obtener el estado del OCR para task_id ${taskId}.`
     );
   }
 };
