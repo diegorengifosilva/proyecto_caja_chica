@@ -353,12 +353,15 @@ def detectar_ruc(texto: str) -> Optional[str]:
 def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = False) -> str:
     """
     Detecta la razón social del proveedor en boletas o facturas electrónicas.
+    Priorizando el encabezado, uniendo líneas si es necesario,
+    y evitando confundir direcciones o ciudades.
     """
     if not texto:
         return "RAZÓN SOCIAL DESCONOCIDA"
 
     # --- Normalización general ---
     texto_norm = re.sub(r"\s{2,}", " ", texto.strip())
+    texto_norm = texto_norm.upper()
 
     # --- Correcciones OCR típicas ---
     reemplazos = {
@@ -380,19 +383,24 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
     for k, v in reemplazos.items():
         texto_norm = texto_norm.replace(k, v)
 
-    # --- Separar líneas y limpiar ---
+    # --- Separar líneas ---
     lineas = [l.strip(" ,.-") for l in texto_norm.splitlines() if l.strip()]
 
-    # --- Exclusiones explícitas (clientes) ---
+    # --- Exclusiones explícitas (clientes, direcciones) ---
     exclusiones = [
         r"V\s*&\s*C\s*CORPORATION",
         r"VC\s*CORPORATION",
         r"V\&C",
     ]
+    patron_exclusion = re.compile(
+        r"^(RUC|BOLETA|FACTURA|FECHA|DIRECCION|CAL|JR|AV|PSJE|MZA|LOTE|ASC|TELF|CIUDAD|PROV)", 
+        flags=re.IGNORECASE
+    )
+
     lineas_validas = [
-        l for l in lineas[:20]
+        l for l in lineas[:25]  # mirar primeras 25 líneas
         if not any(re.search(pat, l, flags=re.IGNORECASE) for pat in exclusiones)
-        and not re.match(r"^(RUC|BOLETA|FACTURA|FECHA|DIRECCION|CAL|JR|AV|PSJE|MZA|LOTE|ASC|TELF)", l, flags=re.IGNORECASE)
+        and not patron_exclusion.match(l)
     ]
 
     # --- Patrón de terminaciones legales ---
@@ -403,43 +411,53 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
         r"CONSORCIO", r"CORPORACION", r"INVERSIONES", r"COMERCIAL"
     ]
 
-    razon_social = []
-    for idx, linea in enumerate(lineas_validas):
-        if any(re.search(term, linea, flags=re.IGNORECASE) for term in terminaciones):
-            # Captura hasta la terminación legal
-            pattern = rf"^(.*?({'|'.join([t.replace('.', r'\.') for t in terminaciones])}))"
-            match = re.search(pattern, linea, flags=re.IGNORECASE)
-            if match:
-                razon_social.append(match.group(1).strip())
+    razon_social = None
 
-            # Combinar con siguientes líneas si parecen parte del nombre
-            j = idx + 1
-            while j < len(lineas_validas):
-                siguiente = lineas_validas[j]
-                if len(siguiente.split()) < 2 or re.search(r"RUC|FECHA|BOLETA|FACTURA", siguiente, flags=re.IGNORECASE):
-                    break
-                razon_social.append(siguiente)
-                j += 1
-            break  # solo el primer bloque válido
+    # 1️⃣ Caso especial: primera línea con RUC
+    if lineas and "RUC" in lineas[0]:
+        posible = re.sub(r"RUC.*", "", lineas[0]).strip()
+        if posible and len(posible.split()) >= 2:
+            razon_social = posible
 
-    # --- Fallback: línea antes del RUC ---
+    # 2️⃣ Buscar bloque con terminaciones legales
+    if not razon_social:
+        for idx, linea in enumerate(lineas_validas):
+            if any(re.search(term, linea, flags=re.IGNORECASE) for term in terminaciones):
+                bloque = [linea]
+
+                # Unir líneas consecutivas si parecen parte del nombre
+                j = idx + 1
+                while j < len(lineas_validas):
+                    siguiente = lineas_validas[j]
+                    if patron_exclusion.search(siguiente):
+                        break
+                    if len(siguiente.split()) < 2:
+                        break
+                    bloque.append(siguiente)
+                    j += 1
+
+                razon_social = " ".join(bloque).strip()
+                break
+
+    # 3️⃣ Fallback: línea antes del RUC
     if not razon_social and ruc:
         for idx, l in enumerate(lineas):
             if ruc in l and idx > 0:
                 posible = lineas[idx - 1].strip()
                 if posible and len(posible.split()) >= 2:
-                    razon_social.append(posible)
+                    razon_social = posible
                     break
 
-    # --- Última opción: primera línea válida ---
+    # 4️⃣ Última opción: primera línea válida
     if not razon_social and lineas_validas:
-        razon_social.append(lineas_validas[0])
+        razon_social = lineas_validas[0]
 
-    resultado = " ".join(razon_social).strip()
+    resultado = razon_social.strip() if razon_social else "RAZÓN SOCIAL DESCONOCIDA"
+
     if debug:
         print("🔹 Razón Social detectada:", resultado)
 
-    return resultado if resultado else "RAZÓN SOCIAL DESCONOCIDA"
+    return resultado
 
 def detectar_total(texto: str) -> str:
     """
