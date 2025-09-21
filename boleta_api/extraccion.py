@@ -528,12 +528,8 @@ logger.setLevel(logging.INFO)
 def procesar_datos_ocr(texto: str, debug: bool = True) -> Dict[str, Optional[str]]:
     """
     Procesa el texto OCR de un documento (boleta/factura).
-    Ejecuta los detectores de RUC, Razón Social, Nº de Documento, Fecha y Total.
+    Ejecuta detectores de RUC, Razón Social, Nº de Documento, Fecha y Total.
     Devuelve un diccionario con los datos extraídos.
-
-    Args:
-        texto (str): Texto extraído por OCR.
-        debug (bool): Si es True, imprime o loggea las primeras 50 líneas para análisis.
     """
     msg_inicio = "🔥 DETECTOR NUMERO DOCUMENTO EJECUTADO"
     if debug:
@@ -542,13 +538,8 @@ def procesar_datos_ocr(texto: str, debug: bool = True) -> Dict[str, Optional[str
         logger.info(msg_inicio)
 
     if not texto:
-        return {
-            "ruc": None,
-            "razon_social": "RAZÓN SOCIAL DESCONOCIDA",
-            "numero_documento": "ND",
-            "fecha": None,
-            "total": "0.00",
-        }
+        return {"ruc": None, "razon_social": "RAZÓN SOCIAL DESCONOCIDA",
+                "numero_documento": "ND", "fecha": None, "total": "0.00"}
 
     # --- Preprocesamiento ligero ---
     lineas = [l.strip() for l in texto.splitlines() if l.strip()]
