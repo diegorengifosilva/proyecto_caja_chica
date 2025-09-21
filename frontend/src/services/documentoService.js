@@ -10,7 +10,6 @@ const api = axios.create({
   timeout: 60000,
   headers: {
     Accept: "application/json",
-    // ⚡ Content-Type se maneja automáticamente para FormData
   },
   withCredentials: true, // 🔹 obligatorio para CORS con cookies/JWT
 });
@@ -21,7 +20,12 @@ const manejarError = (error, mensajeDefault) => {
 
   if (error.response) {
     console.error("📡 Respuesta backend:", error.response.data);
-    throw new Error(error.response.data.error || mensajeDefault);
+    // Si recibimos HTML en vez de JSON, mostrar todo
+    const detalle =
+      typeof error.response.data === "string"
+        ? error.response.data
+        : error.response.data.error;
+    throw new Error(detalle || mensajeDefault);
   } else if (error.request) {
     console.error("📡 Sin respuesta del servidor:", error.request);
     throw new Error("No hay respuesta del servidor. Revisa tu conexión.");
@@ -40,19 +44,27 @@ const manejarError = (error, mensajeDefault) => {
 export const procesarDocumentoOCR = async (formData) => {
   try {
     // ⚡ DEBUG: mostrar payload enviado
-    for (let pair of formData.entries()) {
-      console.log("📤 Enviando:", pair[0], pair[1]);
+    console.log("📤 Enviando FormData:");
+    for (let [key, value] of formData.entries()) {
+      console.log(key, value);
     }
 
-    const response = await api.post("/procesar/", formData);
+    const response = await api.post("/procesar/", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
 
-    const taskId = response.data?.task_id;
-    if (!taskId) {
-      throw new Error("No se recibió task_id del servidor");
+    // ⚠️ Mostrar respuesta completa para depuración
+    console.log("📥 Respuesta completa:", response);
+
+    if (!response.data || !response.data.task_id) {
+      console.error("⚠️ Response.data:", response.data);
+      throw new Error(
+        "No se recibió task_id del servidor. Verifica la URL y el backend."
+      );
     }
 
-    console.log("✅ Tarea OCR iniciada, task_id:", taskId);
-    return { task_id: taskId };
+    console.log("✅ Tarea OCR iniciada, task_id:", response.data.task_id);
+    return { task_id: response.data.task_id };
   } catch (error) {
     manejarError(
       error,
@@ -126,4 +138,3 @@ export const testOCR = async () => {
     manejarError(error, "No se pudo ejecutar el test de OCR.");
   }
 };
-
