@@ -117,75 +117,43 @@ def normalizar_monto(monto_txt: str) -> Optional[str]:
 # ========================#
 # DETECTORES INDIVIDUALES #
 # ========================#
-def detectar_numero_documento(texto: str, debug: bool = False) -> Optional[str]:
+def detectar_numero_documento(texto: str, ruc: Optional[str] = None) -> Optional[str]:
     """
-    Detecta el número de documento (boleta o factura) en OCR de imágenes o PDFs.
-
-    Estrategia:
-    1. Normaliza errores típicos de OCR (O->0, I->1, L->1, S->5).
-    2. Ignora cualquier RUC detectado.
-    3. Busca patrones de serie+correlativo (letras+numeros) opcionalmente precedidos de Nro/No.
-    4. Prioriza líneas cercanas al RUC.
-    5. Devuelve la coincidencia más probable.
+    Detecta el número de documento (boleta, factura, guía, etc.) en un texto OCR.
+    Evita líneas que contengan el RUC.
+    
+    Args:
+        texto (str): Texto OCR del documento.
+        ruc (str, optional): RUC detectado para evitar confusiones.
+    
+    Returns:
+        str | None: Número de documento detectado o None si no se encuentra.
     """
-
-    from .extraccion import detectar_ruc  # usar tu detector de RUC existente
-
     if not texto:
-        return "ND"
+        return None
 
-    # --- Normalizar OCR ---
-    texto_norm = texto.upper()
-    texto_norm = texto_norm.replace("O", "0").replace("I", "1").replace("L", "1").replace("S", "5").replace(" ", "")
+    # Normalizamos el texto (puedes usar tu función normalizar_texto_ocr si quieres)
+    lineas = [l.strip() for l in texto.splitlines() if l.strip()]
+    
+    # Patrón flexible para boleta/factura: B001-03934573, F001-12345678, etc.
+    patrones = [
+        r"\b[BF]\d{1,4}[-\s]?\d{6,8}\b",  # Boleta o Factura típica
+        r"\b[BF]0*\d{1,4}[-\s]?\d{1,8}\b", # Permite ceros iniciales y OCR error
+    ]
 
-    lineas = texto_norm.splitlines()
+    for linea in lineas[:50]:  # Solo primeras 50 líneas
+        linea_upper = linea.upper()
+        # Ignorar línea si contiene RUC
+        if ruc and ruc in linea_upper.replace(" ", ""):
+            continue
 
-    # --- Detectar RUC ---
-    ruc_valor = detectar_ruc(texto)  # ignorar este número en la búsqueda
-    ruc_idx = None
-    if ruc_valor:
-        for i, l in enumerate(lineas):
-            if ruc_valor in l:
-                ruc_idx = i
-                break
+        for patron in patrones:
+            match = re.search(patron, linea_upper)
+            if match:
+                numero_doc = match.group(0).replace(" ", "").replace("O", "0")  # OCR fix
+                return numero_doc
 
-    candidatos: List[tuple[str, int]] = []
-
-    # --- Patrón principal: opcional Nro/No + serie (1-2 letras) + números (2-8) + guion opcional ---
-    patron = re.compile(r"(?:NRO\.?|NO\.?:?)?([A-Z]{1,2}\d{1,3})[-]?(\d{2,8})")
-
-    for i, linea in enumerate(lineas):
-        linea_clean = re.sub(r"[^A-Z0-9\-.:]", "", linea)
-        for match in patron.finditer(linea_clean):
-            serie, correlativo = match.groups()
-            numero = f"{serie}-{correlativo}"
-
-            # Ignorar RUC detectado
-            if ruc_valor and numero.replace("-", "") == ruc_valor:
-                continue
-
-            # Prioridad: más cerca del RUC, más probable
-            prioridad = 0
-            if ruc_idx is not None:
-                distancia = abs(i - ruc_idx)
-                if distancia <= 2:
-                    prioridad = 2  # línea inmediatamente debajo o arriba del RUC
-            candidatos.append((numero, prioridad))
-
-    if debug:
-        print("Candidatos detectados:", candidatos)
-
-    # --- Seleccionar el candidato con mayor prioridad ---
-    if candidatos:
-        candidatos.sort(key=lambda x: (-x[1], x[0]))
-        return candidatos[0][0]
-
-    # --- Fallback: patrón con letra+numeros, evitando RUC ---
-    fallback = re.search(r"\b[A-Z]+\d{2,4}-\d{2,8}\b", texto_norm)
-    if fallback and fallback.group(0).replace("-", "") != ruc_valor:
-        return fallback.group(0)
-
-    return "ND"
+    return None
 
 def detectar_fecha(texto: str) -> Optional[str]:
     """
