@@ -187,6 +187,7 @@ def detectar_fecha(texto: str, debug: bool = False) -> Optional[str]:
     """
     Detecta la fecha de emisión en boletas o facturas electrónicas.
     Normaliza a YYYY-MM-DD.
+    Prioriza la fecha más cercana a la línea "FECHA EMISION".
     """
     import re
     from datetime import datetime, timedelta
@@ -214,7 +215,7 @@ def detectar_fecha(texto: str, debug: bool = False) -> Optional[str]:
 
     lineas = [l.strip() for l in texto_mayus.splitlines() if l.strip()]
 
-    # 🔹 Buscar línea con "FECHA EMISION" o "FECHA DE EMISION"
+    # 🔹 Buscar línea con "FECHA EMISION"
     fecha_linea_idx = None
     for i, linea in enumerate(lineas):
         if "VENCIMIENTO" in linea:
@@ -223,34 +224,34 @@ def detectar_fecha(texto: str, debug: bool = False) -> Optional[str]:
             fecha_linea_idx = i
             break
 
-    # 🔹 Candidate lines: línea siguiente a "FECHA EMISION" o líneas con "FECHA"
-    posibles = []
-    if fecha_linea_idx is not None and fecha_linea_idx + 1 < len(lineas):
-        posibles.append(lineas[fecha_linea_idx + 1])
-    else:
-        for l in lineas:
-            if "VENCIMIENTO" not in l and "FECHA" in l:
-                posibles.append(l)
-
-    if debug:
-        print("Posibles líneas de fecha:", posibles)
-
     # 🔹 Patrones de fecha
     patrones = [
         r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b",  # 24/01/2024, 1-7-25
         r"\b\d{4}[/-]\d{1,2}[/-]\d{1,2}\b",    # 2024/01/24
-        r"\d{1,2}\s+(ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO|SEP|OCT|NOV|DIC)[A-Z]*\s+\d{2,4}",
-        r"(ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO|SEP|OCT|NOV|DIC)[A-Z]*\s+\d{1,2},?\s+\d{2,4}"
+        r"\d{1,2}\s+(ENE|ENERO|FEB|FEBRERO|MAR|MARZO|ABR|ABRIL|MAY|JUN|JUNIO|JUL|JULIO|AGO|AGOSTO|SEP|SEPT|SEPTIEMBRE|OCT|OCTUBRE|NOV|NOVIEMBRE|DIC|DICIEMBRE)\s+\d{2,4}",
+        r"(ENE|ENERO|FEB|FEBRERO|MAR|MARZO|ABR|ABRIL|MAY|JUN|JUNIO|JUL|JULIO|AGO|AGOSTO|SEP|SEPT|SEPTIEMBRE|OCT|OCTUBRE|NOV|NOVIEMBRE|DIC|DICIEMBRE)\s+\d{1,2},?\s+\d{2,4}"
     ]
 
     meses = {
-        "ENE": 1, "FEB": 2, "MAR": 3, "ABR": 4, "MAY": 5, "JUN": 6,
-        "JUL": 7, "AGO": 8, "SEP": 9, "OCT": 10, "NOV": 11, "DIC": 12
+        "ENE": 1, "ENERO": 1,
+        "FEB": 2, "FEBRERO": 2,
+        "MAR": 3, "MARZO": 3,
+        "ABR": 4, "ABRIL": 4,
+        "MAY": 5,
+        "JUN": 6, "JUNIO": 6,
+        "JUL": 7, "JULIO": 7,
+        "AGO": 8, "AGOSTO": 8,
+        "SEP": 9, "SEPT": 9, "SEPTIEMBRE": 9,
+        "OCT": 10, "OCTUBRE": 10,
+        "NOV": 11, "NOVIEMBRE": 11,
+        "DIC": 12, "DICIEMBRE": 12
     }
 
     fechas_validas = []
 
-    for linea in posibles:
+    for idx, linea in enumerate(lineas):
+        if "VENCIMIENTO" in linea:
+            continue
         for patron in patrones:
             for f in re.findall(patron, linea):
                 f = f.replace("-", "/").strip()
@@ -274,7 +275,9 @@ def detectar_fecha(texto: str, debug: bool = False) -> Optional[str]:
                 if not fecha_obj:
                     for abbr, num in meses.items():
                         if abbr in f:
-                            f_tmp = f.replace(abbr, str(num))
+                            f_tmp = f
+                            for ab, n in meses.items():
+                                f_tmp = re.sub(r"\b"+ab+r"\b", str(n), f_tmp)
                             f_tmp = re.sub(r"\s+", "/", f_tmp)
                             try:
                                 fecha_obj = datetime.strptime(f_tmp, "%d/%m/%Y")
@@ -287,18 +290,20 @@ def detectar_fecha(texto: str, debug: bool = False) -> Optional[str]:
                 if fecha_obj:
                     hoy = datetime.now()
                     if hoy - timedelta(days=5*365) <= fecha_obj <= hoy + timedelta(days=1):
-                        fechas_validas.append(fecha_obj)
+                        fechas_validas.append((idx, fecha_obj))
 
     if not fechas_validas:
         return None
 
     # 🔹 Elegir la fecha más cercana a "FECHA EMISION"
     if fecha_linea_idx is not None:
-        distancias = [(abs(idx - fecha_linea_idx), f) for idx, f in enumerate(fechas_validas)]
+        distancias = [(abs(idx - fecha_linea_idx), f) for idx, f in fechas_validas]
         distancias.sort()
         mejor_fecha = distancias[0][1]
     else:
-        mejor_fecha = max(fechas_validas)
+        # si no hay "FECHA EMISION", se toma la primera fecha válida (más arriba)
+        fechas_validas.sort(key=lambda x: x[0])
+        mejor_fecha = fechas_validas[0][1]
 
     return mejor_fecha.strftime("%Y-%m-%d")
 
