@@ -550,21 +550,22 @@ def procesar_datos_ocr(texto: str, debug: bool = True) -> Dict[str, Optional[str
             "total": "0.00",
         }
 
-    lineas = texto.splitlines()
+    # --- Preprocesamiento ligero ---
+    lineas = [l.strip() for l in texto.splitlines() if l.strip()]
+    primeras_lineas = lineas[:50]
 
-    # --- Mostrar/loguear debug de las primeras 50 líneas ---
+    # --- Debug/log de las primeras 50 líneas ---
+    debug_msg = ["\n📝 OCR LINEAS CRUDAS (máx 50 líneas):", "=" * 60]
+    for i, linea in enumerate(primeras_lineas):
+        linea_corta = (linea[:120] + '...') if len(linea) > 120 else linea
+        debug_msg.append(f"{i+1:02d}: {linea_corta}")
+    debug_msg.append("=" * 60 + "\n")
+
     if debug:
-        print("\n📝 OCR LINEAS CRUDAS (máx 50 líneas):")
-        print("=" * 60)
-        for i, linea in enumerate(lineas[:50]):
-            linea_corta = (linea[:120] + '...') if len(linea) > 120 else linea
-            print(f"{i+1:02d}: {linea_corta}")
-        print("=" * 60 + "\n")
+        print("\n".join(debug_msg))
     else:
-        logger.info("📝 OCR LINEAS CRUDAS (máx 50 líneas):")
-        for i, linea in enumerate(lineas[:50]):
-            linea_corta = (linea[:120] + '...') if len(linea) > 120 else linea
-            logger.info(f"{i+1:02d}: {linea_corta}")
+        for m in debug_msg:
+            logger.info(m)
 
     # --- Detectores individuales ---
     ruc = detectar_ruc(texto)
@@ -573,8 +574,8 @@ def procesar_datos_ocr(texto: str, debug: bool = True) -> Dict[str, Optional[str
     fecha = detectar_fecha(texto)
     total = detectar_total(texto)
 
-    # --- Mostrar/loguear resultados detectados ---
-    msg_datos = [
+    # --- Debug/log de resultados detectados ---
+    datos_msg = [
         f"  - RUC              : {ruc}",
         f"  - Razón Social     : {razon_social}",
         f"  - Número Documento : {numero_doc}",
@@ -583,12 +584,11 @@ def procesar_datos_ocr(texto: str, debug: bool = True) -> Dict[str, Optional[str
     ]
     if debug:
         print("🔹 Datos detectados por OCR:")
-        for m in msg_datos:
-            print(m)
+        print("\n".join(datos_msg))
         print()
     else:
         logger.info("🔹 Datos detectados por OCR:")
-        for m in msg_datos:
+        for m in datos_msg:
             logger.info(m)
 
     return {
