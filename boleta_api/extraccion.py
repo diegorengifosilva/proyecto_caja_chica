@@ -184,22 +184,10 @@ def detectar_numero_documento(texto: str, debug: bool = False) -> str:
     return "ND"
 
 def detectar_fecha(texto: str, debug: bool = False) -> Optional[str]:
-    """
-    Detecta la fecha de emisión en boletas o facturas electrónicas.
-    Normaliza a YYYY-MM-DD.
-    Soporta:
-      - Fechas en formato numérico: dd/mm/yyyy o dd-mm-yyyy
-      - Fechas con mes en texto: 17-sep-2025, 17/SEPTIEMBRE/2025
-      - Mayúsculas o minúsculas
-      - Selección de la fecha más cercana a "FECHA EMISION" o la más arriba en el documento
-    """
     if not texto:
         return None
 
-    # 🔹 Normalizar texto
-    texto_mayus = texto.upper().replace("-", "/")
-
-    # Correcciones OCR comunes
+    # 🔹 Correcciones OCR comunes
     reemplazos = {
         "E/": "11/",
         "O/": "01/",
@@ -213,23 +201,23 @@ def detectar_fecha(texto: str, debug: bool = False) -> Optional[str]:
         "FECHA DE EMISI0N": "FECHA EMISION",
     }
     for k, v in reemplazos.items():
-        texto_mayus = texto_mayus.replace(k, v)
+        texto = texto.replace(k, v)
 
     # 🔹 Separar líneas y limpiar
-    lineas = [l.strip() for l in texto_mayus.splitlines() if l.strip()]
+    lineas = [l.strip() for l in texto.splitlines() if l.strip()]
 
     # 🔹 Detectar línea de referencia "FECHA EMISION"
     fecha_ref_idx = None
     for i, linea in enumerate(lineas):
-        if "FECHA EMISION" in linea or "FECHA DE EMISION" in linea:
+        if "FECHA EMISION" in linea.upper() or "FECHA DE EMISION" in linea.upper():
             fecha_ref_idx = i
             break
 
     # 🔹 Patrones de fecha
     patrones = [
-        r"\b\d{1,2}/\d{1,2}/\d{2,4}\b",  # dd/mm/yyyy
-        r"\b\d{4}/\d{1,2}/\d{1,2}\b",    # yyyy/mm/dd
-        r"\b\d{1,2}/?(ENE|ENERO|FEB|FEBRERO|MAR|MARZO|ABR|ABRIL|MAY|MAYO|JUN|JUNIO|JUL|JULIO|AGO|AGOSTO|SEP|SEPT|SEPTIEMBRE|OCT|OCTUBRE|NOV|NOVIEMBRE|DIC|DICIEMBRE)/?\d{2,4}\b"
+        r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b",  # dd/mm/yyyy
+        r"\b\d{4}[/-]\d{1,2}[/-]\d{1,2}\b",    # yyyy/mm/dd
+        r"\b\d{1,2}[/-]?(ENE|ENERO|FEB|FEBRERO|MAR|MARZO|ABR|ABRIL|MAY|MAYO|JUN|JUNIO|JUL|JULIO|AGO|AGOSTO|SEP|SEPT|SEPTIEMBRE|OCT|OCTUBRE|NOV|NOVIEMBRE|DIC|DICIEMBRE)[A-Z]*[/-]?\d{2,4}\b",
     ]
 
     meses = {
@@ -251,16 +239,16 @@ def detectar_fecha(texto: str, debug: bool = False) -> Optional[str]:
 
     # 🔹 Buscar todas las fechas
     for idx, linea in enumerate(lineas):
-        if "VENCIMIENTO" in linea:
+        if "VENCIMIENTO" in linea.upper():
             continue
         for patron in patrones:
-            for f in re.findall(patron, linea):
-                f = f.replace("-", "/").strip()
+            for f in re.findall(patron, linea, flags=re.IGNORECASE):
+                f_clean = f.replace("-", "/").strip()
                 fecha_obj = None
 
                 # dd/mm/yyyy o dd/mm/yy
-                if "/" in f and f[0].isdigit():
-                    partes = f.split("/")
+                if "/" in f_clean and f_clean[0].isdigit():
+                    partes = f_clean.split("/")
                     if len(partes) == 3:
                         d, m, y = partes
                         try:
@@ -272,11 +260,11 @@ def detectar_fecha(texto: str, debug: bool = False) -> Optional[str]:
                         except:
                             pass
 
-                # Fechas con mes en texto
+                # Mes en texto
                 if not fecha_obj:
                     for abbr, num in meses.items():
-                        if abbr in f:
-                            f_tmp = re.sub(abbr, str(num), f)
+                        if abbr.lower() in f_clean.lower():
+                            f_tmp = re.sub(re.escape(abbr), str(num), f_clean, flags=re.IGNORECASE)
                             f_tmp = re.sub(r"\s+", "/", f_tmp)
                             try:
                                 fecha_obj = datetime.strptime(f_tmp, "%d/%m/%Y")
@@ -287,7 +275,6 @@ def detectar_fecha(texto: str, debug: bool = False) -> Optional[str]:
                                     pass
 
                 if fecha_obj:
-                    # Solo fechas válidas: últimos 5 años, no futuras
                     hoy = datetime.now()
                     if hoy - timedelta(days=5*365) <= fecha_obj <= hoy + timedelta(days=1):
                         fechas_validas.append((idx, fecha_obj))
