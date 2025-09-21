@@ -194,111 +194,130 @@ def detectar_numero_documento(texto: str, debug: bool = False) -> str:
     return "ND"
 
 def detectar_fecha(texto: str, debug: bool = False) -> Optional[str]:
+    """
+    Detecta la fecha de emisión en boletas/facturas y normaliza a YYYY-MM-DD.
+
+    - Soporta formatos numéricos (dd/mm/yyyy, yyyy/mm/dd, dd-mm-yyyy, dd.mm.yyyy)
+    - Soporta meses escritos (ene, septiembre, sept, etc.) en mayúscula/minúscula
+    - Si hay varias fechas, prioriza la más cercana a la línea "FECHA EMISIÓN"
+    - Ignora líneas con "VENCIMIENTO"
+    """
+    import re
+    from datetime import datetime, timedelta
+
     if not texto:
         return None
 
-    # 🔹 Correcciones OCR comunes
-    reemplazos = {
-        "E/": "11/",
-        "O/": "01/",
-        "I/": "1/",
-        "L/": "1/",
-        "S/": "5/",
-        "FECHA DE EMIS10N": "FECHA DE EMISION",
-        "FECHA EMIS10N": "FECHA EMISION",
-        "FECHA DE EM1SION": "FECHA EMISION",
-        "FECHA EM1SION": "FECHA EMISION",
-        "FECHA DE EMISI0N": "FECHA EMISION",
-    }
-    for k, v in reemplazos.items():
-        texto = texto.replace(k, v)
+    # --- Normalizar texto: unificar separadores y espacios ---
+    txt = texto.replace('\r', '\n')
+    # reemplazar guiones entre números/dates y también guiones simples
+    txt = re.sub(r'[-–—]', '/', txt)
+    # reemplazar puntos usados como separador de fecha (ej: 17.sep.2025) por '/'
+    txt = re.sub(r'\.(?=\d)', '/', txt)
+    # colapsar espacios múltiples
+    txt = re.sub(r'\s+', ' ', txt)
 
-    # 🔹 Separar líneas y limpiar
-    lineas = [l.strip() for l in texto.splitlines() if l.strip()]
+    lineas = [l.strip() for l in txt.splitlines() if l.strip()]
 
-    # 🔹 Detectar línea de referencia "FECHA EMISION"
+    # buscar línea de referencia "FECHA EMISIÓN"
     fecha_ref_idx = None
-    for i, linea in enumerate(lineas):
-        if "FECHA EMISION" in linea.upper() or "FECHA DE EMISION" in linea.upper():
+    for i, l in enumerate(lineas):
+        if re.search(r'FECHA\s*(DE\s*)?EMIS', l, flags=re.IGNORECASE):
             fecha_ref_idx = i
             break
 
-    # 🔹 Patrones de fecha
-    patrones = [
-        r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b",  # dd/mm/yyyy
-        r"\b\d{4}[/-]\d{1,2}[/-]\d{1,2}\b",    # yyyy/mm/dd
-        r"\b\d{1,2}[/-]?(ENE|ENERO|FEB|FEBRERO|MAR|MARZO|ABR|ABRIL|MAY|MAYO|JUN|JUNIO|JUL|JULIO|AGO|AGOSTO|SEP|SEPT|SEPTIEMBRE|OCT|OCTUBRE|NOV|NOVIEMBRE|DIC|DICIEMBRE)[A-Z]*[/-]?\d{2,4}\b",
-    ]
-
-    meses = {
-        "ENE": 1, "ENERO": 1,
-        "FEB": 2, "FEBRERO": 2,
-        "MAR": 3, "MARZO": 3,
-        "ABR": 4, "ABRIL": 4,
-        "MAY": 5, "MAYO": 5,
-        "JUN": 6, "JUNIO": 6,
-        "JUL": 7, "JULIO": 7,
-        "AGO": 8, "AGOSTO": 8,
-        "SEP": 9, "SEPT": 9, "SEPTIEMBRE": 9,
-        "OCT": 10, "OCTUBRE": 10,
-        "NOV": 11, "NOVIEMBRE": 11,
-        "DIC": 12, "DICIEMBRE": 12
+    # mapa de meses por sus 3 primeras letras (robusto ante variantes)
+    meses_3 = {
+        "ENE": 1, "FEB": 2, "MAR": 3, "ABR": 4, "MAY": 5, "JUN": 6,
+        "JUL": 7, "AGO": 8, "SEP": 9, "OCT": 10, "NOV": 11, "DIC": 12
     }
 
-    fechas_validas = []
+    # patrones (usamos finditer para recuperar match.group(0))
+    pat_num = re.compile(r'\b(\d{1,2})/(\d{1,2})/(\d{2,4})\b')        # dd/mm/yyyy o dd/mm/yy
+    pat_iso = re.compile(r'\b(\d{4})/(\d{1,2})/(\d{1,2})\b')        # yyyy/mm/dd
+    # textual: 17 SEP 2025  |  17/SEP/2025  |  17 SEP. 2025  (acepta variantes)
+    months_alt = r'(?:ENE|ENERO|FEB|FEBRERO|MAR|MARZO|ABR|ABRIL|MAY|MAYO|JUN|JUNIO|JUL|JULIO|AGO|AGOSTO|SEP|SEPT|SEPTIEMBRE|OCT|OCTUBRE|NOV|NOVIEMBRE|DIC|DICIEMBRE)'
+    pat_text = re.compile(rf'\b(\d{{1,2}})[\s/\.]+{months_alt}[\s/\.]+(\d{{2,4}})\b', flags=re.IGNORECASE)
 
-    # 🔹 Buscar todas las fechas
+    fechas_validas = []  # (line_index, datetime_obj)
+
     for idx, linea in enumerate(lineas):
-        if "VENCIMIENTO" in linea.upper():
+        if re.search(r'VENCIMEN', linea, flags=re.IGNORECASE):
             continue
-        for patron in patrones:
-            for f in re.findall(patron, linea, flags=re.IGNORECASE):
-                f_clean = f.replace("-", "/").strip()
+
+        # 1) dd/mm/yyyy
+        for m in pat_num.finditer(linea):
+            d, mo, y = m.groups()
+            try:
+                d = int(d); mo = int(mo); y = int(y if len(y) == 4 else ("20" + y))
+                fecha_obj = datetime(y, mo, d)
+            except Exception:
+                fecha_obj = None
+            if fecha_obj:
+                fechas_validas.append((idx, fecha_obj))
+
+        # 2) yyyy/mm/dd
+        for m in pat_iso.finditer(linea):
+            y, mo, d = m.groups()
+            try:
+                d = int(d); mo = int(mo); y = int(y)
+                fecha_obj = datetime(y, mo, d)
+            except Exception:
+                fecha_obj = None
+            if fecha_obj:
+                fechas_validas.append((idx, fecha_obj))
+
+        # 3) textual months (17 SEP 2025, 17/SEP/2025, 17.sep.2025, etc.)
+        for m in pat_text.finditer(linea):
+            d_str = m.group(1)
+            # month text lo extraemos directamente desde el slice del match
+            # el patrón capturó día y año; para el mes tomamos el texto entre
+            # el día y el año dentro del match original
+            whole = m.group(0)
+            # extraer la parte del mes (entre el primer número y el año)
+            mid = re.sub(r'^\s*\d{1,2}[\s/\.]+', '', whole)
+            mid = re.sub(r'[\s/\.]+\d{2,4}\s*$', '', mid)
+            mes_txt = mid.strip().upper().replace('.', '')
+            if mes_txt:
+                mes_key = mes_txt[:3]  # "SEPTIEMBRE" -> "SEP"
+                mes_num = meses_3.get(mes_key)
+            else:
+                mes_num = None
+
+            try:
+                d = int(d_str)
+                if mes_num:
+                    y = m.group(2)
+                    y = int(y if len(y) == 4 else ("20" + y))
+                    fecha_obj = datetime(y, mes_num, d)
+                else:
+                    fecha_obj = None
+            except Exception:
                 fecha_obj = None
 
-                # dd/mm/yyyy o dd/mm/yy
-                if "/" in f_clean and f_clean[0].isdigit():
-                    partes = f_clean.split("/")
-                    if len(partes) == 3:
-                        d, m, y = partes
-                        try:
-                            d = d.zfill(2)
-                            m = m.zfill(2)
-                            if len(y) == 2:
-                                y = "20" + y
-                            fecha_obj = datetime.strptime(f"{d}/{m}/{y}", "%d/%m/%Y")
-                        except:
-                            pass
+            if fecha_obj:
+                fechas_validas.append((idx, fecha_obj))
 
-                # Mes en texto
-                if not fecha_obj:
-                    for abbr, num in meses.items():
-                        if abbr.lower() in f_clean.lower():
-                            f_tmp = re.sub(re.escape(abbr), str(num), f_clean, flags=re.IGNORECASE)
-                            f_tmp = re.sub(r"\s+", "/", f_tmp)
-                            try:
-                                fecha_obj = datetime.strptime(f_tmp, "%d/%m/%Y")
-                            except:
-                                try:
-                                    fecha_obj = datetime.strptime(f_tmp, "%m/%d/%Y")
-                                except:
-                                    pass
-
-                if fecha_obj:
-                    hoy = datetime.now()
-                    if hoy - timedelta(days=5*365) <= fecha_obj <= hoy + timedelta(days=1):
-                        fechas_validas.append((idx, fecha_obj))
+    if debug:
+        print("Fechas candidatas encontradas:", [(i, f.strftime("%Y-%m-%d")) for i, f in fechas_validas])
 
     if not fechas_validas:
         return None
 
-    # 🔹 Elegir fecha según proximidad a referencia o más arriba
-    if fecha_ref_idx is not None:
-        fechas_validas.sort(key=lambda x: (abs(x[0] - fecha_ref_idx), x[0]))
-    else:
-        fechas_validas.sort(key=lambda x: x[0])
+    # Filtrar por rango razonable (últimos 5 años y no muy futuras)
+    hoy = datetime.now()
+    fechas_filtradas = [(i, f) for i, f in fechas_validas if (hoy - timedelta(days=5*365)) <= f <= (hoy + timedelta(days=1))]
+    if not fechas_filtradas:
+        # si no quedan por filtro, usar las originales (por si documento viejo)
+        fechas_filtradas = fechas_validas
 
-    mejor_fecha = fechas_validas[0][1]
+    # Elegir según proximidad a la línea "FECHA EMISIÓN" o la más arriba si no hay referencia
+    if fecha_ref_idx is not None:
+        fechas_filtradas.sort(key=lambda x: (abs(x[0] - fecha_ref_idx), x[0]))
+    else:
+        fechas_filtradas.sort(key=lambda x: x[0])  # la primera (más arriba)
+
+    mejor_fecha = fechas_filtradas[0][1]
     return mejor_fecha.strftime("%Y-%m-%d")
 
 def detectar_ruc(texto: str) -> Optional[str]:
