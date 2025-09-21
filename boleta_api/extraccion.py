@@ -119,67 +119,77 @@ def normalizar_monto(monto_txt: str) -> Optional[str]:
 # ========================#
 def detectar_numero_documento(texto: str, debug: bool = False) -> str:
     """
-    Detecta el número de documento (boleta/factura) en OCR de PDFs o imágenes.
+    Detecta el número de documento (boleta/factura/nota/ticket) en OCR de PDFs o imágenes.
 
-    Estrategia:
-    1. Normaliza errores típicos de OCR.
-    2. Ignora RUC y DNI detectados.
-    3. Busca patrones de serie+correlativo (letras+guion+números).
-    4. Prioriza líneas cercanas al RUC.
-    5. Devuelve la coincidencia más probable o "ND" si no encuentra.
+    Características:
+    - Maneja variantes de separador: Nº, N°, No, Nro.
+    - Permite series alfanuméricas (ej: F581, E001, B020, BE01, FE01).
+    - Detecta correlativos largos (hasta 14 dígitos).
+    - Prioriza prefijos válidos de comprobantes SUNAT.
+    - Devuelve el candidato más confiable.
     """
     import re
-    from .extraccion import detectar_ruc  # tu detector existente
+    from .extraccion import detectar_ruc
 
     if not texto:
         return "ND"
 
-    # --- Normalización ligera (solo errores típicos) ---
     texto_norm = texto.upper()
-    texto_norm = texto_norm.replace("O", "0").replace("I", "1").replace("L", "1").replace("S", "5")
+    # Correcciones OCR típicas
+    texto_norm = (
+        texto_norm.replace("O", "0")
+                  .replace("I", "1")
+                  .replace("L", "1")
+    )
 
     lineas = [l.strip() for l in texto_norm.splitlines() if l.strip()]
 
-    # --- Detectar RUC y DNI para ignorarlos ---
+    # Detectar RUC/DNI para excluirlos
     ruc_valor = detectar_ruc(texto) or ""
     dni_matches = re.findall(r"\b\d{8}\b", texto_norm)
     ignorar = [ruc_valor] + dni_matches
 
-    # --- Patrón de número de documento: serie (1-3 letras/números) - correlativo (2-8 números) ---
-    patron = re.compile(r"\b([A-Z]{1,3}\d{0,3})[-]?(\d{2,14})\b")
+    # Prefijos válidos de comprobantes SUNAT
+    prefijos_validos = (
+        "F", "B", "E", "NC", "ND",
+        "FE", "BE", "BV", "FA", "TK"  # extensiones comunes
+    )
+
+    # Patrón robusto: serie (2-4 caracteres alfanuméricos) + opcional Nº + correlativo
+    patron = re.compile(
+        r"\b([A-Z]{1,3}\d{0,4})\s*(?:N[°ºO.]?\s*)?[-]?\s*(\d{3,14})\b"
+    )
 
     candidatos = []
     for idx, linea in enumerate(lineas):
         for match in patron.finditer(linea):
             serie, correlativo = match.groups()
-            numero = f"{serie}-{correlativo}" if correlativo else serie
+            numero = f"{serie}-{correlativo}"
 
-            # Ignorar RUC/DNI detectados
-            if any(num.replace("-", "") == numero.replace("-", "") for num in ignorar):
+            # Excluir si coincide con RUC/DNI
+            if any(numero.replace("-", "") == x for x in ignorar):
                 continue
 
-            # Prioridad según cercanía con RUC (línea arriba o abajo)
+            # Calcular prioridad
             prioridad = 0
-            if ruc_valor:
-                for i, l in enumerate(lineas):
-                    if ruc_valor in l and abs(i - idx) <= 3:  # ±3 líneas
-                        prioridad = 2
-                        break
+            # Prefijos SUNAT → más peso
+            if serie.startswith(prefijos_validos):
+                prioridad += 3
+            # Serie con letras + dígitos (ej: F581, BE01) → más confiable
+            if re.match(r"[A-Z]+\d+", serie):
+                prioridad += 1
+            # Longitud del correlativo (más largo = más confiable)
+            prioridad += len(correlativo) // 4
+
             candidatos.append((numero, prioridad, idx))
 
     if debug:
         print("Candidatos detectados:", candidatos)
 
-    # --- Seleccionar el candidato más probable ---
     if candidatos:
-        candidatos.sort(key=lambda x: (-x[1], x[2]))  # primero prioridad, luego posición
+        # Ordenar por prioridad, luego por longitud, luego por posición
+        candidatos.sort(key=lambda x: (-x[1], -len(x[0]), x[2]))
         return candidatos[0][0]
-
-    # --- Fallback general: buscar patrón global, evitando RUC/DNI ---
-    fallback = re.findall(r"\b[A-Z]{1,3}\d{0,3}-\d{2,8}\b", texto_norm)
-    for f in fallback:
-        if all(f.replace("-", "") != x for x in ignorar):
-            return f
 
     return "ND"
 
@@ -472,7 +482,6 @@ def normalizar_monto(monto: str) -> Optional[str]:
         return f"{Decimal(monto):.2f}"
     except InvalidOperation:
         return None
-
 
 def detectar_total(texto: str) -> str:
     """
