@@ -354,7 +354,7 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
     """
     Detecta la razón social del proveedor en boletas o facturas electrónicas.
     - Normaliza errores de OCR.
-    - Corta cuando hay "RUC" en la misma línea (todas sus variantes).
+    - Corta cuando hay "RUC" en la misma línea (todas sus variantes: RUC, R.U.C., RUC:, R.U.C.:, etc).
     - Reconstruye razones sociales partidas en varias líneas.
     - Bloquea palabras como FACTURA o BOLETA en la detección.
     - Si se pasa el RUC detectado, lo elimina de la razón social.
@@ -409,8 +409,8 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
         # Cortar en cualquier variante de "RUC"
         if re.search(r"R\.?\s*U\.?\s*C", l):
             l = re.split(r"R\.?\s*U\.?\s*C.*", l)[0].strip()
-        # Quitar FACTURA / BOLETA al final
-        l = re.sub(r"\b(FACTURA|BOLETA|ELECTRONICA|ELECTRÓNICA)\b$", "", l).strip()
+        # Quitar FACTURA / BOLETA / ELECTRONICA
+        l = re.sub(r"\b(FACTURA|BOLETA|ELECTRONICA|ELECTRÓNICA)\b", "", l).strip()
         # Quitar el RUC numérico si lo pasaron como argumento
         if ruc:
             l = l.replace(ruc, "").strip()
@@ -424,7 +424,7 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
             razon_social = linea.strip()
             break
 
-    # 3️⃣ Si no, usar línea anterior al RUC
+    # 3️⃣ Si no, usar línea anterior al RUC explícito
     if not razon_social and ruc:
         for idx, l in enumerate(lineas):
             if ruc in l and idx > 0:
@@ -437,7 +437,9 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
 
     # --- Limpieza final ---
     if razon_social:
-        # Quitar residuos
+        # Eliminar variantes de "RUC" al final (RUC, R.U.C., RUC:, R.U.C.:, etc.)
+        razon_social = re.sub(r"[\s,:;\-]*(R\.?\s*U\.?\s*C\.?[:.]*)+$", "", razon_social).strip()
+        # Eliminar FACTURA/BOLETA si se colaron
         razon_social = re.sub(r"\b(FACTURA|BOLETA|ELECTRONICA|ELECTRÓNICA)\b", "", razon_social).strip()
         if ruc:
             razon_social = razon_social.replace(ruc, "").strip()
