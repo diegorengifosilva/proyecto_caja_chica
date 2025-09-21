@@ -353,7 +353,10 @@ def detectar_ruc(texto: str) -> Optional[str]:
 def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = False) -> str:
     """
     Detecta la razón social del proveedor en boletas o facturas electrónicas.
-    Priorizando el encabezado y cortando direcciones/ciudades innecesarias.
+    - Normaliza errores de OCR.
+    - Corta cuando hay "RUC" en la misma línea.
+    - Reconstruye razones sociales partidas en varias líneas.
+    - Evita confundir con cliente, direcciones o ciudades.
     """
     if not texto:
         return "RAZÓN SOCIAL DESCONOCIDA"
@@ -364,19 +367,10 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
 
     # --- Correcciones OCR típicas ---
     reemplazos = {
-        "5,A,": "S.A.",
-        "5A": "S.A.",
-        "5.A": "S.A.",
-        "5 ,A": "S.A.",
-        "$.A.C": "S.A.C",
-        "S , A": "S.A",
-        "S . A . C": "S.A.C",
-        "S . A": "S.A",
-        "3.A.C.": "S.A.C",
-        "SA.": "S.A.",
-        "SAC.": "S.A.C",
-        "E.I.R.L.": "E.I.R.L",
-        "EIRL.": "E.I.R.L",
+        "5,A,": "S.A.", "5A": "S.A.", "5.A": "S.A.", "5 ,A": "S.A.",
+        "$.A.C": "S.A.C", "S , A": "S.A", "S . A . C": "S.A.C", "S . A": "S.A",
+        "3.A.C.": "S.A.C", "SA.": "S.A.", "SAC.": "S.A.C",
+        "E.I.R.L.": "E.I.R.L", "EIRL.": "E.I.R.L",
         ",": "",
     }
     for k, v in reemplazos.items():
@@ -386,11 +380,9 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
     lineas = [l.strip(" ,.-") for l in texto_norm.splitlines() if l.strip()]
 
     # --- Exclusiones explícitas ---
-    exclusiones = [
-        r"V\s*&\s*C\s*CORPORATION", r"VC\s*CORPORATION", r"V\&C",
-    ]
+    exclusiones = [r"V\s*&\s*C\s*CORPORATION", r"VC\s*CORPORATION", r"V\&C"]
     patron_exclusion = re.compile(
-        r"^(RUC|BOLETA|FACTURA|FECHA|DIRECCION|CAL|JR|AV|PSJE|MZA|LOTE|ASC|TELF|CIUDAD|PROV|YANA|LIMA|AREQUIPA|CUSCO)", 
+        r"^(RUC|BOLETA|FACTURA|FECHA|CLIENTE|DIRECCION|CAL|JR|AV|PSJE|MZA|LOTE|ASC|TELF|CIUDAD|PROV|LIMA|AREQUIPA|CUSCO)",
         flags=re.IGNORECASE
     )
 
@@ -405,24 +397,33 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
         r"S\.?A\.?C\.?$", r"S\.?A\.?$", r"E\.?I\.?R\.?L\.?$",
         r"SOCIEDAD ANONIMA CERRADA$", r"SOCIEDAD ANONIMA$",
         r"EMPRESA INDIVIDUAL DE RESPONSABILIDAD LIMITADA$",
+        r"RESPONSABILIDAD LIMITADA$",
     ]
 
     razon_social = None
 
-    # 1️⃣ Si primera línea tiene RUC → cortar
-    if lineas and "RUC" in lineas[0]:
-        posible = re.sub(r"RUC.*", "", lineas[0]).strip()
-        if posible:
-            razon_social = posible
+    # 1️⃣ Manejo de "RUC" en la misma línea
+    nuevas_lineas = []
+    for l in lineas:
+        if "RUC" in l:
+            partes = re.split(r"RUC.*", l)
+            if partes[0].strip():
+                nuevas_lineas.append(partes[0].strip())
+        else:
+            nuevas_lineas.append(l)
+    lineas = nuevas_lineas
 
-    # 2️⃣ Si una línea termina en forma legal → usar SOLO esa línea
-    if not razon_social:
-        for linea in lineas_validas:
-            if any(re.search(term, linea) for term in terminaciones):
-                razon_social = linea.strip()
-                break
+    # 2️⃣ Buscar bloques que terminen en razón social (posible multi-línea)
+    for idx, linea in enumerate(lineas_validas):
+        if any(re.search(term, linea) for term in terminaciones):
+            bloque = []
+            for prev in range(max(0, idx-2), idx+1):
+                if not re.search(r"(FACTURA|BOLETA|CLIENTE|FECHA)", lineas_validas[prev]):
+                    bloque.append(lineas_validas[prev])
+            razon_social = " ".join(bloque).strip()
+            break
 
-    # 3️⃣ Si no, usar línea antes del RUC
+    # 3️⃣ Si no, línea antes del RUC explícito
     if not razon_social and ruc:
         for idx, l in enumerate(lineas):
             if ruc in l and idx > 0:
