@@ -578,36 +578,37 @@ def procesar_documento(request):
     if not archivo:
         return Response({"error": "No se envió ningún archivo"}, status=400)
 
-    # --- Guardar archivo temporalmente ---
     temp_path = os.path.join(settings.MEDIA_ROOT, archivo.name)
     try:
+        # Guardar archivo temporal
         with open(temp_path, "wb") as f:
             for chunk in archivo.chunks():
                 f.write(chunk)
 
-        # --- Ejecutar OCR vía Celery (síncrono con .get()) ---
+        # Ejecutar OCR vía Celery (síncrono)
         resultados = procesar_documento_celery.apply(
             args=[
                 temp_path,
                 archivo.name,
                 request.data.get("tipo_documento", "Boleta"),
-                request.data.get("concepto", "Solicitud de gasto")
+                request.data.get("concepto", "Solicitud de gasto"),
+                True  # generar_imagenes opcional
             ]
         ).get()
 
         return Response({"resultado": resultados}, status=200)
 
     except Exception as e:
-        logger.error(f"Error procesando documento {archivo.name}: {e}", exc_info=True)
+        logger.error(f"[OCR Endpoint] Error procesando documento {archivo.name}: {e}", exc_info=True)
         return Response({"error": f"Ocurrió un error procesando OCR: {str(e)}"}, status=500)
 
     finally:
-        # --- Limpiar archivo temporal ---
-        try:
-            if os.path.exists(temp_path):
+        # Limpiar archivo temporal
+        if os.path.exists(temp_path):
+            try:
                 os.remove(temp_path)
-        except Exception as e:
-            logger.warning(f"No se pudo borrar el archivo temporal {temp_path}: {e}")
+            except Exception as e:
+                logger.warning(f"No se pudo borrar el archivo temporal {temp_path}: {e}")
 
 # Liquidaciones Pendientes View
 @api_view(['GET'])
