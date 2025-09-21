@@ -118,6 +118,7 @@ from .extraccion import (
     procesar_datos_ocr,
     archivo_a_imagenes,
 )
+from .task import procesar_documento_celery
 
 # ---------------------------
 # Configuración Tesseract
@@ -566,66 +567,56 @@ class SolicitudGastoViewSetCRUD(viewsets.ModelViewSet):
 ##===============##
 ## LIQUIDACIONES ##
 ##===============##
-from .task import procesar_documento_celery
+# Configuración de logger
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.INFO)
+    formatter = logging.Formatter('[%(levelname)s/%(name)s] %(message)s')
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+# Endpoint principal para procesar documentos OCR
 # Endpoint principal para procesar documentos OCR
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def procesar_documento(request):
     archivo = request.FILES.get("archivo")
-    tipo_documento = request.data.get("tipo_documento", "")
+    tipo_documento = request.data.get("tipo_documento", "Boleta")
     id_solicitud = request.data.get("id_solicitud", "")
 
     if not archivo:
         return Response({"error": "No se envió ningún archivo"}, status=400)
 
-    # Guardar archivo en carpeta temporal
+    # Crear carpeta temporal si no existe
     temp_dir = os.path.join(settings.MEDIA_ROOT, "temp_ocr")
     os.makedirs(temp_dir, exist_ok=True)
     temp_path = os.path.join(temp_dir, archivo.name)
 
     try:
+        # Guardar archivo temporal
         with open(temp_path, "wb") as f:
             for chunk in archivo.chunks():
                 f.write(chunk)
 
-        # Lanzar tarea Celery sin bloquear
-        async_result = procesar_documento_celery.delay(
-            temp_path,
-            archivo.name,
-            tipo_documento,
-            id_solicitud
+        logger.info(f"🔹 Iniciando OCR: {archivo.name} | Solicitud: {id_solicitud} | Tipo: {tipo_documento}")
+
+        # Llamar la función Celery directamente (sin task_id ni apply_async)
+        resultado = procesar_documento_celery(
+            temp_path, archivo.name, tipo_documento, id_solicitud
         )
 
-        # Responder inmediatamente con task_id
-        return Response({
-            "success": True,
-            "task_id": async_result.id,
-            "mensaje": "El documento se está procesando"
-        }, status=202)
+        # Responder directamente al frontend con resultados
+        if resultado.get("estado") == "SUCCESS":
+            return Response({"success": True, "resultados": resultado["result"]}, status=200)
+        else:
+            return Response({"error": resultado.get("error", "Error desconocido")}, status=500)
 
     except Exception as e:
-        logger.error(f"Error iniciando tarea para {archivo.name}: {e}", exc_info=True)
+        logger.error(f"❌ Error procesando OCR para {archivo.name}: {e}", exc_info=True)
         return Response(
-            {"error": f"Ocurrió un error procesando OCR: {str(e)}"},
-            status=500
+            {"error": f"Ocurrió un error procesando OCR: {str(e)}"}, status=500
         )
-
-# Resultado Celery
-from celery.result import AsyncResult
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def estado_tarea(request, task_id):
-    result = AsyncResult(task_id)
-    if result.ready():
-        return Response({
-            "status": "done",
-            "resultado": result.result
-        })
-    else:
-        return Response({
-            "status": "pending"
-        })
 
 # Liquidaciones Pendientes View
 @api_view(['GET'])

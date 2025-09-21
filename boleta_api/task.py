@@ -1,5 +1,5 @@
 # boleta_api/tasks.py
-from celery import shared_task, current_task
+from celery import shared_task
 import os
 import logging
 from .extraccion import archivo_a_imagenes, procesar_datos_ocr
@@ -18,38 +18,30 @@ if not logger.handlers:
 def procesar_documento_celery(self, ruta_archivo, nombre_archivo, tipo_documento="Boleta", id_solicitud=None):
     """
     Tarea Celery que procesa un documento con OCR usando extraccion.py
-    Devuelve un diccionario listo para frontend:
-      - SUCCESS: resultados
-      - FAILURE: error
+    Devuelve un diccionario listo para frontend sin usar task_id.
     """
     try:
-        logger.info(f"🔹 [Celery] Procesando OCR para: {nombre_archivo} (Solicitud: {id_solicitud}, Tipo: {tipo_documento})")
+        logger.info(f"🔹 Iniciando OCR: {nombre_archivo} | Solicitud: {id_solicitud} | Tipo: {tipo_documento}")
 
-        # Extraer imágenes y texto
+        if not os.path.exists(ruta_archivo):
+            msg = f"Archivo no encontrado: {ruta_archivo}"
+            logger.error(f"❌ {msg}")
+            return {"estado": "FAILURE", "error": msg}
+
         imagenes, texto_completo = archivo_a_imagenes(ruta_archivo)
-
-        # Procesar texto con los detectores
         resultados = procesar_datos_ocr(texto_completo)
 
-        logger.info(f"✅ [Celery] OCR completado para {nombre_archivo}")
+        logger.info(f"✅ OCR completado: {nombre_archivo} | Páginas: {len(resultados)}")
 
-        # Limpieza del archivo temporal
+        # Borrar archivo temporal de manera segura
         try:
-            if os.path.exists(ruta_archivo):
-                os.remove(ruta_archivo)
-                logger.info(f"🗑️ Archivo temporal eliminado: {ruta_archivo}")
+            os.remove(ruta_archivo)
+            logger.info(f"🗑️ Archivo temporal eliminado: {ruta_archivo}")
         except Exception as e:
-            logger.warning(f"⚠️ No se pudo borrar el archivo {ruta_archivo}: {e}")
+            logger.warning(f"⚠️ No se pudo borrar archivo temporal: {e}")
 
-        # Devolver resultados claros para frontend
-        return {
-            "estado": "SUCCESS",
-            "result": resultados
-        }
+        return {"estado": "SUCCESS", "result": resultados}
 
     except Exception as e:
-        logger.error(f"❌ [Celery OCR] Error procesando {nombre_archivo}: {e}", exc_info=True)
-        return {
-            "estado": "FAILURE",
-            "error": str(e)
-        }
+        logger.error(f"❌ Error procesando {nombre_archivo}: {e}", exc_info=True)
+        return {"estado": "FAILURE", "error": str(e)}

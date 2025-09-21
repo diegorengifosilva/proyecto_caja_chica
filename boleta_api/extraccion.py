@@ -522,18 +522,23 @@ def detectar_total(texto: str) -> str:
 # ==========================#
 # PROCESAMIENTO GENERAL OCR #
 # ==========================#
-def procesar_datos_ocr(texto: str, debug: bool = True) -> Dict[str, Optional[str]]:
+def procesar_datos_ocr(
+    texto: Optional[str] = None,
+    textos_nativos: Optional[List[str]] = None,
+    debug: bool = True
+) -> Dict[str, Optional[str]]:
     """
-    Procesa el texto OCR de un documento (boleta/factura).
+    Procesa el texto OCR o texto nativo de un documento.
     Ejecuta los detectores de RUC, Razón Social, Nº de Documento, Fecha y Total.
     Devuelve un diccionario con los datos extraídos.
-    
-    Args:
-        texto (str): Texto extraído por OCR.
-        debug (bool): Si es True, imprime las primeras 50 líneas para análisis.
     """
-    print("🔥 DETECTOR NUMERO DOCUMENTO EJECUTADO")
+    # --- Unir todos los textos nativos si se pasan ---
+    if textos_nativos:
+        texto = " ".join(textos_nativos)
+
     if not texto:
+        if debug:
+            print("⚠️ No se recibió texto para procesar OCR. Se usarán valores por defecto.")
         return {
             "ruc": None,
             "razon_social": "RAZÓN SOCIAL DESCONOCIDA",
@@ -544,12 +549,11 @@ def procesar_datos_ocr(texto: str, debug: bool = True) -> Dict[str, Optional[str
 
     lineas = texto.splitlines()
 
-    # --- Mostrar debug de las primeras 50 líneas ---
+    # --- Mostrar debug de OCR crudo ---
     if debug:
         print("\n📝 OCR LINEAS CRUDAS (máx 50 líneas):")
         print("=" * 60)
         for i, linea in enumerate(lineas[:50]):
-            # Limitar longitud para no saturar consola
             linea_corta = (linea[:120] + '...') if len(linea) > 120 else linea
             print(f"{i+1:02d}: {linea_corta}")
         print("=" * 60 + "\n")
@@ -583,29 +587,15 @@ def procesar_datos_ocr(texto: str, debug: bool = True) -> Dict[str, Optional[str
 def archivo_a_imagenes(archivo) -> Tuple[List[Image.Image], List[str]]:
     """
     Convierte un archivo PDF o imagen a una lista de objetos PIL.Image.
-    Estrategia híbrida:
-      1) Si es PDF, intenta extraer texto nativo con pdfplumber.
-      2) Si encuentra texto útil (RUC, TOTAL, FECHA, etc.), lo devuelve sin OCR.
-      3) Si no encuentra texto o es un escaneo, convierte a imágenes para OCR.
-      4) Si es imagen, la devuelve directamente para OCR.
-
-    Args:
-        archivo: file-like object (PDF o imagen).
-
-    Returns:
-        Tuple[List[Image.Image], List[str]]:
-            - Lista de imágenes PIL (para OCR si es necesario)
-            - Lista de textos nativos por página (si se detectaron)
+    - Intenta extraer texto nativo primero.
+    - Si no hay texto útil, siempre aplica OCR.
     """
     imagenes: List[Image.Image] = []
     textos_nativos: List[str] = []
-
-    nombre = getattr(archivo, "name", "<desconocido>").lower()  # 👈 inicialización segura
+    nombre = getattr(archivo, "name", "<desconocido>").lower()
 
     try:
         archivo.seek(0)
-
-        # Detectar si es PDF (por extensión o cabecera mágica %PDF)
         cabecera = archivo.read(4)
         es_pdf = nombre.endswith(".pdf") or cabecera.startswith(b"%PDF")
         archivo.seek(0)
@@ -614,7 +604,7 @@ def archivo_a_imagenes(archivo) -> Tuple[List[Image.Image], List[str]]:
             pdf_bytes = archivo.read()
             archivo.seek(0)
 
-            # Extraer texto nativo con pdfplumber
+            # --- Extraer texto nativo ---
             try:
                 with pdfplumber.open(archivo) as pdf:
                     for page in pdf.pages:
@@ -623,37 +613,40 @@ def archivo_a_imagenes(archivo) -> Tuple[List[Image.Image], List[str]]:
 
                 texto_completo = " ".join(textos_nativos).upper()
                 if any(palabra in texto_completo for palabra in ["RUC", "TOTAL", "FECHA", "IMPORTE"]):
-                    print("📄 Texto nativo detectado en PDF, se usará sin OCR.")
-                    return [], textos_nativos
-
+                    print("📄 Texto nativo detectado en PDF.")
+                else:
+                    # --- Convertir PDF a imágenes para OCR ---
+                    imagenes = convert_from_bytes(pdf_bytes, dpi=400)
+                    print(f"🖼️ PDF convertido a {len(imagenes)} imágenes para OCR.")
             except Exception as e:
-                print(f"⚠️ Error leyendo texto nativo del PDF ({nombre}): {e}")
-
-            # Convertir PDF a imágenes si no hubo texto útil
-            try:
-                imagenes = convert_from_bytes(pdf_bytes, dpi=300)
-                print("🖼️ PDF convertido a imágenes para OCR.")
-            except PDFInfoNotInstalledError:
-                print("❌ Poppler no está instalado o no se encuentra en el PATH.")
-            except PDFPageCountError:
-                print(f"❌ PDF corrupto o ilegible: {nombre}")
-            except Exception as e:
-                print(f"❌ Error convirtiendo PDF a imágenes ({nombre}): {e}")
+                print(f"⚠️ Error leyendo PDF ({nombre}): {e}")
+                imagenes = convert_from_bytes(pdf_bytes, dpi=400)
 
         else:
-            # Intentar abrir como imagen
+            # --- Abrir imagen directamente ---
             try:
                 img = Image.open(archivo)
                 img.load()
                 imagenes = [img]
                 print("🖼️ Imagen cargada para OCR.")
-            except UnidentifiedImageError:
-                print(f"❌ Archivo no es una imagen válida: {nombre}")
             except Exception as e:
                 print(f"❌ Error abriendo imagen ({nombre}): {e}")
 
+        # --- Forzar OCR en todas las imágenes si no hay texto nativo ---
+        if imagenes and not textos_nativos:
+            print("📝 Aplicando OCR a las imágenes...")
+            textos_nativos = []
+            for i, img in enumerate(imagenes):
+                try:
+                    texto_img = pytesseract.image_to_string(img, lang="spa")
+                    textos_nativos.append(texto_img)
+                    if texto_img.strip() == "":
+                        print(f"⚠️ Página {i+1} OCR vacío.")
+                except Exception as e:
+                    print(f"❌ Error en OCR página {i+1}: {e}")
+
     except Exception as e:
-        print(f"❌ Error procesando el archivo ({nombre}): {e}")
+        print(f"❌ Error procesando archivo ({nombre}): {e}")
 
     return imagenes, textos_nativos
 

@@ -67,7 +67,6 @@ urlpatterns = [
     # LIQUIDACIONES
     path('boleta/liquidaciones_pendientes/', views.liquidaciones_pendientes, name='liquidaciones_pendientes'),
     path('boleta/documentos/procesar/', views.procesar_documento, name='procesar_documento'),
-    path('boleta/documentos/status/<str:task_id>/', views.estado_tarea, name='estado_tarea'),
     path('boleta/documentos/test-ocr/', views.test_ocr, name='test_ocr'),
     path('boleta/documentos/guardar/', views.guardar_documento, name='guardar_documento'),
     path('boleta/documentos/solicitud/<int:solicitud_id>/', views.obtener_documentos_por_solicitud, name='obtener_documentos_por_solicitud'),
