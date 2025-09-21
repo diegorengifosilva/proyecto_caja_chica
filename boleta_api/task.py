@@ -1,5 +1,5 @@
 # boleta_api/tasks.py
-from celery import shared_task
+from celery import shared_task, current_task
 import os
 import logging
 from .extraccion import archivo_a_imagenes, procesar_datos_ocr
@@ -15,12 +15,15 @@ if not logger.handlers:
 
 
 @shared_task(bind=True)
-def procesar_documento_celery(self, ruta_archivo, nombre_archivo, tipo_documento="Boleta"):
+def procesar_documento_celery(self, ruta_archivo, nombre_archivo, tipo_documento="Boleta", id_solicitud=None):
     """
     Tarea Celery que procesa un documento con OCR usando extraccion.py
+    Devuelve un diccionario listo para frontend:
+      - SUCCESS: resultados
+      - FAILURE: error
     """
     try:
-        logger.info(f"🔹 [Celery] Procesando OCR para: {nombre_archivo}")
+        logger.info(f"🔹 [Celery] Procesando OCR para: {nombre_archivo} (Solicitud: {id_solicitud}, Tipo: {tipo_documento})")
 
         # Extraer imágenes y texto
         imagenes, texto_completo = archivo_a_imagenes(ruta_archivo)
@@ -32,13 +35,21 @@ def procesar_documento_celery(self, ruta_archivo, nombre_archivo, tipo_documento
 
         # Limpieza del archivo temporal
         try:
-            os.remove(ruta_archivo)
-            logger.info(f"🗑️ Archivo temporal eliminado: {ruta_archivo}")
+            if os.path.exists(ruta_archivo):
+                os.remove(ruta_archivo)
+                logger.info(f"🗑️ Archivo temporal eliminado: {ruta_archivo}")
         except Exception as e:
             logger.warning(f"⚠️ No se pudo borrar el archivo {ruta_archivo}: {e}")
 
-        return resultados
+        # Devolver resultados claros para frontend
+        return {
+            "estado": "SUCCESS",
+            "result": resultados
+        }
 
     except Exception as e:
         logger.error(f"❌ [Celery OCR] Error procesando {nombre_archivo}: {e}", exc_info=True)
-        return {"error": f"Ocurrió un error en OCR: {str(e)}"}
+        return {
+            "estado": "FAILURE",
+            "error": str(e)
+        }

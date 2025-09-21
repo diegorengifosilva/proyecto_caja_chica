@@ -568,24 +568,36 @@ class SolicitudGastoViewSetCRUD(viewsets.ModelViewSet):
 ##===============##
 from .task import procesar_documento_celery
 logger = logging.getLogger(__name__)
-# Endpoint Principal
+# Endpoint principal para procesar documentos OCR
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def procesar_documento(request):
     archivo = request.FILES.get("archivo")
+    tipo_documento = request.data.get("tipo_documento", "")
+    id_solicitud = request.data.get("id_solicitud", "")
+
     if not archivo:
         return Response({"error": "No se envió ningún archivo"}, status=400)
 
-    temp_path = os.path.join(settings.MEDIA_ROOT, archivo.name)
+    # Guardar archivo en carpeta temporal
+    temp_dir = os.path.join(settings.MEDIA_ROOT, "temp_ocr")
+    os.makedirs(temp_dir, exist_ok=True)
+    temp_path = os.path.join(temp_dir, archivo.name)
+
     try:
         with open(temp_path, "wb") as f:
             for chunk in archivo.chunks():
                 f.write(chunk)
 
-        # Llamar a Celery, pero no esperar el resultado
-        async_result = procesar_documento_celery.delay(temp_path, archivo.name)
+        # Lanzar tarea Celery sin bloquear
+        async_result = procesar_documento_celery.delay(
+            temp_path,
+            archivo.name,
+            tipo_documento,
+            id_solicitud
+        )
 
-        # Responder inmediatamente con el ID de la tarea
+        # Responder inmediatamente con task_id
         return Response({
             "success": True,
             "task_id": async_result.id,
@@ -594,7 +606,10 @@ def procesar_documento(request):
 
     except Exception as e:
         logger.error(f"Error iniciando tarea para {archivo.name}: {e}", exc_info=True)
-        return Response({"error": f"Ocurrió un error procesando OCR: {str(e)}"}, status=500)
+        return Response(
+            {"error": f"Ocurrió un error procesando OCR: {str(e)}"},
+            status=500
+        )
 
 # Resultado Celery
 from celery.result import AsyncResult
