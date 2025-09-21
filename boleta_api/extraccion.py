@@ -117,43 +117,72 @@ def normalizar_monto(monto_txt: str) -> Optional[str]:
 # ========================#
 # DETECTORES INDIVIDUALES #
 # ========================#
-def detectar_numero_documento(texto: str, ruc: Optional[str] = None) -> Optional[str]:
+def detectar_numero_documento(texto: str, debug: bool = False) -> str:
     """
-    Detecta el número de documento (boleta, factura, guía, etc.) en un texto OCR.
-    Evita líneas que contengan el RUC.
-    
-    Args:
-        texto (str): Texto OCR del documento.
-        ruc (str, optional): RUC detectado para evitar confusiones.
-    
-    Returns:
-        str | None: Número de documento detectado o None si no se encuentra.
+    Detecta el número de documento (boleta/factura) en OCR de PDFs o imágenes.
+
+    Estrategia:
+    1. Normaliza errores típicos de OCR.
+    2. Ignora RUC y DNI detectados.
+    3. Busca patrones de serie+correlativo (letras+guion+números).
+    4. Prioriza líneas cercanas al RUC.
+    5. Devuelve la coincidencia más probable o "ND" si no encuentra.
     """
+    import re
+    from .extraccion import detectar_ruc  # tu detector existente
+
     if not texto:
-        return None
+        return "ND"
 
-    # Normalizamos el texto (puedes usar tu función normalizar_texto_ocr si quieres)
-    lineas = [l.strip() for l in texto.splitlines() if l.strip()]
-    
-    # Patrón flexible para boleta/factura: B001-03934573, F001-12345678, etc.
-    patrones = [
-        r"\b[BF]\d{1,4}[-\s]?\d{6,8}\b",  # Boleta o Factura típica
-        r"\b[BF]0*\d{1,4}[-\s]?\d{1,8}\b", # Permite ceros iniciales y OCR error
-    ]
+    # --- Normalización ligera (solo errores típicos) ---
+    texto_norm = texto.upper()
+    texto_norm = texto_norm.replace("O", "0").replace("I", "1").replace("L", "1").replace("S", "5")
 
-    for linea in lineas[:50]:  # Solo primeras 50 líneas
-        linea_upper = linea.upper()
-        # Ignorar línea si contiene RUC
-        if ruc and ruc in linea_upper.replace(" ", ""):
-            continue
+    lineas = [l.strip() for l in texto_norm.splitlines() if l.strip()]
 
-        for patron in patrones:
-            match = re.search(patron, linea_upper)
-            if match:
-                numero_doc = match.group(0).replace(" ", "").replace("O", "0")  # OCR fix
-                return numero_doc
+    # --- Detectar RUC y DNI para ignorarlos ---
+    ruc_valor = detectar_ruc(texto) or ""
+    dni_matches = re.findall(r"\b\d{8}\b", texto_norm)
+    ignorar = [ruc_valor] + dni_matches
 
-    return None
+    # --- Patrón de número de documento: serie (1-3 letras/números) - correlativo (2-8 números) ---
+    patron = re.compile(r"\b([A-Z]{1,3}\d{0,3})[-]?(\d{2,8})\b")
+
+    candidatos = []
+    for idx, linea in enumerate(lineas):
+        for match in patron.finditer(linea):
+            serie, correlativo = match.groups()
+            numero = f"{serie}-{correlativo}" if correlativo else serie
+
+            # Ignorar RUC/DNI detectados
+            if any(num.replace("-", "") == numero.replace("-", "") for num in ignorar):
+                continue
+
+            # Prioridad según cercanía con RUC (línea arriba o abajo)
+            prioridad = 0
+            if ruc_valor:
+                for i, l in enumerate(lineas):
+                    if ruc_valor in l and abs(i - idx) <= 3:  # ±3 líneas
+                        prioridad = 2
+                        break
+            candidatos.append((numero, prioridad, idx))
+
+    if debug:
+        print("Candidatos detectados:", candidatos)
+
+    # --- Seleccionar el candidato más probable ---
+    if candidatos:
+        candidatos.sort(key=lambda x: (-x[1], x[2]))  # primero prioridad, luego posición
+        return candidatos[0][0]
+
+    # --- Fallback general: buscar patrón global, evitando RUC/DNI ---
+    fallback = re.findall(r"\b[A-Z]{1,3}\d{0,3}-\d{2,8}\b", texto_norm)
+    for f in fallback:
+        if all(f.replace("-", "") != x for x in ignorar):
+            return f
+
+    return "ND"
+
 
 def detectar_fecha(texto: str) -> Optional[str]:
     """
