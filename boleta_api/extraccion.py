@@ -184,15 +184,22 @@ def detectar_numero_documento(texto: str, debug: bool = False) -> str:
     return "ND"
 
 def detectar_fecha(texto: str, debug: bool = False) -> Optional[str]:
-    import re
-    from datetime import datetime, timedelta
-
+    """
+    Detecta la fecha de emisión en boletas o facturas electrónicas.
+    Normaliza a YYYY-MM-DD.
+    Soporta:
+      - Fechas en formato numérico: dd/mm/yyyy o dd-mm-yyyy
+      - Fechas con mes en texto: 17-sep-2025, 17/SEPTIEMBRE/2025
+      - Mayúsculas o minúsculas
+      - Selección de la fecha más cercana a "FECHA EMISION" o la más arriba en el documento
+    """
     if not texto:
         return None
 
-    texto_mayus = texto.upper()
+    # 🔹 Normalizar texto
+    texto_mayus = texto.upper().replace("-", "/")
 
-    # 🔹 Correcciones OCR generales
+    # Correcciones OCR comunes
     reemplazos = {
         "E/": "11/",
         "O/": "01/",
@@ -201,42 +208,28 @@ def detectar_fecha(texto: str, debug: bool = False) -> Optional[str]:
         "S/": "5/",
         "FECHA DE EMIS10N": "FECHA DE EMISION",
         "FECHA EMIS10N": "FECHA EMISION",
-        "FECHA DE EM1SION": "FECHA DE EMISION",
+        "FECHA DE EM1SION": "FECHA EMISION",
         "FECHA EM1SION": "FECHA EMISION",
-        "FECHA DE EMISI0N": "FECHA DE EMISION",
+        "FECHA DE EMISI0N": "FECHA EMISION",
     }
     for k, v in reemplazos.items():
         texto_mayus = texto_mayus.replace(k, v)
 
-    # 🔹 Separar líneas y limpiar espacios
+    # 🔹 Separar líneas y limpiar
     lineas = [l.strip() for l in texto_mayus.splitlines() if l.strip()]
 
-    # 🔹 Detectar línea de referencia "FECHA DE EMISION"
+    # 🔹 Detectar línea de referencia "FECHA EMISION"
     fecha_ref_idx = None
     for i, linea in enumerate(lineas):
         if "FECHA EMISION" in linea or "FECHA DE EMISION" in linea:
             fecha_ref_idx = i
             break
 
-    # 🔹 Candidate lines: línea de referencia y la siguiente
-    posibles = []
-    if fecha_ref_idx is not None:
-        posibles.append(lineas[fecha_ref_idx])
-        if fecha_ref_idx + 1 < len(lineas):
-            posibles.append(lineas[fecha_ref_idx + 1])
-    else:
-        # fallback: cualquier línea que contenga "FECHA" pero no "VENCIMIENTO"
-        posibles = [l for l in lineas if "FECHA" in l and "VENCIMIENTO" not in l]
-
-    if debug:
-        print("Posibles líneas de fecha:", posibles)
-
     # 🔹 Patrones de fecha
     patrones = [
-        r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b",
-        r"\b\d{4}[/-]\d{1,2}[/-]\d{1,2}\b",
-        r"\d{1,2}\s+(ENE|ENERO|FEB|FEBRERO|MAR|MARZO|ABR|ABRIL|MAY|MAYO|JUN|JUNIO|JUL|JULIO|AGO|AGOSTO|SEP|SEPT|SEPTIEMBRE|OCT|OCTUBRE|NOV|NOVIEMBRE|DIC|DICIEMBRE)[A-Z]*\s+\d{2,4}",
-        r"(ENE|ENERO|FEB|FEBRERO|MAR|MARZO|ABR|ABRIL|MAY|MAYO|JUN|JUNIO|JUL|JULIO|AGO|AGOSTO|SEP|SEPT|SEPTIEMBRE|OCT|OCTUBRE|NOV|NOVIEMBRE|DIC|DICIEMBRE)[A-Z]*\s+\d{1,2},?\s+\d{2,4}"
+        r"\b\d{1,2}/\d{1,2}/\d{2,4}\b",  # dd/mm/yyyy
+        r"\b\d{4}/\d{1,2}/\d{1,2}\b",    # yyyy/mm/dd
+        r"\b\d{1,2}/?(ENE|ENERO|FEB|FEBRERO|MAR|MARZO|ABR|ABRIL|MAY|MAYO|JUN|JUNIO|JUL|JULIO|AGO|AGOSTO|SEP|SEPT|SEPTIEMBRE|OCT|OCTUBRE|NOV|NOVIEMBRE|DIC|DICIEMBRE)/?\d{2,4}\b"
     ]
 
     meses = {
@@ -256,7 +249,10 @@ def detectar_fecha(texto: str, debug: bool = False) -> Optional[str]:
 
     fechas_validas = []
 
-    for idx, linea in enumerate(posibles):
+    # 🔹 Buscar todas las fechas
+    for idx, linea in enumerate(lineas):
+        if "VENCIMIENTO" in linea:
+            continue
         for patron in patrones:
             for f in re.findall(patron, linea):
                 f = f.replace("-", "/").strip()
@@ -276,7 +272,7 @@ def detectar_fecha(texto: str, debug: bool = False) -> Optional[str]:
                         except:
                             pass
 
-                # Mes en texto
+                # Fechas con mes en texto
                 if not fecha_obj:
                     for abbr, num in meses.items():
                         if abbr in f:
@@ -299,14 +295,13 @@ def detectar_fecha(texto: str, debug: bool = False) -> Optional[str]:
     if not fechas_validas:
         return None
 
-    # 🔹 Elegir la fecha más cercana a la línea de referencia
+    # 🔹 Elegir fecha según proximidad a referencia o más arriba
     if fecha_ref_idx is not None:
-        fechas_validas.sort(key=lambda x: (abs(x[0]-fecha_ref_idx), x[0]))
-        mejor_fecha = fechas_validas[0][1]
+        fechas_validas.sort(key=lambda x: (abs(x[0] - fecha_ref_idx), x[0]))
     else:
         fechas_validas.sort(key=lambda x: x[0])
-        mejor_fecha = fechas_validas[0][1]
 
+    mejor_fecha = fechas_validas[0][1]
     return mejor_fecha.strftime("%Y-%m-%d")
 
 def detectar_ruc(texto: str) -> Optional[str]:
