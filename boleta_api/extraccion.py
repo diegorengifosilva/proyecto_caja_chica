@@ -588,10 +588,10 @@ def archivo_a_imagenes(archivo) -> Tuple[List[Image.Image], List[str]]:
       2) Si encuentra texto útil (RUC, TOTAL, FECHA, etc.), lo devuelve sin OCR.
       3) Si no encuentra texto o es un escaneo, convierte a imágenes para OCR.
       4) Si es imagen, la devuelve directamente para OCR.
-    
+
     Args:
         archivo: file-like object (PDF o imagen).
-    
+
     Returns:
         Tuple[List[Image.Image], List[str]]:
             - Lista de imágenes PIL (para OCR si es necesario)
@@ -600,33 +600,36 @@ def archivo_a_imagenes(archivo) -> Tuple[List[Image.Image], List[str]]:
     imagenes: List[Image.Image] = []
     textos_nativos: List[str] = []
 
+    nombre = getattr(archivo, "name", "<desconocido>").lower()  # 👈 inicialización segura
+
     try:
         archivo.seek(0)
-        nombre = getattr(archivo, "name", "").lower()
 
-        # Detectar si es PDF
-        es_pdf = nombre.endswith(".pdf") or archivo.read(4)[:4] == b"%PDF"
+        # Detectar si es PDF (por extensión o cabecera mágica %PDF)
+        cabecera = archivo.read(4)
+        es_pdf = nombre.endswith(".pdf") or cabecera.startswith(b"%PDF")
         archivo.seek(0)
 
         if es_pdf:
             pdf_bytes = archivo.read()
+            archivo.seek(0)
 
-            # Extraer texto nativo
+            # Extraer texto nativo con pdfplumber
             try:
                 with pdfplumber.open(archivo) as pdf:
                     for page in pdf.pages:
                         text = page.extract_text() or ""
                         textos_nativos.append(text)
-                
+
                 texto_completo = " ".join(textos_nativos).upper()
                 if any(palabra in texto_completo for palabra in ["RUC", "TOTAL", "FECHA", "IMPORTE"]):
                     print("📄 Texto nativo detectado en PDF, se usará sin OCR.")
                     return [], textos_nativos
 
             except Exception as e:
-                print(f"⚠️ Error leyendo texto nativo del PDF: {e}")
+                print(f"⚠️ Error leyendo texto nativo del PDF ({nombre}): {e}")
 
-            # Convertir PDF a imágenes
+            # Convertir PDF a imágenes si no hubo texto útil
             try:
                 imagenes = convert_from_bytes(pdf_bytes, dpi=300)
                 print("🖼️ PDF convertido a imágenes para OCR.")
@@ -643,6 +646,7 @@ def archivo_a_imagenes(archivo) -> Tuple[List[Image.Image], List[str]]:
                 img = Image.open(archivo)
                 img.load()
                 imagenes = [img]
+                print("🖼️ Imagen cargada para OCR.")
             except UnidentifiedImageError:
                 print(f"❌ Archivo no es una imagen válida: {nombre}")
             except Exception as e:
