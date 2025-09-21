@@ -351,13 +351,6 @@ def detectar_ruc(texto: str) -> Optional[str]:
     return None
 
 def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = False) -> str:
-    """
-    Detecta la razón social del proveedor en boletas o facturas electrónicas.
-    - Normaliza errores de OCR.
-    - Corta cuando hay "RUC" en la misma línea.
-    - Reconstruye razones sociales partidas en varias líneas.
-    - Evita confundir con cliente, direcciones o ciudades.
-    """
     if not texto:
         return "RAZÓN SOCIAL DESCONOCIDA"
 
@@ -365,7 +358,7 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
     texto_norm = re.sub(r"\s{2,}", " ", texto.strip())
     texto_norm = texto_norm.upper()
 
-    # --- Correcciones OCR típicas ---
+    # --- Correcciones OCR ---
     reemplazos = {
         "5,A,": "S.A.", "5A": "S.A.", "5.A": "S.A.", "5 ,A": "S.A.",
         "$.A.C": "S.A.C", "S , A": "S.A", "S . A . C": "S.A.C", "S . A": "S.A",
@@ -402,28 +395,24 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
 
     razon_social = None
 
-    # 1️⃣ Manejo de "RUC" en la misma línea
+    # 1️⃣ Limpiar líneas con "RUC"
     nuevas_lineas = []
     for l in lineas:
         if "RUC" in l:
-            partes = re.split(r"RUC.*", l)
-            if partes[0].strip():
-                nuevas_lineas.append(partes[0].strip())
-        else:
+            l = re.split(r"R\.?U\.?C\.?.*", l)[0].strip()
+        # eliminar palabras basura al final
+        l = re.sub(r"\b(FACTURA|BOLETA|ELECTRONICA|ELECTRÓNICA)\b$", "", l).strip()
+        if l:
             nuevas_lineas.append(l)
     lineas = nuevas_lineas
 
-    # 2️⃣ Buscar bloques que terminen en razón social (posible multi-línea)
+    # 2️⃣ Buscar terminación legal
     for idx, linea in enumerate(lineas_validas):
         if any(re.search(term, linea) for term in terminaciones):
-            bloque = []
-            for prev in range(max(0, idx-2), idx+1):
-                if not re.search(r"(FACTURA|BOLETA|CLIENTE|FECHA)", lineas_validas[prev]):
-                    bloque.append(lineas_validas[prev])
-            razon_social = " ".join(bloque).strip()
+            razon_social = linea
             break
 
-    # 3️⃣ Si no, línea antes del RUC explícito
+    # 3️⃣ Si no, usar línea previa al RUC
     if not razon_social and ruc:
         for idx, l in enumerate(lineas):
             if ruc in l and idx > 0:
