@@ -451,6 +451,29 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
 
     return resultado
 
+def normalizar_monto(monto: str) -> Optional[str]:
+    """
+    Normaliza un monto detectado por OCR:
+    - Convierte ',' a '.' si corresponde.
+    - Elimina separadores de miles.
+    Retorna None si el monto no es válido.
+    """
+    if not monto:
+        return None
+
+    monto = monto.replace(" ", "").replace(",", ".")
+    # Quitar separadores de miles si hay
+    partes = monto.split(".")
+    if len(partes) > 2:
+        # ejemplo: 1.234.567,89 -> 1234567.89
+        monto = "".join(partes[:-1]) + "." + partes[-1]
+
+    try:
+        return f"{Decimal(monto):.2f}"
+    except InvalidOperation:
+        return None
+
+
 def detectar_total(texto: str) -> str:
     """
     Detecta el importe total en boletas/facturas a partir del OCR.
@@ -476,7 +499,7 @@ def detectar_total(texto: str) -> str:
     lineas = texto_norm.splitlines()
     candidatos_prioritarios = []
 
-    # Paso 1: líneas con palabras clave
+    # Paso 1: líneas con palabras clave de total
     for linea in lineas:
         if re.search(r"(TOTAL\s+A\s+PAGAR|IMPORTE\s+TOTAL|MONTO\s+TOTAL|TOTAL\s+FACTURA|TOTAL\s*$)", linea):
             montos = re.findall(r"\d{1,3}(?:[.,]\d{3})*[.,]\d{2}", linea)
@@ -488,14 +511,17 @@ def detectar_total(texto: str) -> str:
     if candidatos_prioritarios:
         return f"{max(candidatos_prioritarios).quantize(Decimal('0.00'))}"
 
-    # Paso 2: monto con prefijo S/
-    m = re.search(r"S/?\s*([\d.,]+\s?[.,]\d{2})", texto_norm)
-    if m:
-        normal = normalizar_monto(m.group(1))
+    # Paso 2: montos con prefijo S/ (tomar todos, no solo el primero)
+    montos_prefijo = []
+    for m in re.findall(r"S/?\s*([\d.,]+\s?[.,]\d{2})", texto_norm):
+        normal = normalizar_monto(m)
         if normal:
-            return normal.strip()
+            montos_prefijo.append(Decimal(normal))
 
-    # Paso 3: monto más alto del documento
+    if montos_prefijo:
+        return f"{max(montos_prefijo).quantize(Decimal('0.00'))}"
+
+    # Paso 3: buscar todos los montos con 2 decimales y elegir el mayor
     decs = re.findall(r"\d{1,3}(?:[.,]\d{3})*[.,]\d{2}", texto_norm)
     montos = []
     for d in decs:
