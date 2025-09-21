@@ -146,7 +146,7 @@ def detectar_numero_documento(texto: str, debug: bool = False) -> str:
     ignorar = [ruc_valor] + dni_matches
 
     # --- Patrón de número de documento: serie (1-3 letras/números) - correlativo (2-8 números) ---
-    patron = re.compile(r"\b([A-Z]{1,3}\d{0,3})[-]?(\d{2,8})\b")
+    patron = re.compile(r"\b([A-Z]{1,3}\d{0,3})[-]?(\d{2,14})\b")
 
     candidatos = []
     for idx, linea in enumerate(lineas):
