@@ -8,8 +8,11 @@ const api = axios.create({
       ? "http://localhost:8000/api/boleta/documentos"
       : "https://proyecto-caja-chica-backend.onrender.com/api/boleta/documentos",
   timeout: 60000,
-  headers: { Accept: "application/json" },
-  withCredentials: true,
+  headers: {
+    Accept: "application/json",
+    // ⚡ Content-Type se maneja automáticamente para FormData
+  },
+  withCredentials: true, // 🔹 obligatorio para CORS con cookies/JWT
 });
 
 /* 🔄 Manejo centralizado de errores */
@@ -18,11 +21,7 @@ const manejarError = (error, mensajeDefault) => {
 
   if (error.response) {
     console.error("📡 Respuesta backend:", error.response.data);
-    const detalle =
-      typeof error.response.data === "string"
-        ? error.response.data
-        : error.response.data.error;
-    throw new Error(detalle || mensajeDefault);
+    throw new Error(error.response.data.error || mensajeDefault);
   } else if (error.request) {
     console.error("📡 Sin respuesta del servidor:", error.request);
     throw new Error("No hay respuesta del servidor. Revisa tu conexión.");
@@ -35,28 +34,27 @@ const manejarError = (error, mensajeDefault) => {
 
 /**
  * Procesa un documento (imagen/PDF) con OCR en el backend.
- * Devuelve directamente los resultados.
  * @param {FormData} formData
  */
 export const procesarDocumentoOCR = async (formData) => {
   try {
-    console.log("📤 Enviando FormData:");
-    for (let [key, value] of formData.entries()) console.log(key, value);
-
-    const response = await api.post("/procesar/", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
-
-    console.log("📥 Respuesta completa:", response);
-
-    const data = response.data;
-
-    if (data?.resultados) {
-      console.log("✅ OCR procesado:", data.resultados);
-      return data.resultados; // 🔹 Devuelve directamente los resultados
+    // ⚡ DEBUG: mostrar payload enviado
+    for (let pair of formData.entries()) {
+      console.log("📤 Enviando:", pair[0], pair[1]);
     }
 
-    throw new Error(data?.error || "No se recibieron resultados del OCR");
+    const response = await api.post("/procesar/", formData);
+
+    const resultados = response.data?.resultado || [];
+    console.log("✅ OCR recibido:", resultados);
+
+    if (resultados.length === 0) {
+      console.warn("⚠️ No se detectaron datos en el OCR");
+      return null;
+    }
+
+    // Retornamos directamente todos los resultados (por si hay varias páginas)
+    return resultados.map((r) => r.datos_detectados || {});
   } catch (error) {
     manejarError(
       error,
