@@ -353,20 +353,12 @@ def detectar_ruc(texto: str) -> Optional[str]:
 def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = False) -> str:
     """
     Detecta la razón social del proveedor en boletas o facturas electrónicas.
-
-    Estrategia:
-    1. Normaliza errores típicos de OCR.
-    2. Ignora nuestra propia razón social y variantes.
-    3. Detecta nombres hasta terminaciones legales: S.A., S.A.C., EIRL, SOCIEDAD ANONIMA, etc.
-    4. Evita incluir RUC, direcciones o ciudades.
-    5. Combina líneas consecutivas si parecen parte del mismo nombre.
     """
     if not texto:
         return "RAZÓN SOCIAL DESCONOCIDA"
 
     # --- Normalización general ---
-    texto_norm = texto.upper()
-    texto_norm = re.sub(r"\s{2,}", " ", texto_norm)
+    texto_norm = re.sub(r"\s{2,}", " ", texto.strip())
 
     # --- Correcciones OCR típicas ---
     reemplazos = {
@@ -383,50 +375,52 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
         "SAC.": "S.A.C",
         "E.I.R.L.": "E.I.R.L",
         "EIRL.": "E.I.R.L",
-        ",": "",  # remover comas sueltas
+        ",": "",
     }
     for k, v in reemplazos.items():
         texto_norm = texto_norm.replace(k, v)
 
-    # --- Separar líneas y limpiar caracteres extra ---
+    # --- Separar líneas y limpiar ---
     lineas = [l.strip(" ,.-") for l in texto_norm.splitlines() if l.strip()]
 
-    # --- Exclusiones explícitas ---
+    # --- Exclusiones explícitas (clientes) ---
     exclusiones = [
         r"V\s*&\s*C\s*CORPORATION",
         r"VC\s*CORPORATION",
         r"V\&C",
     ]
     lineas_validas = [
-        l for l in lineas[:20]  # limitar a primeras 20 líneas
-        if not any(re.search(pat, l) for pat in exclusiones)
-        and not re.match(r"^(RUC|BOLETA|FACTURA|FECHA|DIRECCION|CAL|JR|AV|PSJE|MZA|LOTE|ASC)", l)
+        l for l in lineas[:20]
+        if not any(re.search(pat, l, flags=re.IGNORECASE) for pat in exclusiones)
+        and not re.match(r"^(RUC|BOLETA|FACTURA|FECHA|DIRECCION|CAL|JR|AV|PSJE|MZA|LOTE|ASC|TELF)", l, flags=re.IGNORECASE)
     ]
 
     # --- Patrón de terminaciones legales ---
     terminaciones = [
-        r"S\.?A\.?C\.?", r"S\.?A\.?", r"E\.?I\.?R\.?L\.?", r"SOCIEDAD ANONIMA CERRADA",
-        r"SOCIEDAD ANONIMA", r"SOCIEDAD", r"EMPRESA INDIVIDUAL DE RESPONSABILIDAD LIMITADA",
+        r"S\.?A\.?C\.?", r"S\.?A\.?", r"E\.?I\.?R\.?L\.?",
+        r"SOCIEDAD ANONIMA CERRADA", r"SOCIEDAD ANONIMA",
+        r"EMPRESA INDIVIDUAL DE RESPONSABILIDAD LIMITADA",
         r"CONSORCIO", r"CORPORACION", r"INVERSIONES", r"COMERCIAL"
     ]
 
     razon_social = []
     for idx, linea in enumerate(lineas_validas):
-        if any(re.search(term, linea) for term in terminaciones):
-            # Captura solo hasta la terminación legal
-            match = re.search(rf"^(.*?({'|'.join([t.replace('.', r'\.') for t in terminaciones])}))", linea)
+        if any(re.search(term, linea, flags=re.IGNORECASE) for term in terminaciones):
+            # Captura hasta la terminación legal
+            pattern = rf"^(.*?({'|'.join([t.replace('.', r'\.') for t in terminaciones])}))"
+            match = re.search(pattern, linea, flags=re.IGNORECASE)
             if match:
                 razon_social.append(match.group(1).strip())
 
-            # Combinar con siguiente línea si parece parte del nombre (más de 1 palabra y no contiene RUC/BOLETA)
+            # Combinar con siguientes líneas si parecen parte del nombre
             j = idx + 1
             while j < len(lineas_validas):
                 siguiente = lineas_validas[j]
-                if len(siguiente.split()) < 2 or re.search(r"RUC|FECHA|BOLETA|FACTURA", siguiente):
+                if len(siguiente.split()) < 2 or re.search(r"RUC|FECHA|BOLETA|FACTURA", siguiente, flags=re.IGNORECASE):
                     break
                 razon_social.append(siguiente)
                 j += 1
-            break  # solo capturamos el primer bloque válido
+            break  # solo el primer bloque válido
 
     # --- Fallback: línea antes del RUC ---
     if not razon_social and ruc:
