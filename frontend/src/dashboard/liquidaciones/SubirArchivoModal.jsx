@@ -10,12 +10,21 @@ export default function SubirArchivoModal({ idSolicitud, tipoSolicitud, open, on
   const [preview, setPreview] = useState(null);
   const [cargando, setCargando] = useState(false);
   const [errorOCR, setErrorOCR] = useState(null);
+  const [isVisible, setIsVisible] = useState(false);
   const fileInputRef = useRef(null);
 
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     setIsMobile(/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent));
   }, []);
+
+  useEffect(() => {
+    if (open) setIsVisible(true);
+    else {
+      const timeout = setTimeout(() => setIsVisible(false), 200);
+      return () => clearTimeout(timeout);
+    }
+  }, [open]);
 
   const handleArchivoChange = (e) => {
     const file = e.target.files[0];
@@ -99,120 +108,130 @@ export default function SubirArchivoModal({ idSolicitud, tipoSolicitud, open, on
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="w-[95vw] max-w-full sm:max-w-md md:max-w-lg lg:max-w-xl 2xl:max-w-[1024px] max-h-[90vh] overflow-y-auto p-4 sm:p-6 mx-auto bg-white rounded-xl shadow-xl transition-all duration-300 ease-in-out">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg font-semibold text-gray-800">
-            <FileUp className="w-5 h-5 text-gray-700" />
-            Subir Documento - Solicitud # {idSolicitud}
-          </DialogTitle>
-        </DialogHeader>
+      {/* Backdrop con fade-in */}
+      {isVisible && (
+        <div className={`fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity duration-300 ${open ? "opacity-100" : "opacity-0"}`} />
+      )}
 
-        <div className="space-y-6">
+      {isVisible && (
+        <DialogContent
+          className={`fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[95vw] max-w-full sm:max-w-md md:max-w-lg lg:max-w-xl 2xl:max-w-[1024px] max-h-[90vh] overflow-y-auto p-4 sm:p-6 mx-auto bg-white rounded-xl shadow-xl transition-all duration-300 ease-in-out
+          ${open ? "opacity-100 scale-100" : "opacity-0 scale-95"}`}
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg font-semibold text-gray-800">
+              <FileUp className="w-5 h-5 text-gray-700" />
+              Subir Documento - Solicitud # {idSolicitud}
+            </DialogTitle>
+          </DialogHeader>
 
-          {/* Área Drag & Drop */}
-          <div
-            className="border-2 border-dashed border-gray-300 rounded-md p-4 sm:p-6 text-center cursor-pointer hover:border-blue-400 transition duration-200 relative flex flex-col items-center justify-center bg-gray-50 shadow-sm hover:shadow-md"
-            onClick={() => fileInputRef.current && fileInputRef.current.click()}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              if (e.dataTransfer.files && e.dataTransfer.files[0]) handleArchivoChange({ target: { files: e.dataTransfer.files } });
-            }}
-          >
-            <input ref={fileInputRef} type="file" accept="image/*,application/pdf" style={{ display: "none" }} onChange={handleArchivoChange} />
-            {archivo ? (
-              <div className="flex flex-col items-center gap-2">
-                {preview ? (
-                  <img src={preview} alt="Preview" className="max-h-44 w-auto rounded-md border shadow-sm object-contain transition-all duration-300" />
-                ) : (
-                  <Paperclip className="w-8 h-8 text-gray-500" />
-                )}
-                <p className="text-sm text-gray-600 truncate">{archivo.name}</p>
+          <div className="space-y-6">
+            {/* Área Drag & Drop */}
+            <div
+              className="border-2 border-dashed border-gray-300 rounded-md p-4 sm:p-6 text-center cursor-pointer hover:border-blue-400 transition duration-200 relative flex flex-col items-center justify-center bg-gray-50 shadow-sm hover:shadow-md"
+              onClick={() => fileInputRef.current && fileInputRef.current.click()}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (e.dataTransfer.files && e.dataTransfer.files[0])
+                  handleArchivoChange({ target: { files: e.dataTransfer.files } });
+              }}
+            >
+              <input ref={fileInputRef} type="file" accept="image/*,application/pdf" style={{ display: "none" }} onChange={handleArchivoChange} />
+              {archivo ? (
+                <div className="flex flex-col items-center gap-2">
+                  {preview ? (
+                    <img src={preview} alt="Preview" className="max-h-44 w-auto rounded-md border shadow-sm object-contain transition-all duration-300" />
+                  ) : (
+                    <Paperclip className="w-8 h-8 text-gray-500" />
+                  )}
+                  <p className="text-sm text-gray-600 truncate">{archivo.name}</p>
+                </div>
+              ) : (
+                <>
+                  <FileUp className="w-10 h-10 mx-auto text-gray-400 transition-transform duration-200 hover:scale-110" />
+                  <p className="text-sm sm:text-base text-gray-500 mt-2">Arrastra un archivo aquí o haz clic para seleccionar</p>
+                </>
+              )}
+            </div>
+
+            {/* Botones de carga */}
+            {botones.length > 0 && (
+              <div className="w-full flex justify-center mt-3">
+                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4 w-full max-w-5xl">
+                  {botones.map((btn, idx) => {
+                    const inputRef = React.createRef();
+                    return (
+                      <div key={idx} className="flex justify-center">
+                        <input
+                          ref={inputRef}
+                          type="file"
+                          accept={btn.accept}
+                          capture={btn.capture}
+                          onChange={handleArchivoChange}
+                          style={{ display: "none" }}
+                        />
+                        <Button
+                          fromColor={btn.fromColor}
+                          toColor={btn.toColor}
+                          hoverFrom={btn.hoverFrom}
+                          hoverTo={btn.hoverTo}
+                          className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 w-full sm:w-full min-w-[150px] max-w-[320px] px-6 py-3 text-sm sm:text-base truncate transition-all duration-300 ease-in-out hover:scale-[1.03] shadow-sm hover:shadow-md"
+                          onClick={() => inputRef.current && inputRef.current.click()}
+                        >
+                          {btn.icon} <span className="truncate">{btn.label}</span>
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            ) : (
-              <>
-                <FileUp className="w-10 h-10 mx-auto text-gray-400 transition-transform duration-200 hover:scale-110" />
-                <p className="text-sm sm:text-base text-gray-500 mt-2">Arrastra un archivo aquí o haz clic para seleccionar</p>
-              </>
+            )}
+
+            {/* Barra de progreso */}
+            {cargando && (
+              <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden mt-2">
+                <div className="bg-blue-500 h-2 rounded-full animate-progress transition-all duration-300" style={{ width: "70%" }} />
+              </div>
+            )}
+
+            {/* Mensaje de error */}
+            {errorOCR && (
+              <p className="text-sm text-red-600 bg-red-100 rounded p-2 flex items-center gap-2 shadow-sm">
+                <AlertCircle className="w-4 h-4" /> {errorOCR}
+              </p>
             )}
           </div>
 
-          {/* Botones de carga */}
-          {botones.length > 0 && (
-            <div className="w-full flex justify-center mt-3">
-              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4 w-full max-w-5xl">
-                {botones.map((btn, idx) => {
-                  const inputRef = React.createRef();
-                  return (
-                    <div key={idx} className="flex justify-center">
-                      <input
-                        ref={inputRef}
-                        type="file"
-                        accept={btn.accept}
-                        capture={btn.capture}
-                        onChange={handleArchivoChange}
-                        style={{ display: "none" }}
-                      />
-                      <Button
-                        fromColor={btn.fromColor}
-                        toColor={btn.toColor}
-                        hoverFrom={btn.hoverFrom}
-                        hoverTo={btn.hoverTo}
-                        className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 w-full sm:w-full min-w-[150px] max-w-[320px] px-6 py-3 text-sm sm:text-base truncate transition-all duration-300 ease-in-out hover:scale-[1.03] shadow-sm hover:shadow-md"
-                        onClick={() => inputRef.current && inputRef.current.click()}
-                      >
-                        {btn.icon} <span className="truncate">{btn.label}</span>
-                      </Button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+          {/* Footer */}
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-4 mt-4">
+            <Button
+              variant="default"
+              fromColor="#f87171"
+              toColor="#ef4444"
+              hoverFrom="#ef4444"
+              hoverTo="#dc2626"
+              className="flex items-center gap-2 justify-center w-full sm:w-auto shadow-sm hover:shadow-md transition-all duration-200"
+              onClick={onClose}
+            >
+              <X className="w-4 h-4" /> Cerrar
+            </Button>
 
-          {/* Barra de progreso */}
-          {cargando && (
-            <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden mt-2">
-              <div className="bg-blue-500 h-2 rounded-full animate-progress transition-all duration-300" style={{ width: "70%" }} />
-            </div>
-          )}
-
-          {/* Mensaje de error */}
-          {errorOCR && (
-            <p className="text-sm text-red-600 bg-red-100 rounded p-2 flex items-center gap-2 shadow-sm">
-              <AlertCircle className="w-4 h-4" /> {errorOCR}
-            </p>
-          )}
-        </div>
-
-        {/* Footer */}
-        <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-4 mt-4">
-          <Button
-            variant="default"
-            fromColor="#f87171"
-            toColor="#ef4444"
-            hoverFrom="#ef4444"
-            hoverTo="#dc2626"
-            className="flex items-center gap-2 justify-center w-full sm:w-auto shadow-sm hover:shadow-md transition-all duration-200"
-            onClick={onClose}
-          >
-            <X className="w-4 h-4" /> Cerrar
-          </Button>
-
-          <Button
-            variant="default"
-            fromColor="#34d399"
-            toColor="#10b981"
-            hoverFrom="#10b981"
-            hoverTo="#059669"
-            className="flex items-center gap-2 justify-center w-full sm:w-auto shadow-sm hover:shadow-md transition-all duration-200"
-            onClick={handleProcesar}
-            disabled={cargando}
-          >
-            {cargando ? "Procesando..." : <><CheckCircle className="w-4 h-4" /> Procesar</>}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+            <Button
+              variant="default"
+              fromColor="#34d399"
+              toColor="#10b981"
+              hoverFrom="#10b981"
+              hoverTo="#059669"
+              className="flex items-center gap-2 justify-center w-full sm:w-auto shadow-sm hover:shadow-md transition-all duration-200"
+              onClick={handleProcesar}
+              disabled={cargando}
+            >
+              {cargando ? "Procesando..." : <><CheckCircle className="w-4 h-4" /> Procesar</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      )}
     </Dialog>
   );
 }
