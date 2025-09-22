@@ -269,7 +269,6 @@ export default function LiquidacionesPendientes() {
           />
         </div>
 
-
         {showPresentarModal && (
           <PresentarDocumentacionModal
             open={showPresentarModal}
