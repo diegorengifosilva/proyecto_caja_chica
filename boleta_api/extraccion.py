@@ -1,5 +1,6 @@
 # boleta_api/extraccion.py
 import re
+import os
 import requests
 import unicodedata
 import pytesseract
@@ -13,6 +14,7 @@ from PIL import Image, UnidentifiedImageError
 import pdfplumber
 from decimal import Decimal, InvalidOperation
 import logging
+from boleta_api.ocr_utils import procesar_imagen_camara, procesar_pdf
 
 # =======================#
 # CAMPOS CLAVE ESPERADOS #
@@ -438,10 +440,6 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
 
     import re
 
-    # 🔹 Normalizar espacios y mayúsculas
-    texto_norm = re.sub(r"\s{2,}", " ", texto.strip())
-    texto_norm = texto_norm.upper()
-
     # 🔹 Diccionario ampliado de RUC conocidos
     ruc_mapeo = {
         # Aseguradoras
@@ -512,9 +510,15 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
         "20601997772": "AMAZON COURIER PERÚ S.A.C.",
     }
 
-    # 🔹 Si el RUC está mapeado, devolvemos directo
+    # ✅ Si el RUC está en el diccionario, devolvemos directamente
     if ruc and ruc in ruc_mapeo:
+        if debug:
+            print(f"🔹 Razón Social detectada por RUC directo: {ruc_mapeo[ruc]}")
         return ruc_mapeo[ruc]
+
+    # 🔹 Normalizar texto
+    texto_norm = re.sub(r"\s{2,}", " ", texto.strip())
+    texto_norm = texto_norm.upper()
 
     # 🔹 Reemplazos comunes OCR
     reemplazos = {
@@ -526,13 +530,13 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
     for k, v in reemplazos.items():
         texto_norm = texto_norm.replace(k, v)
 
-    # 🔹 Quitar palabras basura frecuentes
+    # 🔹 Quitar palabras basura
     texto_norm = re.sub(r"\b(FACTURA|BOLETA|ELECTRONICA|ELECTRÓNICA|RAZ\.?SOCIAL:?)\b", "", texto_norm, flags=re.IGNORECASE)
 
-    # 🔹 Dividir líneas y limpiar
+    # 🔹 Dividir en líneas limpias
     lineas = [l.strip(" ,.-") for l in texto_norm.splitlines() if l.strip()]
 
-    # 🔹 Filtrar líneas
+    # 🔹 Filtros
     exclusiones = [r"V\s*&\s*C\s*CORPORATION", r"VC\s*CORPORATION", r"V\&C"]
     patron_exclusion = re.compile(
         r"^(RUC|R\.U\.C|CLIENTE|DIRECCION|OFICINA|CAL|JR|AV|PSJE|MZA|LOTE|ASC|TELF|CIUDAD|PROV)",
@@ -550,7 +554,7 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
             nuevas_lineas.append(l)
     lineas = nuevas_lineas
 
-    # 🔹 Filtrar líneas válidas
+    # 🔹 Filtrar válidas
     lineas_validas = [
         l for l in lineas[:30]
         if not any(re.search(pat, l, flags=re.IGNORECASE) for pat in exclusiones)
@@ -568,13 +572,13 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
 
     razon_social = None
 
-    # 1️⃣ Coincidencia exacta terminación legal o institucional
+    # 1️⃣ Coincidencia terminación legal
     for linea in lineas_validas:
         if any(re.search(term, linea) for term in terminaciones):
             razon_social = linea.strip()
             break
 
-    # 2️⃣ Reconstrucción flexible (combinar hasta 3 líneas)
+    # 2️⃣ Reconstrucción flexible
     if not razon_social and len(lineas_validas) > 1:
         for i in range(len(lineas_validas)-1):
             combinado = " ".join(lineas_validas[i:i+3])
@@ -585,7 +589,7 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
             if razon_social:
                 break
 
-    # 3️⃣ Fallback: nombre más largo válido
+    # 3️⃣ Fallback: línea más larga
     if not razon_social:
         candidatos = [l for l in lineas_validas if len(l.split()) >= 2]
         if candidatos:
@@ -677,17 +681,41 @@ def detectar_total(texto: str) -> str:
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-def procesar_datos_ocr(texto: str, debug: bool = True) -> Dict[str, Optional[str]]:
+def procesar_datos_ocr(entrada: Union[str, Image.Image], debug: bool = True) -> Dict[str, Optional[str]]:
     """
-    Procesa el texto OCR de un documento (boleta/factura).
-    Ejecuta detectores de RUC, Razón Social, Nº de Documento, Fecha, Total y Tipo de Documento.
-    Devuelve un diccionario con los datos extraídos.
+    Procesa texto OCR de un documento (boleta/factura).
+    - Si recibe `str` con texto → lo usa directamente.
+    - Si recibe `PIL.Image` → optimiza y corre OCR.
+    - Si recibe ruta a PDF → convierte, optimiza y corre OCR en todas las páginas.
+    
+    Devuelve un diccionario con RUC, Razón Social, Nº Documento, Fecha, Total, Tipo Documento.
     """
     msg_inicio = "🔥 DETECTOR NUMERO DOCUMENTO EJECUTADO"
     if debug:
         print(msg_inicio)
     else:
         logger.info(msg_inicio)
+
+    texto = None
+
+    # --- Detección del tipo de entrada ---
+    if isinstance(entrada, Image.Image):
+        # 📷 Foto o imagen
+        img_opt = procesar_imagen_camara(entrada)
+        texto = pytesseract.image_to_string(img_opt, lang="spa")
+
+    elif isinstance(entrada, str) and entrada.lower().endswith(".pdf") and os.path.exists(entrada):
+        # 📄 PDF
+        paginas = procesar_pdf(entrada, dpi=150)
+        textos = [pytesseract.image_to_string(pag, lang="spa") for pag in paginas]
+        texto = "\n".join(textos)
+
+    elif isinstance(entrada, str):
+        # 📜 Texto ya extraído
+        texto = entrada
+
+    else:
+        raise ValueError("Entrada no válida: debe ser texto OCR, PIL.Image o ruta a PDF")
 
     if not texto:
         return {
@@ -696,7 +724,7 @@ def procesar_datos_ocr(texto: str, debug: bool = True) -> Dict[str, Optional[str
             "numero_documento": "ND",
             "fecha": None,
             "total": "0.00",
-            "tipo_documento": "Otros"
+            "tipo_documento": "OTROS"
         }
 
     # --- Preprocesamiento ligero ---
@@ -722,7 +750,7 @@ def procesar_datos_ocr(texto: str, debug: bool = True) -> Dict[str, Optional[str
     numero_doc = detectar_numero_documento(texto)
     fecha = detectar_fecha(texto)
     total = detectar_total(texto)
-    tipo_documento = detectar_tipo_documento(texto, debug=debug)  # ← Nuevo detector integrado
+    tipo_documento = detectar_tipo_documento(texto, debug=debug)
 
     # --- Debug/log de resultados detectados ---
     datos_msg = [
@@ -731,7 +759,7 @@ def procesar_datos_ocr(texto: str, debug: bool = True) -> Dict[str, Optional[str
         f"  - Número Documento : {numero_doc}",
         f"  - Fecha            : {fecha}",
         f"  - Total            : {total}",
-        f"  - Tipo Documento   : {tipo_documento}"  # ← Mostrar tipo
+        f"  - Tipo Documento   : {tipo_documento}"
     ]
     if debug:
         print("🔹 Datos detectados por OCR:")
@@ -748,7 +776,7 @@ def procesar_datos_ocr(texto: str, debug: bool = True) -> Dict[str, Optional[str
         "numero_documento": numero_doc or "ND",
         "fecha": fecha or None,
         "total": total or "0.00",
-        "tipo_documento": tipo_documento or "Otros",  # ← Incluir en el retorno
+        "tipo_documento": tipo_documento.upper() if tipo_documento else "OTROS",
     }
 
 # ===================#

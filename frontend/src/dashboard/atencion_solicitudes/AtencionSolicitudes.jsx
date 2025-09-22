@@ -166,7 +166,7 @@ export default function AtencionSolicitudes() {
             transition={{ duration: 0.6 }}
             className="text-lg sm:text-2xl md:text-3xl lg:text-4xl font-bold text-gray-900 flex items-center gap-2 sm:gap-3"
           >
-            <ListChecks className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 text-blue-600" />
+            <ListChecks className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7" />
             Atención de Solicitudes
           </motion.h1>
           <motion.p

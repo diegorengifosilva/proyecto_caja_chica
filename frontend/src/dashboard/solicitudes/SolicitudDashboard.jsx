@@ -5,6 +5,7 @@ import api from "@/services/api";
 import { FilePlus, ClipboardList, CircleDollarSign, TrendingUp, PieChart, LayoutGrid, Banknote } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, RadialBarChart, RadialBar, Tooltip, Cell, CartesianGrid, XAxis, YAxis } from "recharts";
 import { Button } from "@/components/ui/button";
+import { motion } from "framer-motion";
 import NuevaSolicitud from "./NuevaSolicitud";
 import MisSolicitudes from "./MisSolicitudes";
 import { STATE_COLORS, TYPE_COLORS } from "@/components/ui/colors";
@@ -142,9 +143,28 @@ export default function SolicitudDashboard() {
   return (
     <div className="min-h-screen w-full flex flex-col bg-gray-50 font-sans">
       <div className="flex-1 flex flex-col px-4 sm:px-6 md:px-8 py-4 lg:py-6">
-        <h2 className="text-2xl font-bold flex items-center gap-2 text-gray-800 mb-6">
-          <FilePlus className="w-6 h-6 sm:w-7 sm:h-7" /> Solicitud de Gasto
-        </h2>
+
+        {/* Encabezado */}
+        <header className="mb-4 sm:mb-6">
+          <motion.h1
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="text-lg sm:text-3xl md:text-4xl font-bold text-gray-900 flex items-center gap-2"
+          >
+            <FilePlus className="w-5 h-5 sm:w-6 sm:h-7 md:w-7 md:h-7" />
+            Solicitud de Gasto
+          </motion.h1>
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+            className="mt-1 text-xs sm:text-sm md:text-base text-gray-600 italic"
+          >
+            Aquí puedes registrar, consultar y dar seguimiento a tus{" "}
+            <span className="font-semibold text-blue-600">solicitudes de gasto</span>.
+          </motion.p>
+        </header>
 
         {/* KPIs */}
         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-3 gap-y-4 sm:gap-x-4 sm:gap-y-5 md:gap-x-6 md:gap-y-6 mb-6 w-full justify-items-stretch">
