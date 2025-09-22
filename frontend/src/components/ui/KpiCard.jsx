@@ -31,7 +31,7 @@ const KpiCard = ({ label, value, gradient, icon: Icon, tooltip, decimals = 0 }) 
       {Icon && <Icon className="w-5 sm:w-6 md:w-7 h-5 sm:h-6 md:h-7 mb-2 opacity-90" />}
 
       {/* Label */}
-      <p className="text-xs sm:text-sm md:text-base opacity-90">{label}</p>
+      <p className="text-xs sm:text-sm md:text-base opacity-100">{label}</p>
 
       {/* Valor animado */}
       <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold break-words">

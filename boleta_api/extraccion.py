@@ -440,85 +440,19 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
 
     import re
 
-    # 🔹 Diccionario ampliado de RUC conocidos
-    ruc_mapeo = {
-        # Aseguradoras
-        "20100041953": "RIMAC SEGUROS Y REASEGUROS S.A.",
-        "20332970411": "PACÍFICO COMPAÑÍA DE SEGUROS Y REASEGUROS S.A.",
-        "20418896915": "MAPFRE PERÚ COMPAÑÍA DE SEGUROS Y REASEGUROS S.A.",
-        "20431115825": "PACIFICO S.A. ENT. PRESTADORA DE SALUD",
-        "20100210909": "LA POSITIVA SEGUROS Y REASEGUROS S.A.A.",
-        "20390625007": "CHUBB PERÚ S.A. COMPAÑÍA DE SEGUROS Y REASEGUROS",
-        "20382748566": "INTERSEGURO COMPAÑÍA DE SEGUROS S.A.",
-        "20513328819": "BNP PARIBAS CARDIF S.A. COMPAÑÍA DE SEGUROS Y REASEGUROS",
-
-        # Universidades
-        "20155945860": "PONTIFICIA UNIVERSIDAD CATÓLICA DEL PERÚ",
-        "20107798049": "UNIVERSIDAD DE LIMA",
-        "20110768151": "UNIVERSIDAD PERUANA CAYETANO HEREDIA",
-        "20211614545": "UNIVERSIDAD PERUANA DE CIENCIAS APLICADAS S.A.C.",
-        "20462509236": "UNIVERSIDAD TECNOLÓGICA DEL PERÚ S.A.C.",
-        "20148092282": "UNIVERSIDAD NACIONAL MAYOR DE SAN MARCOS",
-        "20145561095": "SERVIC NAC DE ADIESTRAM EN TRABAJ INDUST",
-
-        # Bancos
-        "20100047218": "BANCO DE CRÉDITO DEL PERÚ S.A.",
-        "20100043140": "SCOTIABANK PERÚ S.A.A.",
-        "20100130204": "BANCO BBVA PERÚ",
-        "20330401991": "BANCO FALABELLA PERÚ S.A.",
-        "20101036813": "BANCO INTERAMERICANO DE FINANZAS S.A.",
-        "20100105862": "BANCO PICHINCHA S.A.",
-        "20255993225": "FINANCIERA SANTANDER CONSUMER S.A.",
-        "20382036655": "MIBANCO – BANCO DE LA MICROEMPRESA S.A.",
-        "20100116635": "CITIBANK DEL PERÚ S.A.",
-        "20100030595": "BANCO DE LA NACIÓN",
-
-        # Instituciones
-        "20100031287": "SUPERINTENDENCIA NACIONAL DE ADUANAS Y DE ADMINISTRACIÓN TRIBUTARIA (SUNAT)",
-        "20100053265": "SUPERINTENDENCIA DE BANCA, SEGUROS Y AFP (SBS)",
-        "20100028152": "MINISTERIO DE SALUD (MINSA)",
-        "20100061127": "MINISTERIO DE EDUCACIÓN (MINEDU)",
-        "20100053361": "SERVICIO NACIONAL DE SANIDAD AGRARIA (SENASA)",
-        "20100054532": "INSTITUTO NACIONAL DE DEFENSA CIVIL (INDECI)",
-        "20100052370": "POLICÍA NACIONAL DEL PERÚ",
-        "20505208626": "SIS – SEGURO INTEGRAL DE SALUD",
-        "20131257750": "ESSALUD – SEGURO SOCIAL DE SALUD",
-
-        # Tiendas
-        "20100049181": "TAI LOY S.A.",
-        "20608300393": "COMPAÑÍA FOOD RETAIL S.A.C.",
-        "20109072177": "CENCOSUD RETAIL PERÚ S.A.",
-        "20508565934": "HIPERMERCADOS TOTTUS S.A.",
-
-        # Transporte
-        "20512528458": "SHALOM EMPRESARIAL S.A.C.",
-        "20100227461": "TRANSPORTES CRUZ DEL SUR S.A.C.",
-        "20555901179": "MOVIL BUS S.A.C.",
-        "20106076635": "EMPRESA DE TRANSPORTES PERU BUS S.A.",
-        "20100059918": "EMPRESA DE TRANSPORTES TEPSA S.A.",
-        "20100088917": "OLTURSA S.A.C.",
-        "20600411226": "EMPRESA DE TRANSPORTES INTERPROVINCIAL DE PASAJEROS JULI BUSS S.A.C.",
-        "20221304552": "EMPRESA DE TRANSPORTE INTERPROVINCIAL DE PASAJEROS EL HUARALINO S.A.C.",
-
-        # Courier
-        "20100686814": "OLVA COURIER S.A.C.",
-        "20101128777": "DHL EXPRESS PERÚ S.A.C.",
-        "20110964928": "SCHARFF INTERNATIONAL COURIER & CARGO S.A.",
-        "20463958590": "SCHARFF LOGÍSTICA INTEGRADA S.A.",
-        "20100199781": "SERVICIOS POSTALES DEL PERÚ S.A. (SERPOST)",
-        "20536550783": "URBANO EXPRESS PERÚ S.A.C.",
-        "20601997772": "AMAZON COURIER PERÚ S.A.C.",
-    }
-
-    # ✅ Si el RUC está en el diccionario, devolvemos directamente
-    if ruc and ruc in ruc_mapeo:
-        if debug:
-            print(f"🔹 Razón Social detectada por RUC directo: {ruc_mapeo[ruc]}")
-        return ruc_mapeo[ruc]
-
-    # 🔹 Normalizar texto
+    # 🔹 Normalizar espacios y mayúsculas
     texto_norm = re.sub(r"\s{2,}", " ", texto.strip())
     texto_norm = texto_norm.upper()
+
+    # 🔹 Diccionario de RUC conocidos
+    ruc_mapeo = {
+        "20100041953": "RIMAC SEGUROS Y REASEGUROS",
+        "20600082524": "CONSULTORIO DENTAL ACEVEDO EMPRESA INDIVIDUAL DE RESPONSABILIDAD LIMITADA",
+        "15606834117": "ACEVEDO PEREZ RONALD DAVID",
+        "20100049181": "TAI LOY S.A.",
+    }
+    if ruc and ruc in ruc_mapeo:
+        return ruc_mapeo[ruc]
 
     # 🔹 Reemplazos comunes OCR
     reemplazos = {
@@ -530,13 +464,13 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
     for k, v in reemplazos.items():
         texto_norm = texto_norm.replace(k, v)
 
-    # 🔹 Quitar palabras basura
+    # 🔹 Quitar palabras basura frecuentes
     texto_norm = re.sub(r"\b(FACTURA|BOLETA|ELECTRONICA|ELECTRÓNICA|RAZ\.?SOCIAL:?)\b", "", texto_norm, flags=re.IGNORECASE)
 
-    # 🔹 Dividir en líneas limpias
+    # 🔹 Dividir líneas y limpiar
     lineas = [l.strip(" ,.-") for l in texto_norm.splitlines() if l.strip()]
 
-    # 🔹 Filtros
+    # 🔹 Filtrar líneas
     exclusiones = [r"V\s*&\s*C\s*CORPORATION", r"VC\s*CORPORATION", r"V\&C"]
     patron_exclusion = re.compile(
         r"^(RUC|R\.U\.C|CLIENTE|DIRECCION|OFICINA|CAL|JR|AV|PSJE|MZA|LOTE|ASC|TELF|CIUDAD|PROV)",
@@ -554,14 +488,14 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
             nuevas_lineas.append(l)
     lineas = nuevas_lineas
 
-    # 🔹 Filtrar válidas
+    # 🔹 Filtrar líneas válidas
     lineas_validas = [
         l for l in lineas[:30]
         if not any(re.search(pat, l, flags=re.IGNORECASE) for pat in exclusiones)
         and not patron_exclusion.match(l)
     ]
 
-    # 🔹 Terminaciones legales e institucionales
+    # 🔹 Terminaciones legales y de instituciones
     terminaciones = [
         r"S\.?A\.?C\.?$", r"S\.?A\.?$", r"E\.?I\.?R\.?L\.?$",
         r"SOCIEDAD ANONIMA CERRADA$", r"SOCIEDAD ANONIMA$",
@@ -572,13 +506,13 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
 
     razon_social = None
 
-    # 1️⃣ Coincidencia terminación legal
+    # 1️⃣ Coincidencia exacta terminación legal o institucional
     for linea in lineas_validas:
         if any(re.search(term, linea) for term in terminaciones):
             razon_social = linea.strip()
             break
 
-    # 2️⃣ Reconstrucción flexible
+    # 2️⃣ Reconstrucción flexible (combinar hasta 3 líneas)
     if not razon_social and len(lineas_validas) > 1:
         for i in range(len(lineas_validas)-1):
             combinado = " ".join(lineas_validas[i:i+3])
@@ -589,7 +523,7 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
             if razon_social:
                 break
 
-    # 3️⃣ Fallback: línea más larga
+    # 3️⃣ Fallback: nombre más largo válido
     if not razon_social:
         candidatos = [l for l in lineas_validas if len(l.split()) >= 2]
         if candidatos:
