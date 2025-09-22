@@ -215,38 +215,46 @@ def detectar_numero_documento(texto: str, debug: bool = False) -> str:
 def detectar_tipo_documento(texto: str, debug: bool = False) -> str:
     """
     Detecta automáticamente el tipo de documento a partir del texto OCR.
-    Retorna: 'Boleta', 'Factura', 'Honorarios' o 'Otros'.
+    Retorna: 'Boleta', 'Boleta Electronica', 'Factura', 'Factura Electronica', 
+             'Factura de Venta Electronica', 'Honorarios' o 'Otros'.
     """
     if not texto:
         return "Otros"
 
-    # --- Normalizar texto: mayúsculas y sin tildes ---
+    # Normalizar texto: mayúsculas y sin tildes
     texto_norm = re.sub(r"\s{2,}", " ", texto.strip()).upper()
     texto_norm = unicodedata.normalize('NFKD', texto_norm).encode('ASCII', 'ignore').decode('ASCII')
 
-    # Patrones típicos
+    # Patrones más completos y flexibles
     patrones = {
-        "Boleta": [
-            r"\bBOLETA\b", 
-            r"\bBOLETA DE VENTA\b", 
-            r"\bBOL\b"
+        "Factura Electronica": [
+            r"FACTURA\s*ELECTRONICA", 
+            r"FACTURA\s*DE\s*VENTA\s*ELECTRONICA",
         ],
         "Factura": [
             r"\bFACTURA\b", 
-            r"\bFACTURA ELECTRONICA\b",  # ahora acepta sin tilde
-            r"\bF\-\d{3,}"               # número tipo F001-1234
+            r"\bF\-\d{3,}",  # tipo F001-1234
+        ],
+        "Boleta Electronica": [
+            r"BOLETA\s*ELECTRONICA",
+            r"BOLETA\s*DE\s*VENTA\s*ELECTRONICA",
+        ],
+        "Boleta": [
+            r"\bBOLETA\b",
+            r"\bBOL\b",
         ],
         "Honorarios": [
-            r"\bRECIBO POR HONORARIOS\b", 
-            r"\bHONORARIOS\b", 
-            r"\bR\.H\.\b"
+            r"RECIBO\s*POR\s*HONORARIOS",
+            r"HONORARIOS",
+            r"R\.H\."
         ],
     }
 
     tipo_detectado = "Otros"
 
-    for tipo, regex_list in patrones.items():
-        for pat in regex_list:
+    # Orden de prioridad: primero las variantes electrónicas
+    for tipo in ["Factura Electronica", "Factura", "Boleta Electronica", "Boleta", "Honorarios"]:
+        for pat in patrones[tipo]:
             if re.search(pat, texto_norm):
                 tipo_detectado = tipo
                 break
