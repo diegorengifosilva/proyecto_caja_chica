@@ -388,6 +388,15 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
     texto_norm = re.sub(r"\s{2,}", " ", texto.strip())
     texto_norm = texto_norm.upper()
 
+    # 🔹 Diccionario de RUC conocidos (personalizable)
+    ruc_mapeo = {
+        "20100041953": "RIMAC SEGUROS Y REASEGUROS",
+        "20600082524": "CONSULTORIO DENTAL ACEVEDO EMPRESA INDIVIDUAL DE RESPONSABILIDAD LIMITADA",
+        # puedes seguir agregando aquí
+    }
+    if ruc and ruc in ruc_mapeo:
+        return ruc_mapeo[ruc]
+
     reemplazos = {
         "5,A,": "S.A.", "5A": "S.A.", "5.A": "S.A.", "5 ,A": "S.A.",
         "$.A.C": "S.A.C", "S , A": "S.A", "S . A . C": "S.A.C", "S . A": "S.A",
@@ -405,14 +414,10 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
         flags=re.IGNORECASE
     )
 
-    # 🔹 Preliminar: limpiar cada línea
     nuevas_lineas = []
     for l in lineas:
-        # Cortar en RUC en cualquiera de sus variantes
         l = re.split(r"R\.?\s*U\.?\s*C.*", l)[0].strip()
-        # Cortar en número de documento (ej. F001-, B001-)
         l = re.split(r"\b[FBE]\d{3,}-\d+", l)[0].strip()
-        # Quitar palabras basura FACTURA/BOLETA/ELECTRONICA
         l = re.sub(r"\b(FACTURA|BOLETA|ELECTRONICA|ELECTRÓNICA)\b", "", l).strip()
         if ruc:
             l = l.replace(ruc, "").strip()
@@ -420,7 +425,6 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
             nuevas_lineas.append(l)
     lineas = nuevas_lineas
 
-    # 🔹 Filtrar válidas
     lineas_validas = [
         l for l in lineas[:30]
         if not any(re.search(pat, l, flags=re.IGNORECASE) for pat in exclusiones)
@@ -436,16 +440,16 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
 
     razon_social = None
 
-    # 1️⃣ Buscar línea con terminación legal directa
+    # 1️⃣ Buscar coincidencia exacta con terminación legal
     for linea in lineas_validas:
         if any(re.search(term, linea) for term in terminaciones):
             razon_social = linea.strip()
             break
 
-    # 2️⃣ Reconstrucción: juntar líneas previas + terminación legal
+    # 2️⃣ Reconstrucción flexible (combina hasta 3 seguidas, incluso si hay una basura en medio)
     if not razon_social and len(lineas_validas) > 1:
         for i in range(len(lineas_validas)-1):
-            combinado = " ".join(lineas_validas[i:i+3])  # unir hasta 3 seguidas
+            combinado = " ".join(lineas_validas[i:i+3])
             for term in terminaciones:
                 if re.search(term, combinado):
                     razon_social = re.sub(r"\s+", " ", combinado).strip()
@@ -453,13 +457,12 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
             if razon_social:
                 break
 
-    # 3️⃣ Fallback: buscar línea con mayúsculas largas (ej. RIMAC SEGUROS Y REASEGUROS)
+    # 3️⃣ Fallback: nombre más largo válido (ej. RIMAC SEGUROS Y REASEGUROS)
     if not razon_social:
         candidatos = [l for l in lineas_validas if len(l.split()) >= 2]
         if candidatos:
             razon_social = max(candidatos, key=len)
 
-    # 🔹 Limpieza final
     if razon_social:
         razon_social = re.sub(r"[\s,:;\-]*(R\.?\s*U\.?\s*C.*)+$", "", razon_social).strip()
         razon_social = re.sub(r"\b(FACTURA|BOLETA|ELECTRONICA|ELECTRÓNICA|OFICINA)\b", "", razon_social).strip()
