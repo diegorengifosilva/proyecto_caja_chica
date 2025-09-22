@@ -204,50 +204,64 @@ def detectar_numero_documento(texto: str, debug: bool = False) -> str:
 def detectar_tipo_documento(texto: str, debug: bool = False) -> str:
     """
     Detecta automáticamente el tipo de documento a partir del texto OCR.
-    Retorna: 'Boleta', 'Boleta Electronica', 'Factura', 'Factura Electronica', 
-             'Factura de Venta Electronica', 'Honorarios' o 'Otros'.
+    Retorna: 'BOLETA', 'BOLETA ELECTRONICA', 'FACTURA', 'FACTURA ELECTRONICA', 
+             'FACTURA DE VENTA ELECTRONICA', 'HONORARIOS' o 'OTROS'.
     """
     if not texto:
-        return "Otros"
+        return "OTROS"
 
-    # Normalizar texto: mayúsculas y sin tildes
+    # 🔹 Normalizar texto: mayúsculas y sin tildes
     texto_norm = re.sub(r"\s{2,}", " ", texto.strip()).upper()
     texto_norm = unicodedata.normalize('NFKD', texto_norm).encode('ASCII', 'ignore').decode('ASCII')
 
-    # Patrones más completos y flexibles
+    # 🔹 Patrones flexibles y ampliados
     patrones = {
-        "Factura Electronica": [
-            r"FACTURA\s*ELECTRONICA", 
+        "FACTURA DE VENTA ELECTRONICA": [
             r"FACTURA\s*DE\s*VENTA\s*ELECTRONICA",
         ],
-        "Factura": [
-            r"\bFACTURA\b", 
-            r"\bF\-\d{3,}",  # tipo F001-1234
+        "FACTURA ELECTRONICA": [
+            r"FACTURA\s*ELECTRONICA",
         ],
-        "Boleta Electronica": [
-            r"BOLETA\s*ELECTRONICA",
+        "FACTURA": [
+            r"\bFACTURA\b", 
+            r"\bF\-\d{3,}",  # Ej: F001-1234
+        ],
+        "BOLETA DE VENTA ELECTRONICA": [
             r"BOLETA\s*DE\s*VENTA\s*ELECTRONICA",
         ],
-        "Boleta": [
+        "BOLETA ELECTRONICA": [
+            r"BOLETA\s*ELECTRONICA",
+        ],
+        "BOLETA": [
             r"\bBOLETA\b",
             r"\bBOL\b",
         ],
-        "Honorarios": [
+        "HONORARIOS": [
             r"RECIBO\s*POR\s*HONORARIOS",
             r"HONORARIOS",
             r"R\.H\."
         ],
     }
 
-    tipo_detectado = "Otros"
+    tipo_detectado = "OTROS"
 
-    # Orden de prioridad: primero las variantes electrónicas
-    for tipo in ["Factura Electronica", "Factura", "Boleta Electronica", "Boleta", "Honorarios"]:
+    # 🔹 Orden de prioridad (primero electrónicos)
+    orden_prioridad = [
+        "FACTURA DE VENTA ELECTRONICA",
+        "FACTURA ELECTRONICA",
+        "FACTURA",
+        "BOLETA DE VENTA ELECTRONICA",
+        "BOLETA ELECTRONICA",
+        "BOLETA",
+        "HONORARIOS"
+    ]
+
+    for tipo in orden_prioridad:
         for pat in patrones[tipo]:
             if re.search(pat, texto_norm):
                 tipo_detectado = tipo
                 break
-        if tipo_detectado != "Otros":
+        if tipo_detectado != "OTROS":
             break
 
     if debug:
