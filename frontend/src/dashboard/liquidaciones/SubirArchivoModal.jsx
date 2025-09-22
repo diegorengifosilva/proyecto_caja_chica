@@ -12,11 +12,10 @@ export default function SubirArchivoModal({ idSolicitud, tipoSolicitud, open, on
   const [errorOCR, setErrorOCR] = useState(null);
   const [totalManual, setTotalManual] = useState("");
 
-  // Detectar móvil o tablet
+  // Detectar móvil
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
-    const checkMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-    setIsMobile(checkMobile);
+    setIsMobile(/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent));
   }, []);
 
   const handleArchivoChange = (e) => {
@@ -64,8 +63,6 @@ export default function SubirArchivoModal({ idSolicitud, tipoSolicitud, open, on
       setErrorOCR(null);
 
       const ocrResponse = await procesarDocumentoOCR(formData);
-      console.log("📦 OCR recibido:", ocrResponse);
-
       const datos = Array.isArray(ocrResponse) && ocrResponse.length ? ocrResponse[0] : {};
 
       let total = datos.total?.toString().replace(",", ".") || totalManual;
@@ -74,7 +71,6 @@ export default function SubirArchivoModal({ idSolicitud, tipoSolicitud, open, on
         if (isNaN(total)) total = null;
       }
 
-      // Usamos el tipo_documento extraído
       const doc = {
         nombre_archivo: archivo.name,
         tipo_documento: datos.tipo_documento || "Otros",
@@ -102,6 +98,17 @@ export default function SubirArchivoModal({ idSolicitud, tipoSolicitud, open, on
     }
   };
 
+  // Botones dependiendo de dispositivo
+  const botones = isMobile
+    ? [
+        { label: "Cámara", icon: <Camera className="w-4 h-4" />, accept: "image/*", capture: "environment", fromColor: "#60a5fa", toColor: "#3b82f6", hoverFrom: "#3b82f6", hoverTo: "#2563eb" },
+        { label: "Archivo", icon: <FileUp className="w-4 h-4" />, accept: "image/*,application/pdf", fromColor: "#fcd34d", toColor: "#fbbf24", hoverFrom: "#fbbf24", hoverTo: "#f59e0b" },
+      ]
+    : [
+        { label: "Imagen", icon: <Camera className="w-4 h-4" />, accept: "image/*", fromColor: "#60a5fa", toColor: "#3b82f6", hoverFrom: "#3b82f6", hoverTo: "#2563eb" },
+        { label: "Archivo", icon: <FileUp className="w-4 h-4" />, accept: "image/*,application/pdf", fromColor: "#fcd34d", toColor: "#fbbf24", hoverFrom: "#fbbf24", hoverTo: "#f59e0b" },
+      ];
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="w-[95vw] sm:max-w-md md:max-w-lg lg:max-w-xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
@@ -115,15 +122,12 @@ export default function SubirArchivoModal({ idSolicitud, tipoSolicitud, open, on
         <div className="space-y-4">
           {/* Botones de carga */}
           <div className="flex flex-col sm:flex-row gap-2">
-            {[
-              { label: "Cámara", icon: <Camera className="w-4 h-4" />, accept: "image/*", capture: true, fromColor: "#60a5fa", toColor: "#3b82f6", hoverFrom: "#3b82f6", hoverTo: "#2563eb" },
-              { label: "Archivo", icon: <FileUp className="w-4 h-4" />, accept: "image/*,application/pdf", fromColor: "#fcd34d", toColor: "#fbbf24", hoverFrom: "#fbbf24", hoverTo: "#f59e0b" },
-            ].map((btn, idx) => (
+            {botones.map((btn, idx) => (
               <label key={idx} className="flex-1 cursor-pointer">
                 <input
                   type="file"
                   accept={btn.accept}
-                  capture={btn.capture ? "environment" : undefined}
+                  capture={btn.capture}
                   onChange={handleArchivoChange}
                   style={{ display: "none" }}
                 />
@@ -146,13 +150,7 @@ export default function SubirArchivoModal({ idSolicitud, tipoSolicitud, open, on
               <p className="text-xs text-gray-600 flex items-center justify-center gap-1 break-words">
                 <Paperclip className="w-4 h-4" /> {archivo.name}
               </p>
-              {preview && (
-                <img
-                  src={preview}
-                  alt="Preview"
-                  className="max-h-40 w-auto mx-auto rounded-md border"
-                />
-              )}
+              {preview && <img src={preview} alt="Preview" className="max-h-40 w-auto mx-auto rounded-md border" />}
             </div>
           )}
 
@@ -185,8 +183,8 @@ export default function SubirArchivoModal({ idSolicitud, tipoSolicitud, open, on
         <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-4">
           <Button
             variant="default"
-            fromColor="#f87171" // rojo claro
-            toColor="#ef4444"   // rojo medio
+            fromColor="#f87171"
+            toColor="#ef4444"
             hoverFrom="#ef4444"
             hoverTo="#dc2626"
             className="flex items-center gap-2 justify-center w-full sm:w-auto"
@@ -197,8 +195,8 @@ export default function SubirArchivoModal({ idSolicitud, tipoSolicitud, open, on
 
           <Button
             variant="default"
-            fromColor="#34d399" // verde claro
-            toColor="#10b981"   // verde medio
+            fromColor="#34d399"
+            toColor="#10b981"
             hoverFrom="#10b981"
             hoverTo="#059669"
             className="flex items-center gap-2 justify-center w-full sm:w-auto"
