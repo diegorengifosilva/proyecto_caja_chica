@@ -403,24 +403,23 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
         flags=re.IGNORECASE
     )
 
-    # 🔹 Preliminar: limpiar cada línea
     nuevas_lineas = []
     for l in lineas:
         # Cortar en RUC en cualquiera de sus variantes
         l = re.split(r"R\.?\s*U\.?\s*C.*", l)[0].strip()
-        # Cortar en número de documento (ej. F001-, B001-)
+        # Cortar en número de documento (ej. F001-, B001-), pero conservar lo previo
         l = re.split(r"\b[FBE]\d{3,}-\d+", l)[0].strip()
-        # Quitar basura FACTURA/BOLETA/ELECTRONICA
-        l = re.sub(r"\b(FACTURA|BOLETA|ELECTRONICA|ELECTRÓNICA)\b", "", l).strip()
+        # Quitar basura FACTURA/BOLETA/ELECTRONICA solo si la línea es solo eso
+        if re.fullmatch(r"(FACTURA|BOLETA|ELECTRONICA|ELECTRÓNICA)", l):
+            continue
         if ruc:
             l = l.replace(ruc, "").strip()
         if l:
             nuevas_lineas.append(l)
     lineas = nuevas_lineas
 
-    # 🔹 Filtrar válidas
     lineas_validas = [
-        l for l in lineas[:25]
+        l for l in lineas[:30]
         if not any(re.search(pat, l, flags=re.IGNORECASE) for pat in exclusiones)
         and not patron_exclusion.match(l)
     ]
@@ -440,17 +439,20 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
             razon_social = linea.strip()
             break
 
-    # 2️⃣ Reconstruir de varias líneas (caso "CONSULTORIO DENTAL ACEVEDO ... RESPONSABILIDAD LIMITADA")
-    if not razon_social and len(lineas_validas) > 1:
-        joined = " ".join(lineas_validas[:3])  # tomar hasta 3 primeras
-        for term in terminaciones:
-            if re.search(term, joined):
-                razon_social = re.sub(r"\s+", " ", joined).strip()
+    # 2️⃣ Reconstrucción multinea tolerante (salta ruido en medio)
+    if not razon_social and len(lineas_validas) >= 2:
+        for i in range(len(lineas_validas) - 1):
+            joined = " ".join(lineas_validas[i:i+3])  # unir hasta 3 seguidas
+            for term in terminaciones:
+                if re.search(term, joined):
+                    razon_social = re.sub(r"\s+", " ", joined).strip()
+                    break
+            if razon_social:
                 break
 
-    # 3️⃣ Fallback: primera línea válida
+    # 3️⃣ Fallback: tomar la primera línea larga y sin dirección
     if not razon_social and lineas_validas:
-        razon_social = lineas_validas[0]
+        razon_social = max(lineas_validas, key=len)
 
     # 🔹 Limpieza final
     if razon_social:
