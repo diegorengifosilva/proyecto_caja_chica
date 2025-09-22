@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import api from "@/services/api";
-import { FilePlus, ClipboardList, Info, DollarSign, TrendingUp, PieChart, LayoutGrid } from "lucide-react";
+import { FilePlus, ClipboardList, CircleDollarSign, TrendingUp, PieChart, LayoutGrid, Banknote } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, RadialBarChart, RadialBar, Tooltip, Cell, CartesianGrid, XAxis, YAxis } from "recharts";
 import { Button } from "@/components/ui/button";
 import NuevaSolicitud from "./NuevaSolicitud";
@@ -133,10 +133,10 @@ export default function SolicitudDashboard() {
 
   const kpis = [
     { label: "Total Solicitudes", value: stats.total ?? 0, icon: ClipboardList, gradient: "linear-gradient(135deg,#3b82f6cc,#60a5fa99)", tooltip: "Número total de solicitudes registradas." },
-    { label: "Monto Total S/.", value: parseFloat(stats.montoTotalSoles ?? 0), icon: DollarSign, gradient: "linear-gradient(135deg,#0ea5e9cc,#60a5fa99)", tooltip: "Suma total en soles." },
-    { label: "Monto Total $", value: parseFloat(stats.montoTotalDolares ?? 0), icon: DollarSign, gradient: "linear-gradient(135deg,#7c3aedcc,#a78bfa99)", tooltip: "Suma total en dólares." },
-    { label: "Promedio S/.", value: parseFloat(stats.promedioSoles ?? 0), icon: Info, gradient: "linear-gradient(135deg,#14b8a6cc,#34d39999)", tooltip: "Promedio por solicitud en soles." },
-    { label: "Promedio $", value: parseFloat(stats.promedioDolares ?? 0), icon: Info, gradient: "linear-gradient(135deg,#f59e0bcc,#fbbf24aa)", tooltip: "Promedio por solicitud en dólares." },
+    { label: "Monto Total S/.", value: parseFloat(stats.montoTotalSoles ?? 0), icon: Banknote, gradient: "linear-gradient(135deg,#0ea5e9cc,#60a5fa99)", tooltip: "Suma total en soles." },
+    { label: "Monto Total $", value: parseFloat(stats.montoTotalDolares ?? 0), icon: CircleDollarSign, gradient: "linear-gradient(135deg,#7c3aedcc,#a78bfa99)", tooltip: "Suma total en dólares." },
+    { label: "Promedio S/.", value: parseFloat(stats.promedioSoles ?? 0), icon: Banknote, gradient: "linear-gradient(135deg,#14b8a6cc,#34d39999)", tooltip: "Promedio por solicitud en soles." },
+    { label: "Promedio $", value: parseFloat(stats.promedioDolares ?? 0), icon: CircleDollarSign, gradient: "linear-gradient(135deg,#f59e0bcc,#fbbf24aa)", tooltip: "Promedio por solicitud en dólares." },
   ];
 
   return (

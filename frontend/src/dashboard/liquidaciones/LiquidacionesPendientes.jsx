@@ -1,6 +1,6 @@
 // src/dashboard/liquidaciones/LiquidacionesPendientes.jsx
 import React, { useEffect, useState, useMemo, useCallback } from "react";
-import { FolderKanban, DollarSign, Clock, Users, Filter, CalendarRange, Eye } from "lucide-react";
+import { FolderKanban, DollarSign, Clock, Users, Filter, CalendarRange, Eye, Banknote, CircleDollarSign } from "lucide-react";
 import PresentarDocumentacionModal from "./PresentarDocumentacionModal";
 import axios from "@/services/api";
 import { Button } from "@/components/ui/button";
@@ -91,16 +91,16 @@ export default function LiquidacionesPendientes() {
 
   const kpis = [
     { label: "Total Pendientes", value: stats.total, gradient: "linear-gradient(135deg, #f97316cc, #fb923c99)", icon: Clock },
-    { label: "Monto Total (S/)", value: stats.totalSoles, gradient: "linear-gradient(135deg, #3b82f6cc, #60a5fa99)", icon: DollarSign, decimals: 2 },
-    { label: "Monto Total ($)", value: stats.totalDolares, gradient: "linear-gradient(135deg, #10b981cc, #34d39999)", icon: DollarSign, decimals: 2 },
-    { label: "Promedio por Solicitud (S/)", value: stats.promedio, gradient: "linear-gradient(135deg, #f59e0bcc, #fcd34d99)", icon: DollarSign, decimals: 2 },
+    { label: "Monto Total (S/)", value: stats.totalSoles, gradient: "linear-gradient(135deg, #3b82f6cc, #60a5fa99)", icon: Banknote, decimals: 2 },
+    { label: "Monto Total ($)", value: stats.totalDolares, gradient: "linear-gradient(135deg, #10b981cc, #34d39999)", icon: CircleDollarSign, decimals: 2 },
+    { label: "Promedio por Solicitud (S/)", value: stats.promedio, gradient: "linear-gradient(135deg, #f59e0bcc, #fcd34d99)", icon: Banknote, decimals: 2 },
   ];
 
   return (
     <div className="min-h-screen w-full flex flex-col bg-gray-50 font-sans">
       <div className="flex-1 flex flex-col px-4 sm:px-6 md:px-8 py-4 lg:py-6">
 
-        {/* Encabezado tipo DashboardHome.jsx */}
+        {/* Encabezado */}
         <header className="mb-4 sm:mb-6">
           <motion.h1
             initial={{ opacity: 0, y: -10 }}

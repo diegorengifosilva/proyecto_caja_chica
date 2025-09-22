@@ -10,7 +10,7 @@ import ConfirmacionModal from "./ConfirmacionModal";
 import KpiCard from "@/components/ui/KpiCard";
 import Table from "@/components/ui/table";
 import ChartWrapped, { tooltipFormatter, radialTooltipFormatter } from "@/components/ui/ChartWrapped";
-import { RefreshCw, DollarSign, FileText, CheckCircle2, XCircle, Eye, PieChart as PieChartIcon } from "lucide-react";
+import { RefreshCw, FileText, CheckCircle2, XCircle, Eye, PieChart as PieChartIcon, Banknote, CircleDollarSign } from "lucide-react";
 import { STATE_CLASSES, STATE_COLORS } from "@/components/ui/colors";
 import {
   ResponsiveContainer,
@@ -167,8 +167,8 @@ export default function AprobacionLiquidaciones() {
             { label: "Pendientes", value: kpis.totalPendientes, icon: FileText, gradient: "linear-gradient(135deg,#0ea5e9cc,#38bdf899)" },
             { label: "Aprobadas", value: kpis.totalAprobadas, icon: CheckCircle2, gradient: "linear-gradient(135deg,#16a34acc,#4ade8099)" },
             { label: "Rechazadas", value: kpis.totalRechazadas, icon: XCircle, gradient: "linear-gradient(135deg,#ef4444cc,#f8717199)" },
-            { label: "Total S/.", value: kpis.totalSoles, icon: DollarSign, gradient: "linear-gradient(135deg,#f59e0bcc,#fbbf2499)" },
-            { label: "Total $", value: kpis.totalDolares, icon: DollarSign, gradient: "linear-gradient(135deg,#6366f1cc,#818cf899)" },
+            { label: "Total S/.", value: kpis.totalSoles, icon: Banknote, gradient: "linear-gradient(135deg,#f59e0bcc,#fbbf2499)" },
+            { label: "Total $", value: kpis.totalDolares, icon: CircleDollarSign, gradient: "linear-gradient(135deg,#6366f1cc,#818cf899)" },
           ].map(k => (
             <div key={k.label} className="flex-1 min-w-0">
               <KpiCard

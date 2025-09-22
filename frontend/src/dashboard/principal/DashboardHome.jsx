@@ -10,7 +10,8 @@ import {
   FileText, 
   CheckCircle2, 
   FilePlus, 
-  BarChart 
+  BarChart,
+  WalletMinimal
 } from "lucide-react";
 import { 
   ResponsiveContainer, 
@@ -55,7 +56,7 @@ const DashboardHome = () => {
     { label: "Solicitudes Pendientes", value: stats.solicitudesPendientes ?? 0, icon: ClipboardList, gradient: "linear-gradient(135deg,#f97316cc,#fb923c99)", tooltip: "Solicitudes que aún no han sido atendidas o aprobadas." },
     { label: "Liquidaciones Pendientes", value: stats.liquidacionesPendientes ?? 0, icon: FileText, gradient: "linear-gradient(135deg,#0ea5e9cc,#38bdf899)", tooltip: "Solicitudes en estado pendiente de liquidación o aprobación." },
     { label: "Liquidaciones Aprobadas (Mes)", value: stats.liquidacionesAprobadasMes ?? 0, icon: CheckCircle2, gradient: "linear-gradient(135deg,#16a34acc,#4ade8099)", tooltip: "Cantidad de liquidaciones aprobadas este mes." },
-    { label: "Monto Total Solicitado (Mes)", value: parseFloat(stats.montoTotalSolicitadoMes ?? 0), icon: DollarSign, gradient: "linear-gradient(135deg,#7c3aedcc,#a78bfa99)", tooltip: "Monto total solicitado en caja chica este mes." },
+    { label: "Monto Total Solicitado (Mes)", value: parseFloat(stats.montoTotalSolicitadoMes ?? 0), icon: WalletMinimal, gradient: "linear-gradient(135deg,#7c3aedcc,#a78bfa99)", tooltip: "Monto total solicitado en caja chica este mes." },
   ];
 
   const handleNavegar = (url) => alert(`Ir a: ${url}`);
