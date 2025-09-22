@@ -136,50 +136,31 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
 
           <div className="grid gap-4">
             {/* Información de la solicitud */}
-            <Card>
+            <Card className="overflow-hidden">
               <CardContent className="p-4 space-y-2 text-sm sm:text-base">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                  <p className="flex items-center gap-1">
-                    <ClipboardList className="w-4 h-4 text-gray-800" />
-                    <span className="font-semibold">Solicitud:</span>{" "}
-                    {solicitud.numero_solicitud}
-                  </p>
-                  <p className="flex items-center gap-1">
-                    <User className="w-4 h-4 text-gray-800" />
-                    <span className="font-semibold">Solicitante:</span>{" "}
-                    {solicitud.solicitante || "—"}
-                  </p>
-                  <p className="flex items-center gap-1">
-                    <Tag className="w-4 h-4 text-gray-800" />
-                    <span className="font-semibold">Tipo:</span>{" "}
-                    {solicitud.tipo_solicitud || "—"}
-                  </p>
-                  <p className="flex items-center gap-1">
-                    <WalletMinimal className="w-4 h-4 text-gray-800" />
-                    <span className="font-semibold">Monto Soles (S/.):</span>{" "}
-                    {solicitud.total_soles || solicitud.monto || "—"}
-                  </p>
-                  <p className="flex items-center gap-1">
-                    <DollarSign className="w-4 h-4 text-gray-800" />
-                    <span className="font-semibold">Monto Dólares ($):</span>{" "}
-                    {solicitud.total_dolares || "—"}
-                  </p>
-                  <p className="flex items-center gap-1">
-                    <Calendar className="w-4 h-4 text-gray-800" />
-                    <span className="font-semibold">Fecha:</span>{" "}
-                    {solicitud.fecha || "—"}
-                  </p>
-                  <p className="flex items-center gap-1 col-span-full sm:col-span-2 lg:col-span-3">
-                    <BadgeAlert className="w-4 h-4 text-gray-800" />
-                    <span className="font-semibold">Estado actual:</span>{" "}
-                    {solicitud.estado || "Pendiente"}
-                  </p>
+                  {[
+                    { icon: <ClipboardList className="w-4 h-4 text-gray-800" />, label: "Solicitud", value: solicitud.numero_solicitud },
+                    { icon: <User className="w-4 h-4 text-gray-800" />, label: "Solicitante", value: solicitud.solicitante || "—" },
+                    { icon: <Tag className="w-4 h-4 text-gray-800" />, label: "Tipo", value: solicitud.tipo_solicitud || "—" },
+                    { icon: <WalletMinimal className="w-4 h-4 text-gray-800" />, label: "Monto Soles (S/.)", value: solicitud.total_soles || solicitud.monto || "—" },
+                    { icon: <DollarSign className="w-4 h-4 text-gray-800" />, label: "Monto Dólares ($)", value: solicitud.total_dolares || "—" },
+                    { icon: <Calendar className="w-4 h-4 text-gray-800" />, label: "Fecha", value: solicitud.fecha || "—" },
+                    { icon: <BadgeAlert className="w-4 h-4 text-gray-800" />, label: "Estado", value: solicitud.estado || "Pendiente", full: true },
+                  ].map((item, idx) => (
+                    <p
+                      key={idx}
+                      className={`flex items-center gap-1 ${item.full ? "col-span-full sm:col-span-2 lg:col-span-3" : ""} break-words text-sm sm:text-base`}
+                    >
+                      {item.icon} <span className="font-semibold">{item.label}:</span> {item.value}
+                    </p>
+                  ))}
                 </div>
               </CardContent>
             </Card>
 
             {/* Comprobantes */}
-            <Card>
+            <Card className="overflow-hidden">
               <CardContent>
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2">
                   <h3 className="text-lg font-semibold flex items-center gap-2">
@@ -190,7 +171,11 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
                   <Button
                     size="sm"
                     onClick={() => setShowSubirArchivoModal(true)}
-                    className="bg-gradient-to-r from-violet-400 to-violet-500 hover:from-violet-500 hover:to-violet-600 text-white px-4 py-2 rounded-lg shadow-md flex items-center gap-2 w-full sm:w-auto"
+                    fromColor="#8b5cf6"    // violeta inicial
+                    toColor="#a78bfa"       // violeta final
+                    hoverFrom="#7c3aed"     // hover inicial
+                    hoverTo="#6d28d9"       // hover final
+                    className="flex items-center gap-2 w-full sm:w-auto"
                   >
                     <Plus className="h-4 w-4" /> Agregar
                   </Button>
@@ -200,8 +185,8 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
                   <Table
                     headers={[
                       "Nombre del Archivo",
-                      "N° Doc",
-                      "Tipo",
+                      "N° Documento",
+                      "Tipo de Documento",
                       "Fecha",
                       "RUC",
                       "Razón Social",
@@ -211,17 +196,17 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
                     emptyMessage="No se han agregado comprobantes todavía."
                     renderRow={(doc) => [
                       <span
-                        className="cursor-pointer text-blue-600 hover:underline"
+                        className="cursor-pointer text-blue-600 hover:underline whitespace-normal break-words text-center"
                         onClick={() => handleAbrirArchivo(doc.archivo)}
                       >
                         {doc.nombre_archivo}
                       </span>,
-                      doc.numero_documento,
-                      doc.tipo_documento,
-                      doc.fecha,
-                      doc.ruc,
-                      doc.razon_social,
-                      doc.total,
+                      <span className="text-center">{doc.numero_documento}</span>,
+                      <span className="text-center whitespace-normal break-words">{doc.tipo_documento}</span>,
+                      <span className="text-center">{doc.fecha}</span>,
+                      <span className="text-center">{doc.ruc}</span>,
+                      <span className="truncate sm:whitespace-normal max-w-[140px] text-center">{doc.razon_social}</span>,
+                      <span className="text-center">{doc.total}</span>,
                     ]}
                     onDeleteRow={(doc) => handleEliminarDocumento(doc)}
                   />
@@ -239,17 +224,25 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
           <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-4">
             <Button
               onClick={onClose}
-              className="bg-gradient-to-r from-red-400 to-red-500 hover:from-red-500 hover:to-red-600 text-white text-sm px-4 py-2 rounded-lg flex items-center gap-2 w-full sm:w-auto"
+              fromColor="#f87171"      // rojo inicial
+              toColor="#ef4444"        // rojo final
+              hoverFrom="#ef4444"      // hover inicial
+              hoverTo="#dc2626"        // hover final
+              className="flex items-center gap-2 w-full sm:w-auto"
             >
               <X className="w-4 h-4" /> Cancelar
             </Button>
+
             <Button
               onClick={handlePresentarLiquidacion}
               disabled={loading || documentos.length === 0}
-              className="bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white text-sm px-4 py-2 rounded-lg flex items-center gap-2 w-full sm:w-auto"
+              fromColor="#60a5fa"      // azul inicial
+              toColor="#3b82f6"        // azul final
+              hoverFrom="#3b82f6"      // hover inicial
+              hoverTo="#2563eb"        // hover final
+              className="flex items-center gap-2 w-full sm:w-auto"
             >
-              <Send className="w-4 h-4" />{" "}
-              {loading ? "Presentando..." : "Presentar Liquidación"}
+              <Send className="w-4 h-4" /> {loading ? "Presentando..." : "Presentar Liquidación"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -27,6 +27,7 @@ def procesar_documento_celery(self, ruta_archivo, nombre_archivo,
     """
     Procesa PDF o imagen de manera eficiente.
     Optimizado para tamaño grande y OCR solo si necesario.
+    Normaliza el tipo_documento para consistencia.
     """
     resultados = []
 
@@ -44,7 +45,6 @@ def procesar_documento_celery(self, ruta_archivo, nombre_archivo,
                     # OCR solo si texto nativo no tiene info útil
                     if not any(k in texto_crudo.upper() for k in ["RUC", "TOTAL", "FECHA"]):
                         imagen = convert_from_bytes(archivo_bytes, dpi=150, first_page=idx+1, last_page=idx+1)[0]
-                        # Redimensionar si es demasiado grande
                         max_width = 1200
                         if imagen.width > max_width:
                             h = int(imagen.height * max_width / imagen.width)
@@ -60,8 +60,14 @@ def procesar_documento_celery(self, ruta_archivo, nombre_archivo,
                     else:
                         img_b64 = None
 
+                    # --- Detectores OCR ---
                     datos = procesar_datos_ocr(texto_crudo, debug=True)
-                    datos.update({"tipo_documento": tipo_documento, "concepto": concepto, "nombre_archivo": nombre_archivo})
+
+                    # Normalizar tipo_documento
+                    tipo_doc = datos.get("tipo_documento") or tipo_documento
+                    datos["tipo_documento"] = tipo_doc.strip().capitalize()
+
+                    datos.update({"concepto": concepto, "nombre_archivo": nombre_archivo})
 
                     resultados.append({"pagina": idx + 1, "texto_extraido": texto_crudo,
                                        "datos_detectados": datos, "imagen_base64": img_b64})
@@ -82,7 +88,10 @@ def procesar_documento_celery(self, ruta_archivo, nombre_archivo,
                 img_b64 = f"data:image/png;base64,{base64.b64encode(buffer_img.getvalue()).decode('utf-8')}"
 
             datos = procesar_datos_ocr(texto_crudo, debug=True)
-            datos.update({"tipo_documento": tipo_documento, "concepto": concepto, "nombre_archivo": nombre_archivo})
+
+            tipo_doc = datos.get("tipo_documento") or tipo_documento
+            datos["tipo_documento"] = tipo_doc.strip().capitalize()
+            datos.update({"concepto": concepto, "nombre_archivo": nombre_archivo})
 
             resultados.append({"pagina": 1, "texto_extraido": texto_crudo,
                                "datos_detectados": datos, "imagen_base64": img_b64})

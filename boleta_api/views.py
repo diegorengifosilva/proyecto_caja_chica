@@ -283,6 +283,7 @@ def guardar_solicitud(request):
     field_map = {
         "numero_solicitud": "numero_solicitud",
         "fecha": "fecha",
+        "hora": "hora",
         "destinatario": "destinatario",
         "tipo_solicitud": "tipo_solicitud",
         "area": "area",
@@ -590,11 +591,18 @@ def procesar_documento(request):
             args=[
                 temp_path,
                 archivo.name,
-                request.data.get("tipo_documento", "Boleta"),
+                request.data.get("tipo_documento", "Boleta"),  # fallback
                 request.data.get("concepto", "Solicitud de gasto"),
-                True  # generar_imagenes opcional
+                True
             ]
         ).get()
+
+        # Actualizar tipo_documento usando OCR detectado (si existe)
+        for r in resultados:
+            if "datos_detectados" in r:
+                tipo_ocr = r["datos_detectados"].get("tipo_documento")
+                if tipo_ocr:
+                    r["datos_detectados"]["tipo_documento"] = tipo_ocr
 
         return Response({"resultado": resultados}, status=200)
 
@@ -603,7 +611,6 @@ def procesar_documento(request):
         return Response({"error": f"Ocurrió un error procesando OCR: {str(e)}"}, status=500)
 
     finally:
-        # Limpiar archivo temporal
         if os.path.exists(temp_path):
             try:
                 os.remove(temp_path)
@@ -793,6 +800,13 @@ def guardar_documento(request):
             for pagina_idx, img in enumerate(imagenes):
                 # Datos ya extraídos desde extraccion.py / Celery
                 datos_extraidos = doc.copy()
+
+                # Usar tipo_documento detectado por OCR
+                tipo_ocr = doc.get("tipo_documento")
+                if tipo_ocr:
+                    datos_extraidos["tipo_documento"] = tipo_ocr
+                else:
+                    datos_extraidos["tipo_documento"] = "Boleta"  # fallback
 
                 datos_extraidos.update({
                     "solicitud": solicitud.id,

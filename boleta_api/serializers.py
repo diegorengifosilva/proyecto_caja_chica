@@ -66,7 +66,6 @@ class RegisterSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         return User.objects.create_user(**validated_data)
 
-
 # Serializador login con email
 class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
@@ -107,12 +106,6 @@ class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
 ##====================##
 ## PANTALLA PRINCIPAL ##
 ##====================##
-
-#========================================================================================
-
-##==============##
-## PROGRAMACIÓN ##
-##==============##
 
 #========================================================================================
 
@@ -220,6 +213,7 @@ class MisSolicitudesTablaSerializer(serializers.ModelSerializer):
             "id",
             "numero_solicitud",
             "fecha",
+            "hora",   # 👈 nuevo
             "solicitante_nombre",
             "destinatario",
             "tipo_solicitud",
@@ -248,6 +242,7 @@ class MisSolicitudesDetalleSerializer(serializers.ModelSerializer):
             "id",
             "numero_solicitud",
             "fecha",
+            "hora",
             "solicitante_nombre",
             "destinatario",
             "tipo_solicitud",
@@ -380,15 +375,25 @@ class DocumentoGastoSerializer(serializers.ModelSerializer):
         max_digits=15, decimal_places=2, allow_null=True, required=False, default=Decimal("0.00")
     )
     tipo_documento = serializers.CharField(
-        allow_null=True, required=False, default="Boleta"
+        allow_null=True, required=False
     )
 
     class Meta:
         model = DocumentoGasto
         fields = [
-            "id", "solicitud", "numero_operacion", "fecha", "tipo_documento",
-            "numero_documento", "ruc", "razon_social",
-            "total", "nombre_archivo", "archivo", "archivo_url", "creado"
+            "id",
+            "solicitud",
+            "numero_operacion",
+            "fecha",
+            "tipo_documento",
+            "numero_documento",
+            "ruc",
+            "razon_social",
+            "total",
+            "nombre_archivo",
+            "archivo",
+            "archivo_url",
+            "creado"
         ]
 
     def get_archivo_url(self, obj):
@@ -397,6 +402,19 @@ class DocumentoGastoSerializer(serializers.ModelSerializer):
             request = self.context.get("request")
             return request.build_absolute_uri(obj.archivo.url) if request else obj.archivo.url
         return None
+
+    def to_representation(self, instance):
+        """Normaliza tipo_documento y asegura que se respete OCR"""
+        data = super().to_representation(instance)
+        tipo = data.get("tipo_documento")
+        if tipo:
+            # Normalizamos mayúsculas, minúsculas y espacios
+            tipo = tipo.strip().replace("_", " ").title()
+            # Mantenemos variantes electrónicas intactas
+            data["tipo_documento"] = tipo
+        else:
+            data["tipo_documento"] = "Desconocido"
+        return data
 
 class CorreccionOCRSerializer(serializers.ModelSerializer):
     class Meta:

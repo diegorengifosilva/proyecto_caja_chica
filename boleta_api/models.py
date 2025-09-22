@@ -91,12 +91,6 @@ class CustomUser(AbstractUser):
 
 #========================================================================================
 
-##==============##
-## PROGRAMACIÓN ##
-##==============##
-
-#========================================================================================
-
 ##====================##
 ## SOLICITUD DE GASTO ##
 ##====================##
@@ -122,6 +116,7 @@ class Solicitud(models.Model):
     # Datos principales
     numero_solicitud = models.CharField(max_length=20, unique=True, db_index=True, editable=False)
     fecha = models.DateField(db_index=True, default=timezone.now)
+    hora = models.TimeField(default=timezone.now, db_index=True)
     solicitante = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="solicitudes_realizadas", db_index=True)
     destinatario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="solicitudes_recibidas", db_index=True)
     area = models.CharField(max_length=100)

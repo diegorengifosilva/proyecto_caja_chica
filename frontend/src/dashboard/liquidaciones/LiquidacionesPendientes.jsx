@@ -1,15 +1,15 @@
 // src/dashboard/liquidaciones/LiquidacionesPendientes.jsx
 import React, { useEffect, useState, useMemo, useCallback } from "react";
-import { Button } from "@/components/ui/button";
-import { FileText, FolderKanban, DollarSign, Clock, ChartBarDecreasing, ChartColumnIncreasing } from "lucide-react";
+import { FolderKanban, DollarSign, Clock, Users, Filter, CalendarRange, Eye } from "lucide-react";
 import PresentarDocumentacionModal from "./PresentarDocumentacionModal";
 import axios from "@/services/api";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from "recharts";
+import { motion } from "framer-motion";
 import { TYPE_COLORS, TIPO_SOLICITUD_CLASSES, STATE_CLASSES } from "@/components/ui/colors";
 import KpiCard from "@/components/ui/KpiCard";
+import FilterCard from "@/components/ui/FilterCard";
 import Table from "@/components/ui/table";
-import ChartWrapped, { tooltipFormatter } from "@/components/ui/ChartWrapped";
 import EventBus from "@/components/EventBus";
 
 export default function LiquidacionesPendientes() {
@@ -56,17 +56,30 @@ export default function LiquidacionesPendientes() {
     };
   }, [fetchLiquidaciones]);
 
-  useEffect(() => { fetchLiquidaciones(); }, [fetchLiquidaciones]);
+  useEffect(() => {
+    fetchLiquidaciones();
+  }, [fetchLiquidaciones]);
 
-  const solicitantes = useMemo(() => Array.from(new Set(liquidaciones.map((l) => l.solicitante))), [liquidaciones]);
+  const solicitantes = useMemo(
+    () => Array.from(new Set(liquidaciones.map((l) => l.solicitante))),
+    [liquidaciones]
+  );
 
-  const solicitudesFiltradas = useMemo(() => liquidaciones.filter((l) => {
-    const matchSearch = l.solicitante.toLowerCase().includes(search.toLowerCase()) || l.numero_solicitud.toString().includes(search);
-    const matchSolicitante = !filtroSolicitante || l.solicitante === filtroSolicitante;
-    const matchTipo = !filtroTipo || l.tipo_solicitud === filtroTipo;
-    const matchFecha = (!fechaInicio || new Date(l.fecha) >= new Date(fechaInicio)) && (!fechaFin || new Date(l.fecha) <= new Date(fechaFin));
-    return matchSearch && matchSolicitante && matchTipo && matchFecha;
-  }), [liquidaciones, search, filtroSolicitante, filtroTipo, fechaInicio, fechaFin]);
+  const solicitudesFiltradas = useMemo(
+    () =>
+      liquidaciones.filter((l) => {
+        const matchSearch =
+          l.solicitante.toLowerCase().includes(search.toLowerCase()) ||
+          l.numero_solicitud.toString().includes(search);
+        const matchSolicitante = !filtroSolicitante || l.solicitante === filtroSolicitante;
+        const matchTipo = !filtroTipo || l.tipo_solicitud === filtroTipo;
+        const matchFecha =
+          (!fechaInicio || new Date(l.fecha) >= new Date(fechaInicio)) &&
+          (!fechaFin || new Date(l.fecha) <= new Date(fechaFin));
+        return matchSearch && matchSolicitante && matchTipo && matchFecha;
+      }),
+    [liquidaciones, search, filtroSolicitante, filtroTipo, fechaInicio, fechaFin]
+  );
 
   const stats = useMemo(() => {
     const total = solicitudesFiltradas.length;
@@ -76,184 +89,195 @@ export default function LiquidacionesPendientes() {
     return { total, totalSoles, totalDolares, promedio };
   }, [solicitudesFiltradas]);
 
-  const dataTipo = useMemo(() =>
-    Object.entries(solicitudesFiltradas.reduce((acc, l) => { acc[l.tipo_solicitud] = (acc[l.tipo_solicitud] || 0) + 1; return acc; }, {}))
-      .map(([name, value]) => ({ name, value })), [solicitudesFiltradas]);
-
-  const dataMontoPorTipo = useMemo(() =>
-    Object.entries(solicitudesFiltradas.reduce((acc, l) => { acc[l.tipo_solicitud] = (acc[l.tipo_solicitud] || 0) + (l.total_soles || 0); return acc; }, {}))
-      .map(([name, value]) => ({ name, value: Number(value.toFixed(2)) })), [solicitudesFiltradas]);
-
-  const handleAccion = (id, accion, solicitud) => {
-    setSelectedSolicitud(solicitud);
-    setShowPresentarModal(true);
-  };
-
   const kpis = [
-    { label: "Total Pendientes", value: stats.total, gradient: "linear-gradient(135deg, #f97316cc, #fb923c99)", icon: Clock, tooltip: "Número total de solicitudes pendientes." },
-    { label: "Monto Total (S/)", value: stats.totalSoles, gradient: "linear-gradient(135deg, #3b82f6cc, #60a5fa99)", icon: DollarSign, tooltip: "Monto acumulado en soles.", decimals: 2 },
-    { label: "Monto Total ($)", value: stats.totalDolares, gradient: "linear-gradient(135deg, #10b981cc, #34d39999)", icon: DollarSign, tooltip: "Monto acumulado en dólares.", decimals: 2 },
-    { label: "Promedio por Solicitud (S/)", value: stats.promedio, gradient: "linear-gradient(135deg, #f59e0bcc, #fcd34d99)", icon: DollarSign, tooltip: "Promedio por solicitud.", decimals: 2 },
+    { label: "Total Pendientes", value: stats.total, gradient: "linear-gradient(135deg, #f97316cc, #fb923c99)", icon: Clock },
+    { label: "Monto Total (S/)", value: stats.totalSoles, gradient: "linear-gradient(135deg, #3b82f6cc, #60a5fa99)", icon: DollarSign, decimals: 2 },
+    { label: "Monto Total ($)", value: stats.totalDolares, gradient: "linear-gradient(135deg, #10b981cc, #34d39999)", icon: DollarSign, decimals: 2 },
+    { label: "Promedio por Solicitud (S/)", value: stats.promedio, gradient: "linear-gradient(135deg, #f59e0bcc, #fcd34d99)", icon: DollarSign, decimals: 2 },
   ];
 
-return (
-  <div className="min-h-screen w-full flex flex-col bg-gray-50 font-sans">
-    <div className="flex-1 flex flex-col px-3 sm:px-6 py-3 sm:py-4">
+  return (
+    <div className="min-h-screen w-full flex flex-col bg-gray-50 font-sans">
+      <div className="flex-1 flex flex-col px-4 sm:px-6 md:px-8 py-4 lg:py-6">
 
-      {/* Header */}
-      <div className="flex justify-center md:justify-start items-center mb-4 sm:mb-6">
-        <h2 className="text-lg sm:text-2xl font-bold flex items-center gap-2 text-black">
-          <FolderKanban className="w-5 h-5 sm:w-6 sm:h-6" />
-          Liquidaciones Pendientes
-        </h2>
-      </div>
-
-      {/* KPIs en 2 columnas para móvil */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4 mb-4 sm:mb-6 w-full">
-        {kpis.map((kpi) => (
-          <div
-            key={kpi.label}
-            className="flex-1 min-w-0 p-3 rounded-xl text-white flex flex-col items-center justify-center text-center shadow-md
-                       hover:scale-105 hover:shadow-lg transition-transform"
-            style={{ background: kpi.gradient }}
+        {/* Encabezado tipo DashboardHome.jsx */}
+        <header className="mb-4 sm:mb-6">
+          <motion.h1
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="text-lg sm:text-3xl md:text-4xl font-bold text-gray-900 flex items-center gap-2"
           >
-            {kpi.icon && <kpi.icon className="w-5 h-5 mb-1 sm:w-6 sm:h-6 opacity-90" />}
-            <p className="text-[9px] sm:text-xs opacity-90">{kpi.label}</p>
-            <p className="text-lg sm:text-xl font-bold">
-              {loading
-                ? 0
-                : Number(kpi.value).toLocaleString(undefined, {
-                    minimumFractionDigits: kpi.decimals || 0,
-                    maximumFractionDigits: kpi.decimals || 0,
-                  })}
-            </p>
-          </div>
-        ))}
-      </div>
+            <FolderKanban className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7" />
+            Liquidaciones Pendientes
+          </motion.h1>
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+            className="mt-1 text-xs sm:text-sm md:text-base text-gray-600 italic"
+          >
+            Aquí puedes ver y gestionar todas las <span className="font-semibold text-blue-600">liquidaciones pendientes</span>.
+          </motion.p>
+        </header>
 
-      {/* Filtros */}
-      <div className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm mb-4 sm:mb-6 w-full">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 items-end">
-          {/* Solicitante */}
-          <div className="flex flex-col w-full">
-            <label className="text-[10px] sm:text-xs font-semibold text-gray-600 mb-1 flex items-center gap-1">
-              <span className="w-2 h-2 bg-blue-500 rounded-full"></span> Solicitante
-            </label>
-            <select
-              value={filtroSolicitante}
-              onChange={(e) => setFiltroSolicitante(e.target.value)}
-              className="border rounded-lg px-2 py-1 text-[10px] sm:text-xs w-full focus:ring-2 focus:ring-blue-400 focus:outline-none"
-            >
-              <option value="">Todos</option>
-              {solicitantes.map((sol) => (
-                <option key={sol} value={sol}>
-                  {sol}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Tipo */}
-          <div className="flex flex-col w-full">
-            <label className="text-[10px] sm:text-xs font-semibold text-gray-600 mb-1 flex items-center gap-1">
-              <span className="w-2 h-2 bg-green-500 rounded-full"></span> Tipo
-            </label>
-            <select
-              value={filtroTipo}
-              onChange={(e) => setFiltroTipo(e.target.value)}
-              className="border rounded-lg px-2 py-1 text-[10px] sm:text-xs w-full focus:ring-2 focus:ring-green-400 focus:outline-none"
-            >
-              <option value="">Todos</option>
-              {Object.keys(TYPE_COLORS).map((tipo) => (
-                <option key={tipo} value={tipo}>
-                  {tipo}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Fechas */}
-          <div className="flex flex-col w-full sm:col-span-2">
-            <label className="text-[10px] sm:text-xs font-semibold text-gray-600 mb-1 flex items-center gap-1">
-              <span className="w-2 h-2 bg-purple-500 rounded-full"></span> Rango de Fechas
-            </label>
-            <div className="flex gap-2 w-full">
-              <input
-                type="date"
-                value={fechaInicio}
-                onChange={(e) => setFechaInicio(e.target.value)}
-                className="border rounded-lg px-2 py-1 text-[10px] sm:text-xs w-full focus:ring-2 focus:ring-purple-400 focus:outline-none"
-              />
-              <input
-                type="date"
-                value={fechaFin}
-                onChange={(e) => setFechaFin(e.target.value)}
-                className="border rounded-lg px-2 py-1 text-[10px] sm:text-xs w-full focus:ring-2 focus:ring-purple-400 focus:outline-none"
+        {/* KPIs */}
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-x-3 gap-y-4 sm:gap-x-4 sm:gap-y-5 md:gap-x-6 md:gap-y-6 mb-6 w-full justify-items-stretch">
+          {kpis.map((kpi) => (
+            <div key={kpi.label} className="flex-1 min-w-0">
+              <KpiCard
+                label={kpi.label}
+                value={loading ? 0 : kpi.value}
+                icon={kpi.icon}
+                gradient={kpi.gradient}
+                tooltip={kpi.tooltip}
+                decimals={Number.isInteger(kpi.value) ? 0 : 2}
+                className="text-xs sm:text-sm md:text-base w-full p-3 sm:p-4"
               />
             </div>
-          </div>
+          ))}
         </div>
-      </div>
 
-      {/* Tabla scrollable, fila clickeable */}
-      <div className="overflow-x-auto overflow-y-auto max-h-[65vh] w-full">
-        <table className="min-w-[720px] w-full table-auto border-collapse text-[10px] sm:text-xs">
-          <thead className="bg-gray-100 text-gray-700 font-semibold">
-            <tr>
-              {["N°", "Tipo", "S/.", "$", "Fecha", "Concepto", "Estado"].map((header, i) => (
-                <th key={i} className="px-1 py-1 border border-gray-200 text-center">{header}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="bg-gray-50">
-            {solicitudesFiltradas.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="text-center py-6 text-gray-500 italic border border-gray-200">
-                  No hay solicitudes en este estado o rango de fechas.
-                </td>
-              </tr>
-            ) : (
-              solicitudesFiltradas.map((s, idx) => (
-                <tr
-                  key={s.id || idx}
-                  className="hover:bg-gray-100 transition cursor-pointer"
-                  onClick={() => {
+        {/* Filtros */}
+        <FilterCard title="Filtros" icon={<Filter size={16} />} className="mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 md:gap-5 w-full">
+            
+            {/* Solicitante */}
+            <div className="flex flex-col w-full">
+              <label className="text-[10px] sm:text-xs md:text-sm font-semibold text-gray-600 mb-1 flex items-center gap-1">
+                <span className="w-2 h-2 bg-blue-500 rounded-full"></span> Solicitante
+              </label>
+              <select
+                value={filtroSolicitante}
+                onChange={(e) => setFiltroSolicitante(e.target.value)}
+                className="border rounded-lg px-2 py-2 text-xs sm:text-sm md:text-base w-full focus:ring-2 focus:ring-blue-400 focus:outline-none"
+              >
+                <option value="">Todos</option>
+                {solicitantes.map((sol) => (
+                  <option key={sol} value={sol}>
+                    {sol}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Tipo */}
+            <div className="flex flex-col w-full">
+              <label className="text-[10px] sm:text-xs md:text-sm font-semibold text-gray-600 mb-1 flex items-center gap-1">
+                <span className="w-2 h-2 bg-green-500 rounded-full"></span> Tipo
+              </label>
+              <select
+                value={filtroTipo}
+                onChange={(e) => setFiltroTipo(e.target.value)}
+                className="border rounded-lg px-2 py-2 text-xs sm:text-sm md:text-base w-full focus:ring-2 focus:ring-green-400 focus:outline-none"
+              >
+                <option value="">Todos</option>
+                {Object.keys(TYPE_COLORS).map((tipo) => (
+                  <option key={tipo} value={tipo}>
+                    {tipo}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Rango de Fechas */}
+            <div className="flex flex-col w-full sm:col-span-2 md:col-span-1">
+              <label className="text-[10px] sm:text-xs md:text-sm font-semibold text-gray-600 mb-1 flex items-center gap-1">
+                <span className="w-2 h-2 bg-purple-500 rounded-full"></span> Rango de Fechas
+              </label>
+              <div className="flex flex-col sm:flex-row gap-2 w-full">
+                <input
+                  type="date"
+                  value={fechaInicio}
+                  onChange={(e) => setFechaInicio(e.target.value)}
+                  className="border rounded-lg px-2 py-2 text-xs sm:text-sm md:text-base w-full sm:w-1/2 focus:ring-2 focus:ring-purple-400 focus:outline-none"
+                />
+                <input
+                  type="date"
+                  value={fechaFin}
+                  onChange={(e) => setFechaFin(e.target.value)}
+                  className="border rounded-lg px-2 py-2 text-xs sm:text-sm md:text-base w-full sm:w-1/2 focus:ring-2 focus:ring-purple-400 focus:outline-none"
+                />
+              </div>
+            </div>
+            
+          </div>
+        </FilterCard>
+
+        {/* Tabla */}
+        <div className="overflow-x-auto max-h-[70vh] w-full">
+          <Table
+            headers={[
+              "N° Solicitud",
+              "Tipo de Solicitud",
+              "Monto S/.",
+              "Monto $",
+              "Fecha",
+              "Concepto",
+              "Estado",
+              <span key="accion" className="hidden md:table-cell">Acción</span>,
+            ]}
+            data={solicitudesFiltradas}
+            emptyMessage="No hay solicitudes en este estado o rango de fechas."
+            renderRow={(s) => [
+              s.numero_solicitud,
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] sm:text-xs md:text-sm ${
+                  TIPO_SOLICITUD_CLASSES[s.tipo_solicitud] || "bg-gray-200 text-gray-700"
+                } whitespace-pre-wrap break-words text-center`}
+              >
+                {s.tipo_solicitud}
+              </span>,
+              <span className="text-center">{s.total_soles ? `S/. ${s.total_soles}` : "-"}</span>,
+              <span className="text-center">{s.total_dolares ? `$ ${s.total_dolares}` : "-"}</span>,
+              <span className="whitespace-pre-wrap break-words text-center">{s.fecha}</span>,
+              <span className="truncate sm:whitespace-normal max-w-[120px] sm:max-w-[200px] text-center">
+                {s.concepto_gasto ?? "-"}
+              </span>,
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] sm:text-xs md:text-sm ${
+                  STATE_CLASSES[s.estado] || "bg-gray-200 text-gray-700"
+                } whitespace-pre-wrap break-words text-center`}
+              >
+                {s.estado.split(" ").length > 3 ? s.estado.replace(" ", "\n") : s.estado}
+              </span>,
+              <div className="hidden md:flex justify-center">
+                <Button
+                  variant="default"
+                  size="sm"
+                  fromColor="#a8d8d8"       // color base
+                  toColor="#81c7c7"         // degradado suave
+                  hoverFrom="#81c7c7"       // hover inicio
+                  hoverTo="#5eb0b0"         // hover fin
+                  onClick={(e) => {
+                    e.stopPropagation();
                     setSelectedSolicitud(s);
                     setShowPresentarModal(true);
                   }}
+                  className="flex items-center gap-1 px-2 py-1"
                 >
-                  <td className="px-1 py-1 font-semibold text-center">{s.numero_solicitud}</td>
-                  <td className="px-1 py-1 text-center">
-                    <span className={`px-2 py-0.5 rounded-full text-[9px] ${TIPO_SOLICITUD_CLASSES[s.tipo_solicitud] || "bg-gray-200 text-gray-700"}`}>
-                      {s.tipo_solicitud}
-                    </span>
-                  </td>
-                  <td className="px-1 py-1 text-center">{s.total_soles ? `S/. ${s.total_soles}` : "-"}</td>
-                  <td className="px-1 py-1 text-center">{s.total_dolares ? `$ ${s.total_dolares}` : "-"}</td>
-                  <td className="px-1 py-1 text-center">{s.fecha}</td>
-                  <td className="px-1 py-1 text-center truncate max-w-[100px] sm:max-w-[140px]">{s.concepto_gasto ?? "-"}</td>
-                  <td className="px-1 py-1 text-center">
-                    <span className={`px-2 py-0.5 rounded-full text-[9px] ${STATE_CLASSES[s.estado] || "bg-gray-200 text-gray-700"}`}>
-                      {s.estado}
-                    </span>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+                  <Eye className="w-4 h-4" /> Detalle
+                </Button>
+              </div>,
+            ]}
+            onRowClick={(s) => {
+              if (window.innerWidth < 768) {
+                setSelectedSolicitud(s);
+                setShowPresentarModal(true);
+              }
+            }}
+          />
+        </div>
+
+
+        {showPresentarModal && (
+          <PresentarDocumentacionModal
+            open={showPresentarModal}
+            onClose={() => setShowPresentarModal(false)}
+            solicitud={selectedSolicitud}
+          />
+        )}
       </div>
-
-      {showPresentarModal && (
-        <PresentarDocumentacionModal
-          open={showPresentarModal}
-          onClose={() => setShowPresentarModal(false)}
-          solicitud={selectedSolicitud}
-        />
-      )}
-
     </div>
-  </div>
-);
-
+  );
 }

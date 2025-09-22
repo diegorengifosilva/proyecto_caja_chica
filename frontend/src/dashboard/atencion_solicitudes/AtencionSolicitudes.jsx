@@ -5,6 +5,7 @@ import api from "@/services/api";
 import DetalleSolicitudModal from "./DetalleSolicitudModal";
 import { toast } from "react-toastify";
 import "tippy.js/dist/tippy.css";
+import { Button } from "@/components/ui/button";
 import EventBus from "@/components/EventBus";
 import { RefreshCw, DollarSign, ListChecks, Eye, FileText, Clock, CheckCircle, XCircle } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, Tooltip, XAxis, YAxis, CartesianGrid, RadialBarChart, RadialBar, Cell, PieChart } from "recharts";
@@ -279,12 +280,18 @@ export default function AtencionSolicitudes() {
               <span className={`text-xs px-2 py-1 rounded-full ${STATE_CLASSES[s.estado] || "bg-gray-100 text-gray-700"}`}>{s.estado || "Sin estado"}</span>
             </td>
             <td className="px-3 sm:px-4 py-3 text-center">
-              <button
-                className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm px-3 py-1.5 rounded-lg shadow-md flex items-center gap-2 justify-center"
+              <Button
+                size="sm"
+                fromColor="#a8d8d8"
+                toColor="#81c7c7"
+                hoverFrom="#81c7c7"
+                hoverTo="#5eb0b0"
                 onClick={() => setSelectedId(s.id)}
+                className="flex items-center gap-2 px-3 py-1.5 justify-center"
               >
-                <Eye size={16} /> Revisar
-              </button>
+                <Eye className="w-4 h-4" /> Revisar
+              </Button>
+
             </td>
           </>
         )}

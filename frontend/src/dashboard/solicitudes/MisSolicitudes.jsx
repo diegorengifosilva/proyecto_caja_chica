@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { FileText, Eye } from "lucide-react";
+import { FileText, Eye, ArrowDown, ArrowUp } from "lucide-react";
 import axios from "@/services/api";
 import DetallesSolicitud from "./DetallesSolicitud";
 import { STATE_CLASSES, TIPO_SOLICITUD_CLASSES } from "@/components/ui/colors";
@@ -14,17 +14,17 @@ const MisSolicitudes = ({ open, onClose }) => {
   const [filtro, setFiltro] = useState("Todos");
   const [fechaInicio, setFechaInicio] = useState("");
   const [fechaFin, setFechaFin] = useState("");
+  const [ordenDesc, setOrdenDesc] = useState(true);
   const [detalleOpen, setDetalleOpen] = useState(false);
   const [solicitudSeleccionada, setSolicitudSeleccionada] = useState(null);
 
   useEffect(() => {
     if (open) fetchSolicitudes();
 
-    // ⚡ Escuchar eventos de EventBus para actualizar tabla en tiempo real
+    // ⚡ Escuchar eventos de EventBus
     const handleSolicitudCreada = (nuevaSolicitud) => {
       setSolicitudes((prev) => [nuevaSolicitud, ...prev]);
     };
-
     const handleSolicitudEnviada = (solEnviada) => {
       setSolicitudes((prev) =>
         prev.map((s) =>
@@ -35,11 +35,9 @@ const MisSolicitudes = ({ open, onClose }) => {
       );
     };
 
-    // Suscribirse a eventos
     const unsubCreada = EventBus.on("solicitudCreada", handleSolicitudCreada);
     const unsubEnviada = EventBus.on("solicitudEnviada", handleSolicitudEnviada);
 
-    // Cleanup al desmontar
     return () => {
       unsubCreada();
       unsubEnviada();
@@ -55,19 +53,23 @@ const MisSolicitudes = ({ open, onClose }) => {
     }
   };
 
-  const solicitudesFiltradas = solicitudes.filter((s) => {
-    const pasaEstado = filtro === "Todos" || s.estado === filtro;
-    const pasaFecha =
-      (!fechaInicio || new Date(s.fecha) >= new Date(fechaInicio)) &&
-      (!fechaFin || new Date(s.fecha) <= new Date(fechaFin));
-    return pasaEstado && pasaFecha;
-  });
+  const solicitudesFiltradas = solicitudes
+    .filter((s) => {
+      const pasaEstado = filtro === "Todos" || s.estado === filtro;
+      const pasaFecha =
+        (!fechaInicio || new Date(s.fecha) >= new Date(fechaInicio)) &&
+        (!fechaFin || new Date(s.fecha) <= new Date(fechaFin));
+      return pasaEstado && pasaFecha;
+    })
+    .sort((a, b) => {
+      const fechaA = new Date(a.fecha);
+      const fechaB = new Date(b.fecha);
+      return ordenDesc ? fechaB - fechaA : fechaA - fechaB;
+    });
 
-  const handleAccion = (id, accion, solicitud = null) => {
-    if (accion === "Ver Detalle" && solicitud) {
-      setSolicitudSeleccionada(solicitud);
-      setDetalleOpen(true);
-    }
+  const handleAccion = (solicitud) => {
+    setSolicitudSeleccionada(solicitud);
+    setDetalleOpen(true);
   };
 
   return (
@@ -91,7 +93,9 @@ const MisSolicitudes = ({ open, onClose }) => {
             >
               <option value="Todos">Todos</option>
               {Object.keys(STATE_CLASSES).map((estado, idx) => (
-                <option key={idx} value={estado}>{estado}</option>
+                <option key={idx} value={estado}>
+                  {estado}
+                </option>
               ))}
             </select>
           </div>
@@ -117,54 +121,59 @@ const MisSolicitudes = ({ open, onClose }) => {
         {/* Tabla */}
         <div className="overflow-x-auto max-h-[70vh]">
           <Table
-            headers={["N°", "Tipo", "S/.", "$", "Fecha", "Concepto", "Estado", "Acción"]}
+            headers={[
+              "N° Solicitud",
+              "Tipo",
+              "Monto S/.",
+              "Monto $",
+              "Fecha",
+              "Concepto",
+              "Estado",
+              <span key="accion" className="hidden md:table-cell">Acción</span>,
+            ]}
             data={solicitudesFiltradas}
             emptyMessage="No hay solicitudes en este estado o rango de fechas."
-            renderRow={(s) => (
-              <>
-                <td className="px-1 sm:px-2 py-1 sm:py-2 font-semibold text-center text-xs sm:text-sm">
-                  {s.numero_solicitud}
-                </td>
-                <td className="px-1 sm:px-2 py-1 sm:py-2 text-center text-xs sm:text-sm">
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] sm:text-xs ${
-                      TIPO_SOLICITUD_CLASSES[s.tipo_solicitud] || "bg-gray-200 text-gray-700"
-                    }`}
-                  >
-                    {s.tipo_solicitud}
-                  </span>
-                </td>
-                <td className="px-1 sm:px-2 py-1 sm:py-2 text-center text-xs sm:text-sm">
-                  {s.total_soles ? `S/. ${s.total_soles}` : "-"}
-                </td>
-                <td className="px-1 sm:px-2 py-1 sm:py-2 text-center text-xs sm:text-sm">
-                  {s.total_dolares ? `$ ${s.total_dolares}` : "-"}
-                </td>
-                <td className="px-1 sm:px-2 py-1 sm:py-2 text-center text-xs sm:text-sm">{s.fecha}</td>
-                <td className="px-1 sm:px-2 py-1 sm:py-2 text-center text-xs sm:text-sm truncate max-w-[120px] sm:max-w-[200px]">
-                  {s.concepto_gasto ?? "-"}
-                </td>
-                <td className="px-1 sm:px-2 py-1 sm:py-2 text-center text-xs sm:text-sm">
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] sm:text-xs ${
-                      STATE_CLASSES[s.estado] || "bg-gray-200 text-gray-700"
-                    }`}
-                  >
-                    {s.estado}
-                  </span>
-                </td>
-                <td className="px-1 sm:px-2 py-1 sm:py-2 text-center text-xs sm:text-sm">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleAccion(s.id, "Ver Detalle", s)}
-                    className="flex items-center gap-1 px-2 py-1"
-                  >
-                    <Eye className="w-4 h-4" /> Detalle
-                  </Button>
-                </td>
-              </>
-            )}
+            renderRow={(s) => [
+              s.numero_solicitud,
+              <span className={`px-2 py-0.5 rounded-full text-[10px] sm:text-xs ${
+                TIPO_SOLICITUD_CLASSES[s.tipo_solicitud] || "bg-gray-200 text-gray-700"
+              }`}>
+                {s.tipo_solicitud}
+              </span>,
+              s.total_soles ? `S/. ${s.total_soles}` : "-",
+              s.total_dolares ? `$ ${s.total_dolares}` : "-",
+              <span className="whitespace-pre-wrap break-words">{s.fecha}</span>,
+              <span className="truncate sm:whitespace-normal max-w-[120px] sm:max-w-[200px]">
+                {s.concepto_gasto ?? "-"}
+              </span>,
+              <span className={`px-2 py-0.5 rounded-full text-[10px] sm:text-xs ${
+                STATE_CLASSES[s.estado] || "bg-gray-200 text-gray-700"
+              } whitespace-pre-wrap break-words`}>
+                {s.estado.split(" ").length > 3 ? s.estado.replace(" ", "\n") : s.estado}
+              </span>,
+              <div className="hidden md:flex justify-center">
+                <Button
+                  variant="default"
+                  size="sm"
+                  fromColor="#a8d8d8"       // color base
+                  toColor="#81c7c7"         // degradado suave
+                  hoverFrom="#81c7c7"       // hover inicio
+                  hoverTo="#5eb0b0"         // hover fin
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleAccion(s);
+                  }}
+                  className="flex items-center gap-1 px-2 py-1"
+                >
+                  <Eye className="w-4 h-4" /> Detalle
+                </Button>
+              </div>,
+            ]}
+            onRowClick={(s) => {
+              if (window.innerWidth < 768) {
+                handleAccion(s); // 👈 en móviles abre el modal al tocar la fila
+              }
+            }}
           />
         </div>
 

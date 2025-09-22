@@ -306,14 +306,22 @@ export default function SolicitudDashboard() {
         <div className="flex flex-col sm:flex-row sm:flex-wrap gap-4 mt-6 w-full">
           <Button
             onClick={() => setOpenModal("nueva")}
-            className="w-full sm:w-auto bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white text-sm sm:text-base px-4 py-2 sm:px-5 sm:py-2.5 rounded-lg shadow-md flex items-center gap-2 justify-center transition transform hover:scale-105"
+            fromColor="#3b82f6"
+            toColor="#60a5fa"
+            hoverFrom="#2563eb"
+            hoverTo="#3b82f6"
+            size="default"
           >
             <FilePlus className="w-5 h-5 sm:w-6 sm:h-6" /> Nueva Solicitud
           </Button>
 
           <Button
             onClick={() => setOpenMisSolicitudes(true)}
-            className="w-full sm:w-auto bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-500 hover:to-yellow-600 text-white text-sm sm:text-base px-4 py-2 sm:px-5 sm:py-2.5 rounded-lg shadow-md flex items-center gap-2 justify-center transition transform hover:scale-105"
+            fromColor="#facc15"
+            toColor="#fcd34d"
+            hoverFrom="#f59e0b"
+            hoverTo="#fbbf24"
+            size="default"
           >
             <ClipboardList className="w-5 h-5 sm:w-6 sm:h-6" /> Mis Solicitudes
           </Button>

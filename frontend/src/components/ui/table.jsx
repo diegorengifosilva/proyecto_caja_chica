@@ -1,10 +1,11 @@
-// boleta_project/frontend/src/components/ui/Table.jsx
-
+// src/components/ui/Table.jsx
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import Tippy from "@tippyjs/react";
+import "tippy.js/dist/tippy.css";
 
 const Table = ({
   headers,
@@ -14,6 +15,7 @@ const Table = ({
   activeRow = null,
   rowsPerPage = 10,
   onDeleteRow,
+  onRowClick,
 }) => {
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -29,27 +31,29 @@ const Table = ({
   return (
     <Card className="rounded-2xl shadow-md border border-gray-200 flex-1 flex flex-col">
       <CardContent className="p-0 flex-1 flex flex-col">
-
-        {/* Contenedor scrollable horizontal */}
-        <div className="w-full flex-1 overflow-x-auto">
-          <table className="w-full table-auto text-sm text-center border-collapse">
-            {/* Cabecera */}
+        {/* Tabla para pantallas grandes */}
+        <div className="hidden md:block w-full flex-1 overflow-x-auto">
+          <table className="w-full table-auto border-collapse text-sm">
             <thead className="bg-gray-100 text-gray-700 font-medium">
               <tr>
                 {headers.map((header, idx) => (
-                  <th key={idx} className="px-2 sm:px-3 py-2 border border-gray-200">
+                  <th
+                    key={idx}
+                    className="px-3 py-2 border border-gray-200 text-center align-middle text-[10px] sm:text-xs md:text-sm whitespace-normal"
+                  >
                     {header}
                   </th>
                 ))}
               </tr>
             </thead>
-
-            {/* Cuerpo */}
             <tbody className="bg-gray-50">
               <AnimatePresence>
                 {paginatedData.length === 0 ? (
                   <tr>
-                    <td colSpan={headers.length} className="px-4 py-6 text-center text-gray-500 italic border border-gray-200">
+                    <td
+                      colSpan={headers.length}
+                      className="px-4 py-6 text-center text-gray-500 italic border border-gray-200"
+                    >
                       {emptyMessage}
                     </td>
                   </tr>
@@ -61,19 +65,28 @@ const Table = ({
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -8 }}
                       transition={{ duration: 0.25 }}
-                      className={`group relative transition-all duration-200 ${
+                      className={`group relative transition-all duration-200 rounded-lg ${
                         activeRow === (item.id || index)
-                          ? "bg-blue-50 border-l-4 border-blue-500 shadow-sm"
-                          : "hover:bg-gray-50 hover:shadow-md hover:ring-1 hover:ring-gray-200 cursor-pointer"
+                          ? "bg-blue-50 shadow-md border-l-4 border-blue-500"
+                          : "hover:bg-gray-100 hover:shadow-sm cursor-pointer"
                       }`}
+                      onClick={() => {
+                        if (onRowClick) onRowClick(item);
+                      }}
                     >
                       {Array.isArray(renderRow(item))
                         ? renderRow(item).map((cell, i) => (
                             <td
                               key={i}
-                              className="px-1 sm:px-2 py-1 sm:py-2 border border-gray-200 break-words truncate max-w-[150px] sm:max-w-[200px]"
+                              className="px-2 sm:px-3 py-2 border border-gray-200 text-center align-middle break-words whitespace-normal max-w-[150px] sm:max-w-[200px] md:max-w-[300px]"
                             >
-                              {cell}
+                              {typeof cell === "string" || typeof cell === "number" ? (
+                                <Tippy content={cell}>
+                                  <span className="block">{cell}</span>
+                                </Tippy>
+                              ) : (
+                                cell
+                              )}
                             </td>
                           ))
                         : renderRow(item)}
@@ -103,6 +116,41 @@ const Table = ({
           </table>
         </div>
 
+        {/* Móvil: tarjetas verticales */}
+        <div className="flex flex-col gap-3 md:hidden">
+          {paginatedData.length === 0 ? (
+            <div className="px-4 py-6 text-center text-gray-500 italic bg-gray-50 rounded-lg border border-gray-200">
+              {emptyMessage}
+            </div>
+          ) : (
+            paginatedData.map((item, index) => (
+              <motion.div
+                key={item.id || index}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.25 }}
+                className={`group relative bg-white rounded-2xl shadow-sm border border-gray-200 p-3 flex flex-col gap-1 cursor-pointer hover:shadow-md`}
+                onClick={() => {
+                  if (onRowClick) onRowClick(item);
+                }}
+              >
+                {headers.map((header, i) => {
+                  const cell = Array.isArray(renderRow(item)) ? renderRow(item)[i] : renderRow(item);
+                  return (
+                    <div key={i} className="flex justify-between gap-2">
+                      <span className="font-semibold text-gray-600 text-xs sm:text-sm">{header}</span>
+                      <span className="text-gray-900 text-xs sm:text-sm break-words whitespace-normal">
+                        {typeof cell === "string" || typeof cell === "number" ? cell : cell}
+                      </span>
+                    </div>
+                  );
+                })}
+              </motion.div>
+            ))
+          )}
+        </div>
+
         {/* Paginación */}
         {totalPages > 1 && (
           <div className="flex flex-wrap items-center justify-center gap-2 px-4 py-3 border-t border-gray-200 bg-gray-50">
@@ -123,7 +171,9 @@ const Table = ({
                   variant={page === currentPage ? "default" : "outline"}
                   size="sm"
                   onClick={() => goToPage(page)}
-                  className={`w-8 h-8 rounded-full ${page === currentPage ? "bg-blue-500 text-white hover:bg-blue-600" : "hover:bg-gray-100"}`}
+                  className={`w-8 h-8 rounded-full ${
+                    page === currentPage ? "bg-blue-500 text-white hover:bg-blue-600" : "hover:bg-gray-100"
+                  }`}
                 >
                   {page}
                 </Button>

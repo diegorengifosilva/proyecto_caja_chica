@@ -139,6 +139,7 @@ export default function DetallesSolicitud({ open, onClose, solicitudId, solicitu
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   <InfoCard label="N° Solicitud" value={solicitud.numero_solicitud} />
                   <InfoCard label="Fecha" value={solicitud.fecha} />
+                  <InfoCard label="Hora" value={solicitud.hora} />
                   <InfoCard label="Destinatario" value={solicitud.destinatario_nombre || "-"} />
 
                   <InfoCard label="Tipo de Solicitud" value={solicitud.tipo_solicitud} />
@@ -165,6 +166,7 @@ export default function DetallesSolicitud({ open, onClose, solicitudId, solicitu
                 </div>
               </TabsContent>
 
+
               <TabsContent value="adjuntos" className="text-gray-500">
                 <p>Aquí se mostrarán los documentos adjuntos.</p>
               </TabsContent>
@@ -176,9 +178,15 @@ export default function DetallesSolicitud({ open, onClose, solicitudId, solicitu
                 <Button
                   onClick={() => { setAccion("enviar"); setConfirmOpen(true); }}
                   disabled={updating}
-                  className="flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 sm:px-5 py-2 sm:py-3 rounded-xl shadow-md font-semibold transition-all duration-200 w-full sm:w-auto"
+                  fromColor="#3b82f6"
+                  toColor="#60a5fa"
+                  hoverFrom="#2563eb"
+                  hoverTo="#3b82f6"
+                  size="default"
+                  className="flex items-center gap-2 justify-center"
                 >
-                  <FileText className="w-4 h-4 sm:w-5 sm:h-5" /> {updating && accion === "enviar" ? "Procesando..." : "Enviar Solicitud"}
+                  <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
+                  {updating && accion === "enviar" ? "Procesando..." : "Enviar Solicitud"}
                 </Button>
               )}
             </div>
@@ -188,13 +196,25 @@ export default function DetallesSolicitud({ open, onClose, solicitudId, solicitu
               <Dialog open={confirmOpen} onOpenChange={() => setConfirmOpen(false)}>
                 <DialogContent className="max-w-md sm:max-w-lg w-[90%] p-5 bg-white rounded-xl shadow-2xl animate-fadeInDown">
                   <DialogHeader>
-                    <DialogTitle className="text-lg sm:text-xl font-bold text-gray-800">Confirmar envío</DialogTitle>
+                    <DialogTitle className="text-lg sm:text-xl font-bold text-gray-800">
+                      Confirmar envío
+                    </DialogTitle>
                   </DialogHeader>
                   <p className="mt-2 text-gray-600">
                     ¿Deseas enviar esta solicitud? Una vez enviada, pasará a <b>Pendiente para Atención</b>.
                   </p>
                   <div className="mt-5 flex justify-end gap-3 flex-wrap">
-                    <Button variant="outline" onClick={() => setConfirmOpen(false)} className="w-full sm:w-auto">Cancelar</Button>
+                    <Button
+                      className="w-full sm:w-auto flex items-center justify-center gap-2"
+                      onClick={() => setConfirmOpen(false)}
+                      fromColor="#ef4444"   // rojo degradado base
+                      toColor="#dc2626"     // rojo degradado final
+                      hoverFrom="#b91c1c"   // rojo hover inicio
+                      hoverTo="#991b1b"     // rojo hover final
+                    >
+                      Cancelar
+                    </Button>
+
                     <Button
                       onClick={async () => {
                         setUpdating(true);
@@ -207,7 +227,9 @@ export default function DetallesSolicitud({ open, onClose, solicitudId, solicitu
                             ...prev,
                             estado: data.solicitud?.estado || "Pendiente para Atención"
                           }));
-                          EventBus.emit("solicitudEnviada", { numero_solicitud: data.solicitud?.numero_solicitud || solicitud.numero_solicitud });
+                          EventBus.emit("solicitudEnviada", {
+                            numero_solicitud: data.solicitud?.numero_solicitud || solicitud.numero_solicitud
+                          });
                           setConfirmOpen(false);
                           setAccion(null);
                         } catch (error) {
@@ -218,9 +240,14 @@ export default function DetallesSolicitud({ open, onClose, solicitudId, solicitu
                         }
                       }}
                       disabled={updating}
-                      className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto"
+                      fromColor="#3b82f6"   // azul degradado base
+                      toColor="#2563eb"     // azul degradado final
+                      hoverFrom="#1d4ed8"   // azul hover inicio
+                      hoverTo="#1e40af"     // azul hover final
+                      size="default"
+                      className="w-full sm:w-auto flex items-center justify-center gap-2"
                     >
-                      Sí, enviar
+                      {updating ? "Procesando..." : "Sí, enviar"}
                     </Button>
                   </div>
                 </DialogContent>

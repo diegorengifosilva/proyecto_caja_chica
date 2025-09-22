@@ -232,11 +232,30 @@ export default function NuevaSolicitud({ open, onClose, onCreated }) {
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="flex flex-col sm:flex-row justify-end gap-3 mt-4">
-          <Button onClick={onClose} className="bg-gray-300 hover:bg-gray-400 text-white px-4 py-2 rounded-xl w-full sm:w-auto">Cancelar</Button>
-          <Button onClick={handleGuardar} className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl w-full sm:w-auto">Guardar</Button>
-        </div>
+          {/* Footer */}
+          <div className="flex flex-col sm:flex-row justify-end gap-3 mt-4">
+            <Button
+              onClick={onClose}
+              fromColor="#f87171" // rojo claro
+              toColor="#ef4444"   // rojo medio
+              hoverFrom="#ef4444"
+              hoverTo="#dc2626"
+              size="default"
+            >
+              Cancelar
+            </Button>
+
+            <Button
+              onClick={handleGuardar}
+              fromColor="#34d399" // verde claro
+              toColor="#10b981"   // verde medio
+              hoverFrom="#059669"
+              hoverTo="#10b981"
+              size="default"
+            >
+              Guardar
+            </Button>
+          </div>
       </DialogContent>
     </Dialog>
   );
