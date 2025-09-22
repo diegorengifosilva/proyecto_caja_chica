@@ -212,6 +212,50 @@ def detectar_numero_documento(texto: str, debug: bool = False) -> str:
 
     return "ND"
 
+def detectar_tipo_documento(texto: str, debug: bool = False) -> str:
+    """
+    Detecta automáticamente el tipo de documento a partir del texto OCR.
+    Retorna: 'Boleta', 'Factura', 'Honorarios' o 'Otros'.
+    """
+    if not texto:
+        return "Otros"
+
+    texto_norm = re.sub(r"\s{2,}", " ", texto.strip()).upper()
+
+    # Patrones típicos
+    patrones = {
+        "Boleta": [
+            r"\bBOLETA\b", 
+            r"\bBOLETA DE VENTA\b", 
+            r"\bBOL\b"
+        ],
+        "Factura": [
+            r"\bFACTURA\b", 
+            r"\bFACTURA ELECTRÓNICA\b", 
+            r"\bF\-\d{3,}"
+        ],
+        "Honorarios": [
+            r"\bRECIBO POR HONORARIOS\b", 
+            r"\bHONORARIOS\b", 
+            r"\bR\.H\.\b"
+        ],
+    }
+
+    tipo_detectado = "Otros"
+
+    for tipo, regex_list in patrones.items():
+        for pat in regex_list:
+            if re.search(pat, texto_norm):
+                tipo_detectado = tipo
+                break
+        if tipo_detectado != "Otros":
+            break
+
+    if debug:
+        print(f"🔹 Tipo de Documento detectado: {tipo_detectado}")
+
+    return tipo_detectado
+
 def detectar_fecha(texto: str, debug: bool = False) -> Optional[str]:
     """
     Detecta la fecha de emisión en boletas/facturas y normaliza a YYYY-MM-DD.
@@ -574,7 +618,7 @@ logger.setLevel(logging.INFO)
 def procesar_datos_ocr(texto: str, debug: bool = True) -> Dict[str, Optional[str]]:
     """
     Procesa el texto OCR de un documento (boleta/factura).
-    Ejecuta detectores de RUC, Razón Social, Nº de Documento, Fecha y Total.
+    Ejecuta detectores de RUC, Razón Social, Nº de Documento, Fecha, Total y Tipo de Documento.
     Devuelve un diccionario con los datos extraídos.
     """
     msg_inicio = "🔥 DETECTOR NUMERO DOCUMENTO EJECUTADO"
@@ -584,8 +628,14 @@ def procesar_datos_ocr(texto: str, debug: bool = True) -> Dict[str, Optional[str
         logger.info(msg_inicio)
 
     if not texto:
-        return {"ruc": None, "razon_social": "RAZÓN SOCIAL DESCONOCIDA",
-                "numero_documento": "ND", "fecha": None, "total": "0.00"}
+        return {
+            "ruc": None,
+            "razon_social": "RAZÓN SOCIAL DESCONOCIDA",
+            "numero_documento": "ND",
+            "fecha": None,
+            "total": "0.00",
+            "tipo_documento": "Otros"
+        }
 
     # --- Preprocesamiento ligero ---
     lineas = [l.strip() for l in texto.splitlines() if l.strip()]
@@ -610,6 +660,7 @@ def procesar_datos_ocr(texto: str, debug: bool = True) -> Dict[str, Optional[str
     numero_doc = detectar_numero_documento(texto)
     fecha = detectar_fecha(texto)
     total = detectar_total(texto)
+    tipo_documento = detectar_tipo_documento(texto, debug=debug)  # ← Nuevo detector integrado
 
     # --- Debug/log de resultados detectados ---
     datos_msg = [
@@ -617,7 +668,8 @@ def procesar_datos_ocr(texto: str, debug: bool = True) -> Dict[str, Optional[str
         f"  - Razón Social     : {razon_social}",
         f"  - Número Documento : {numero_doc}",
         f"  - Fecha            : {fecha}",
-        f"  - Total            : {total}"
+        f"  - Total            : {total}",
+        f"  - Tipo Documento   : {tipo_documento}"  # ← Mostrar tipo
     ]
     if debug:
         print("🔹 Datos detectados por OCR:")
@@ -634,6 +686,7 @@ def procesar_datos_ocr(texto: str, debug: bool = True) -> Dict[str, Optional[str
         "numero_documento": numero_doc or "ND",
         "fecha": fecha or None,
         "total": total or "0.00",
+        "tipo_documento": tipo_documento or "Otros",  # ← Incluir en el retorno
     }
 
 # ===================#
