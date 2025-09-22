@@ -122,26 +122,32 @@ export default function SubirArchivoModal({ idSolicitud, tipoSolicitud, open, on
         <div className="space-y-4">
           {/* Botones de carga */}
           <div className="flex flex-col sm:flex-row gap-2">
-            {botones.map((btn, idx) => (
-              <label key={idx} className="flex-1 cursor-pointer">
-                <input
-                  type="file"
-                  accept={btn.accept}
-                  capture={btn.capture}
-                  onChange={handleArchivoChange}
-                  style={{ display: "none" }}
-                />
-                <Button
-                  fromColor={btn.fromColor}
-                  toColor={btn.toColor}
-                  hoverFrom={btn.hoverFrom}
-                  hoverTo={btn.hoverTo}
-                  className="flex items-center gap-2 justify-center w-full sm:w-auto"
-                >
-                  {btn.icon} {btn.label}
-                </Button>
-              </label>
-            ))}
+            {botones.map((btn, idx) => {
+              let inputRef = React.createRef();
+
+              return (
+                <div key={idx} className="flex-1">
+                  <input
+                    ref={inputRef}
+                    type="file"
+                    accept={btn.accept}
+                    capture={btn.capture}
+                    onChange={handleArchivoChange}
+                    style={{ display: "none" }}
+                  />
+                  <Button
+                    fromColor={btn.fromColor}
+                    toColor={btn.toColor}
+                    hoverFrom={btn.hoverFrom}
+                    hoverTo={btn.hoverTo}
+                    className="flex items-center gap-2 justify-center w-full sm:w-auto"
+                    onClick={() => inputRef.current && inputRef.current.click()} // Dispara el input
+                  >
+                    {btn.icon} {btn.label}
+                  </Button>
+                </div>
+              );
+            })}
           </div>
 
           {/* Archivo seleccionado */}
