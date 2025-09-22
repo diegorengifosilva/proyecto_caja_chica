@@ -157,7 +157,7 @@ def detectar_numero_documento(texto: str, debug: bool = False) -> str:
 
     # Patrón robusto: serie (2-4 caracteres alfanuméricos) + opcional Nº + correlativo
     patron = re.compile(
-        r"\b([A-Z]{1,3}\d{0,4})\s*(?:N[°ºO.]?\s*)?[-]?\s*(\d{3,14})\b"
+        r"\b([A-Z]{1,3}\d{0,4})\s*(?:N[°ºO.]?\s*)?[-]?\s*(\d{2,14})\b"
     )
 
     candidatos = []
