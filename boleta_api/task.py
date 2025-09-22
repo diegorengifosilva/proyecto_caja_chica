@@ -31,6 +31,12 @@ def procesar_documento_celery(self, ruta_archivo, nombre_archivo,
     """
     resultados = []
 
+    # Para compatibilidad con Pillow 10+
+    try:
+        resample_method = Image.Resampling.LANCZOS
+    except AttributeError:
+        resample_method = Image.ANTIALIAS  # para Pillow < 10
+
     try:
         with open(ruta_archivo, "rb") as f:
             archivo_bytes = f.read()
@@ -44,11 +50,14 @@ def procesar_documento_celery(self, ruta_archivo, nombre_archivo,
 
                     # OCR solo si texto nativo no tiene info útil
                     if not any(k in texto_crudo.upper() for k in ["RUC", "TOTAL", "FECHA"]):
-                        imagen = convert_from_bytes(archivo_bytes, dpi=150, first_page=idx+1, last_page=idx+1)[0]
+                        imagen = convert_from_bytes(
+                            archivo_bytes, dpi=150, first_page=idx+1, last_page=idx+1
+                        )[0]
+
                         max_width = 1200
                         if imagen.width > max_width:
                             h = int(imagen.height * max_width / imagen.width)
-                            imagen = imagen.resize((max_width, h), Image.ANTIALIAS)
+                            imagen = imagen.resize((max_width, h), resample_method)
 
                         texto_crudo = pytesseract.image_to_string(imagen, lang="spa")
 
@@ -66,18 +75,21 @@ def procesar_documento_celery(self, ruta_archivo, nombre_archivo,
                     # Normalizar tipo_documento
                     tipo_doc = datos.get("tipo_documento") or tipo_documento
                     datos["tipo_documento"] = tipo_doc.strip().capitalize()
-
                     datos.update({"concepto": concepto, "nombre_archivo": nombre_archivo})
 
-                    resultados.append({"pagina": idx + 1, "texto_extraido": texto_crudo,
-                                       "datos_detectados": datos, "imagen_base64": img_b64})
+                    resultados.append({
+                        "pagina": idx + 1,
+                        "texto_extraido": texto_crudo,
+                        "datos_detectados": datos,
+                        "imagen_base64": img_b64
+                    })
 
         else:
             imagen = Image.open(BytesIO(archivo_bytes))
             max_width = 1200
             if imagen.width > max_width:
                 h = int(imagen.height * max_width / imagen.width)
-                imagen = imagen.resize((max_width, h), Image.ANTIALIAS)
+                imagen = imagen.resize((max_width, h), resample_method)
 
             texto_crudo = pytesseract.image_to_string(imagen, lang="spa")
 
@@ -88,15 +100,18 @@ def procesar_documento_celery(self, ruta_archivo, nombre_archivo,
                 img_b64 = f"data:image/png;base64,{base64.b64encode(buffer_img.getvalue()).decode('utf-8')}"
 
             datos = procesar_datos_ocr(texto_crudo, debug=True)
-
             tipo_doc = datos.get("tipo_documento") or tipo_documento
             datos["tipo_documento"] = tipo_doc.strip().capitalize()
             datos.update({"concepto": concepto, "nombre_archivo": nombre_archivo})
 
-            resultados.append({"pagina": 1, "texto_extraido": texto_crudo,
-                               "datos_detectados": datos, "imagen_base64": img_b64})
+            resultados.append({
+                "pagina": 1,
+                "texto_extraido": texto_crudo,
+                "datos_detectados": datos,
+                "imagen_base64": img_b64
+            })
 
-        # Limpiar archivo
+        # Limpiar archivo temporal
         try:
             os.remove(ruta_archivo)
         except PermissionError:

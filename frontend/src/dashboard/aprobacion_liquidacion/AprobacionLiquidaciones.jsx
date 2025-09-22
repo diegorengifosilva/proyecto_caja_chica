@@ -148,7 +148,7 @@ export default function AprobacionLiquidaciones() {
 
   return (
     <div className="min-h-screen w-full flex flex-col bg-gray-50 font-sans">
-      <div className="flex-1 flex flex-col px-4 sm:px-6 md:px-8 py-4 lg:py-6">
+      <div className="flex-1 flex flex-col px-4 sm:px-6 md:px-8 py-4 lg:py-6 max-w-[1600px] mx-auto">
 
         {/* Header */}
         <h2 className="text-2xl font-bold flex items-center gap-2 text-gray-800 mb-6">
@@ -159,7 +159,7 @@ export default function AprobacionLiquidaciones() {
         </h2>
 
         {/* KPIs */}
-        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-3 gap-y-4 sm:gap-x-4 sm:gap-y-5 md:gap-x-6 md:gap-y-6 mb-6 w-full justify-items-stretch">
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5 2xl:grid-cols-5 gap-x-3 gap-y-4 sm:gap-x-4 sm:gap-y-5 md:gap-x-6 md:gap-y-6 mb-6 w-full justify-items-stretch">
           {[
             { label: "Pendientes", value: kpis.totalPendientes, icon: FileText, gradient: "linear-gradient(135deg,#0ea5e9cc,#38bdf899)" },
             { label: "Aprobadas", value: kpis.totalAprobadas, icon: CheckCircle2, gradient: "linear-gradient(135deg,#16a34acc,#4ade8099)" },
@@ -177,7 +177,12 @@ export default function AprobacionLiquidaciones() {
         <div className="flex flex-col lg:flex-row gap-4 sm:gap-6 mb-6 w-full">
 
           {/* Evolución */}
-          <ChartWrapped title="Evolución de liquidaciones" icon={<FileText className="w-4 h-4 sm:w-5 sm:h-5" />} tooltipFormatter={tooltipFormatter} className="flex-1 h-56 sm:h-64 md:h-80 xl:h-[28rem] w-full">
+          <ChartWrapped
+            title="Evolución de liquidaciones"
+            icon={<FileText className="w-4 h-4 sm:w-5 sm:h-5" />}
+            tooltipFormatter={tooltipFormatter}
+            className="flex-1 h-64 sm:h-72 md:h-80 xl:h-[30rem] 2xl:h-[35rem] w-full"
+          >
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={serie} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                 <defs>
@@ -196,7 +201,12 @@ export default function AprobacionLiquidaciones() {
           </ChartWrapped>
 
           {/* Distribución por estado */}
-          <ChartWrapped title="Distribución por estado" icon={<PieChartIcon className="w-4 h-4 sm:w-5 sm:h-5" />} tooltipFormatter={radialTooltipFormatter} className="flex-1 h-56 sm:h-64 md:h-80 xl:h-[28rem] w-full">
+          <ChartWrapped
+            title="Distribución por estado"
+            icon={<PieChartIcon className="w-4 h-4 sm:w-5 sm:h-5" />}
+            tooltipFormatter={radialTooltipFormatter}
+            className="flex-1 h-64 sm:h-72 md:h-80 xl:h-[30rem] 2xl:h-[35rem] w-full"
+          >
             <div className="flex flex-col lg:flex-row gap-4 sm:gap-6 h-full items-stretch">
               <div className="flex-1 min-h-[160px] sm:min-h-[200px] md:min-h-[280px]">
                 <ResponsiveContainer width="100%" height="100%">
@@ -208,7 +218,7 @@ export default function AprobacionLiquidaciones() {
                   </RadialBarChart>
                 </ResponsiveContainer>
               </div>
-              <div className="w-full lg:w-40 flex-shrink-0 mt-3 lg:mt-0">
+              <div className="w-full lg:w-48 flex-shrink-0 mt-3 lg:mt-0">
                 {estados.map((s, i) => (
                   <div key={s.name} className="flex items-center gap-2 text-[10px] sm:text-xs md:text-sm text-gray-700 mb-2">
                     <span style={{ width: 14, height: 14, background: STATE_COLORS[s.name] || "#9ca3af", display: "inline-block", borderRadius: 3 }} />
@@ -222,35 +232,37 @@ export default function AprobacionLiquidaciones() {
         </div>
 
         {/* Tabla */}
-        <Table
-          headers={["N° Liquidación","Solicitante","Tipo","Monto S/.","Monto $","Fecha","Estado","Acciones"]}
-          data={liquidacionesTabla}
-          emptyMessage="No hay liquidaciones pendientes por ahora."
-          renderRow={(l) => (
-            <>
-              <td className="px-3 sm:px-4 py-3 font-semibold text-center">{l.id || "-"}</td>
-              <td className="px-3 sm:px-4 py-3 text-center">{l.solicitante_nombre || "-"}</td>
-              <td className="px-3 sm:px-4 py-3 text-center hidden sm:table-cell">{l.tipo || "-"}</td>
-              <td className="px-3 sm:px-4 py-3 text-center">S/ {(Number(l.monto_soles) || 0).toFixed(2)}</td>
-              <td className="px-3 sm:px-4 py-3 text-center">$ {(Number(l.monto_dolares) || 0).toFixed(2)}</td>
-              <td className="px-3 sm:px-4 py-3 text-center hidden sm:table-cell">{l.fecha ? new Date(l.fecha).toLocaleDateString("es-PE") : "-"}</td>
-              <td className="px-3 sm:px-4 py-3 text-center">
-                <span className={`text-xs px-2 py-1 rounded-full ${STATE_CLASSES[l.estado] || "bg-gray-100 text-gray-700"}`}>{l.estado || "Sin estado"}</span>
-              </td>
-              <td className="px-3 sm:px-4 py-3 text-center flex justify-center gap-2">
-                <Button size="sm" fromColor="#a8d8d8" toColor="#81c7c7" hoverFrom="#81c7c7" hoverTo="#5eb0b0" onClick={() => { setSelectedLiquidacion(l); setDetalleModalOpen(true); }} className="flex items-center gap-2 px-3 py-1.5 justify-center">
-                  <Eye className="w-4 h-4" /> Detalle
-                </Button>
-                <Button size="sm" fromColor="#16a34acc" toColor="#4ade8099" hoverFrom="#16a34a" hoverTo="#22c55e" onClick={() => { setSelectedLiquidacion(l); setAccion("aprobar"); setConfirmModalOpen(true); }}>
-                  <CheckCircle2 className="w-4 h-4" />
-                </Button>
-                <Button size="sm" fromColor="#ef4444cc" toColor="#f8717199" hoverFrom="#b91c1c" hoverTo="#991b1b" onClick={() => { setSelectedLiquidacion(l); setAccion("rechazar"); setConfirmModalOpen(true); }}>
-                  <XCircle className="w-4 h-4" />
-                </Button>
-              </td>
-            </>
-          )}
-        />
+        <div className="overflow-x-auto">
+          <Table
+            headers={["N° Liquidación","Solicitante","Tipo","Monto S/.","Monto $","Fecha","Estado","Acciones"]}
+            data={liquidacionesTabla}
+            emptyMessage="No hay liquidaciones pendientes por ahora."
+            renderRow={(l) => (
+              <>
+                <td className="px-3 sm:px-4 py-3 font-semibold text-center">{l.id || "-"}</td>
+                <td className="px-3 sm:px-4 py-3 text-center">{l.solicitante_nombre || "-"}</td>
+                <td className="px-3 sm:px-4 py-3 text-center hidden sm:table-cell">{l.tipo || "-"}</td>
+                <td className="px-3 sm:px-4 py-3 text-center">S/ {(Number(l.monto_soles) || 0).toFixed(2)}</td>
+                <td className="px-3 sm:px-4 py-3 text-center">$ {(Number(l.monto_dolares) || 0).toFixed(2)}</td>
+                <td className="px-3 sm:px-4 py-3 text-center hidden sm:table-cell">{l.fecha ? new Date(l.fecha).toLocaleDateString("es-PE") : "-"}</td>
+                <td className="px-3 sm:px-4 py-3 text-center">
+                  <span className={`text-xs px-2 py-1 rounded-full ${STATE_CLASSES[l.estado] || "bg-gray-100 text-gray-700"}`}>{l.estado || "Sin estado"}</span>
+                </td>
+                <td className="px-3 sm:px-4 py-3 text-center flex justify-center gap-2">
+                  <Button size="sm" fromColor="#a8d8d8" toColor="#81c7c7" hoverFrom="#81c7c7" hoverTo="#5eb0b0" onClick={() => { setSelectedLiquidacion(l); setDetalleModalOpen(true); }} className="flex items-center gap-2 px-3 py-1.5 justify-center">
+                    <Eye className="w-4 h-4" /> Detalle
+                  </Button>
+                  <Button size="sm" fromColor="#16a34acc" toColor="#4ade8099" hoverFrom="#16a34a" hoverTo="#22c55e" onClick={() => { setSelectedLiquidacion(l); setAccion("aprobar"); setConfirmModalOpen(true); }}>
+                    <CheckCircle2 className="w-4 h-4" />
+                  </Button>
+                  <Button size="sm" fromColor="#ef4444cc" toColor="#f8717199" hoverFrom="#b91c1c" hoverTo="#991b1b" onClick={() => { setSelectedLiquidacion(l); setAccion("rechazar"); setConfirmModalOpen(true); }}>
+                    <XCircle className="w-4 h-4" />
+                  </Button>
+                </td>
+              </>
+            )}
+          />
+        </div>
 
         {/* Modales */}
         {detalleModalOpen && selectedLiquidacion && (
