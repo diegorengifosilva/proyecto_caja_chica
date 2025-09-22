@@ -257,20 +257,13 @@ def detectar_tipo_documento(texto: str, debug: bool = False) -> str:
     return tipo_detectado
 
 def detectar_fecha(texto: str, debug: bool = False) -> Optional[str]:
-    """
-    Detecta la fecha de emisión en boletas/facturas y normaliza a YYYY-MM-DD.
-    - Soporta formatos numéricos (dd/mm/yyyy, yyyy/mm/dd, dd-mm-yyyy, dd.mm.yyyy)
-    - Soporta meses escritos (ene, septiembre, sept, etc.) en mayúscula/minúscula
-    - Si hay varias fechas, prioriza la más cercana a la línea "FECHA EMISIÓN" o al número de documento
-    - Ignora líneas con "VENCIMIENTO"
-    """
     import re
     from datetime import datetime, timedelta
 
     if not texto:
         return None
 
-    # --- Normalizar texto ---
+    # Normalizar texto
     txt = texto.replace('\r', '\n')
     txt = re.sub(r'[-–—]', '/', txt)
     txt = re.sub(r'\.(?=\d)', '/', txt)
@@ -278,25 +271,29 @@ def detectar_fecha(texto: str, debug: bool = False) -> Optional[str]:
 
     lineas = [l.strip() for l in txt.splitlines() if l.strip()]
 
-    # --- Línea de referencia ---
+    # Línea de referencia
     fecha_ref_idx = None
     doc_ref_idx = None
     for i, l in enumerate(lineas):
         if re.search(r'FECHA\s*(DE\s*)?EMIS', l, flags=re.IGNORECASE):
             fecha_ref_idx = i
-        if re.search(r'\bF\d{3,}-\d{3,}\b', l):  # número de factura típico F001-1234
+        if re.search(r'\bF\d{3,}-\d{3,}\b', l):
             doc_ref_idx = i
 
-    # --- Meses ---
+    # Meses
     meses_3 = {
         "ENE": 1, "FEB": 2, "MAR": 3, "ABR": 4, "MAY": 5, "JUN": 6,
         "JUL": 7, "AGO": 8, "SEP": 9, "OCT": 10, "NOV": 11, "DIC": 12
     }
 
+    # Patrones
     pat_num = re.compile(r'\b(\d{1,2})/(\d{1,2})/(\d{2,4})\b')
     pat_iso = re.compile(r'\b(\d{4})/(\d{1,2})/(\d{1,2})\b')
-    months_alt = r'(?:ENE|ENERO|FEB|FEBRERO|MAR|MARZO|ABR|ABRIL|MAY|MAYO|JUN|JUNIO|JUL|JULIO|AGO|AGOSTO|SEP|SEPT|SEPTIEMBRE|OCT|OCTUBRE|NOV|NOVIEMBRE|DIC|DICIEMBRE)'
-    pat_text = re.compile(rf'\b(\d{{1,2}})[\s/\.]+{months_alt}[\s/\.]+(\d{{2,4}})\b', flags=re.IGNORECASE)
+    pat_text = re.compile(
+        r'\b(\d{1,2})[\s/\.]+(ENE|ENERO|FEB|FEBRERO|MAR|MARZO|ABR|ABRIL|MAY|MAYO|JUN|JUNIO|JUL|JULIO|AGO|AGOSTO|SEP|SEPT|SEPTIEMBRE|OCT|OCTUBRE|NOV|NOVIEMBRE|DIC|DICIEMBRE)[\s/\.]+(\d{2,4})\b',
+        flags=re.IGNORECASE
+    )
+    pat_compacto = re.compile(r'\b(\d{4})[-/]?(\d{2})[-/]?(\d{2})\b')  # 20250822, 2025-08-22
 
     fechas_validas = []
 
@@ -308,57 +305,54 @@ def detectar_fecha(texto: str, debug: bool = False) -> Optional[str]:
         for m in pat_num.finditer(linea):
             d, mo, y = m.groups()
             try:
-                d, mo, y = int(d), int(mo), int(y if len(y) == 4 else "20" + y)
-                fechas_validas.append((idx, datetime(y, mo, d)))
-            except: 
-                continue
+                y = int(y) if len(y) == 4 else int("20" + y)
+                fechas_validas.append((idx, datetime(y, int(mo), int(d))))
+            except: continue
 
         # yyyy/mm/dd
         for m in pat_iso.finditer(linea):
             y, mo, d = m.groups()
             try:
                 fechas_validas.append((idx, datetime(int(y), int(mo), int(d))))
-            except:
-                continue
+            except: continue
 
         # textual
         for m in pat_text.finditer(linea):
-            d_str = m.group(1)
-            whole = m.group(0)
-            mid = re.sub(r'^\s*\d{1,2}[\s/\.]+', '', whole)
-            mid = re.sub(r'[\s/\.]+\d{2,4}\s*$', '', mid)
-            mes_txt = mid.strip().upper().replace('.', '')
-            mes_num = meses_3.get(mes_txt[:3]) if mes_txt else None
             try:
-                d = int(d_str)
-                y = int(m.group(2) if len(m.group(2)) == 4 else "20" + m.group(2))
-                if mes_num:
-                    fechas_validas.append((idx, datetime(y, mes_num, d)))
-            except:
-                continue
+                d = int(m.group(1))
+                mes = meses_3[m.group(2).upper()[:3]]
+                y = int(m.group(3)) if len(m.group(3)) == 4 else int("20" + m.group(3))
+                fechas_validas.append((idx, datetime(y, mes, d)))
+            except: continue
+
+        # compacto 20250822 o 2025-08-22
+        for m in pat_compacto.finditer(linea):
+            y, mo, d = m.groups()
+            try:
+                fechas_validas.append((idx, datetime(int(y), int(mo), int(d))))
+            except: continue
 
     if debug:
-        print("Fechas candidatas encontradas:", [(i, f.strftime("%Y-%m-%d")) for i, f in fechas_validas])
+        print("Fechas candidatas:", [(i, f.strftime("%Y-%m-%d")) for i, f in fechas_validas])
 
     if not fechas_validas:
         return None
 
-    # Filtrar rango razonable
+    # Filtrar rango 5 años
     hoy = datetime.now()
     fechas_filtradas = [(i, f) for i, f in fechas_validas if (hoy - timedelta(days=5*365)) <= f <= (hoy + timedelta(days=1))]
     if not fechas_filtradas:
         fechas_filtradas = fechas_validas
 
-    # Prioridad: fecha_emisión > número_doc > primera fecha
+    # Prioridad: FECHA EMISIÓN > número doc > primera
     if fecha_ref_idx is not None:
-        fechas_filtradas.sort(key=lambda x: (abs(x[0] - fecha_ref_idx), x[0]))
+        fechas_filtradas.sort(key=lambda x: (abs(x[0]-fecha_ref_idx), x[0]))
     elif doc_ref_idx is not None:
-        fechas_filtradas.sort(key=lambda x: (abs(x[0] - doc_ref_idx), x[0]))
+        fechas_filtradas.sort(key=lambda x: (abs(x[0]-doc_ref_idx), x[0]))
     else:
         fechas_filtradas.sort(key=lambda x: x[0])
 
-    mejor_fecha = fechas_filtradas[0][1]
-    return mejor_fecha.strftime("%Y-%m-%d")
+    return fechas_filtradas[0][1].strftime("%Y-%m-%d")
 
 def detectar_ruc(texto: str) -> Optional[str]:
     """
