@@ -380,49 +380,51 @@ def detectar_ruc(texto: str) -> Optional[str]:
     return None
 
 def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = False) -> str:
-    """
-    Detecta la razón social del proveedor en boletas o facturas electrónicas.
-    - Normaliza errores de OCR.
-    - Corta cuando hay "RUC" en la misma línea (todas sus variantes: RUC, R.U.C., RUC:, R.U.C.:, etc).
-    - Reconstruye razones sociales partidas en varias líneas.
-    - Bloquea palabras como FACTURA o BOLETA en la detección.
-    - Si se pasa el RUC detectado, lo elimina de la razón social.
-    """
     if not texto:
         return "RAZÓN SOCIAL DESCONOCIDA"
 
-    # --- Normalización general ---
     texto_norm = re.sub(r"\s{2,}", " ", texto.strip())
     texto_norm = texto_norm.upper()
 
-    # --- Correcciones OCR típicas ---
     reemplazos = {
         "5,A,": "S.A.", "5A": "S.A.", "5.A": "S.A.", "5 ,A": "S.A.",
         "$.A.C": "S.A.C", "S , A": "S.A", "S . A . C": "S.A.C", "S . A": "S.A",
         "3.A.C.": "S.A.C", "SA.": "S.A.", "SAC.": "S.A.C",
         "E.I.R.L.": "E.I.R.L", "EIRL.": "E.I.R.L",
-        ",": "",
     }
     for k, v in reemplazos.items():
         texto_norm = texto_norm.replace(k, v)
 
-    # --- Separar líneas ---
     lineas = [l.strip(" ,.-") for l in texto_norm.splitlines() if l.strip()]
 
-    # --- Exclusiones explícitas ---
     exclusiones = [r"V\s*&\s*C\s*CORPORATION", r"VC\s*CORPORATION", r"V\&C"]
     patron_exclusion = re.compile(
-        r"^(RUC|R\.U\.C|BOLETA|FACTURA|FECHA|CLIENTE|DIRECCION|CAL|JR|AV|PSJE|MZA|LOTE|ASC|TELF|CIUDAD|PROV|LIMA|AREQUIPA|CUSCO)",
+        r"^(RUC|R\.U\.C|BOLETA|FACTURA|ELECTRONICA|ELECTRÓNICA|CLIENTE|DIRECCION|CAL|JR|AV|PSJE|MZA|LOTE|ASC|TELF|CIUDAD|PROV)",
         flags=re.IGNORECASE
     )
 
+    # 🔹 Preliminar: limpiar cada línea
+    nuevas_lineas = []
+    for l in lineas:
+        # Cortar en RUC en cualquiera de sus variantes
+        l = re.split(r"R\.?\s*U\.?\s*C.*", l)[0].strip()
+        # Cortar en número de documento (ej. F001-, B001-)
+        l = re.split(r"\b[FBE]\d{3,}-\d+", l)[0].strip()
+        # Quitar basura FACTURA/BOLETA/ELECTRONICA
+        l = re.sub(r"\b(FACTURA|BOLETA|ELECTRONICA|ELECTRÓNICA)\b", "", l).strip()
+        if ruc:
+            l = l.replace(ruc, "").strip()
+        if l:
+            nuevas_lineas.append(l)
+    lineas = nuevas_lineas
+
+    # 🔹 Filtrar válidas
     lineas_validas = [
         l for l in lineas[:25]
         if not any(re.search(pat, l, flags=re.IGNORECASE) for pat in exclusiones)
         and not patron_exclusion.match(l)
     ]
 
-    # --- Terminaciones legales ---
     terminaciones = [
         r"S\.?A\.?C\.?$", r"S\.?A\.?$", r"E\.?I\.?R\.?L\.?$",
         r"SOCIEDAD ANONIMA CERRADA$", r"SOCIEDAD ANONIMA$",
@@ -432,43 +434,27 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
 
     razon_social = None
 
-    # 1️⃣ Manejo de "RUC" en la misma línea
-    nuevas_lineas = []
-    for l in lineas:
-        # Cortar en cualquier variante de "RUC"
-        if re.search(r"R\.?\s*U\.?\s*C", l):
-            l = re.split(r"R\.?\s*U\.?\s*C.*", l)[0].strip()
-        # Quitar FACTURA / BOLETA / ELECTRONICA
-        l = re.sub(r"\b(FACTURA|BOLETA|ELECTRONICA|ELECTRÓNICA)\b", "", l).strip()
-        # Quitar el RUC numérico si lo pasaron como argumento
-        if ruc:
-            l = l.replace(ruc, "").strip()
-        if l:
-            nuevas_lineas.append(l)
-    lineas = nuevas_lineas
-
-    # 2️⃣ Buscar línea que termine en razón social válida
+    # 1️⃣ Buscar línea con terminación legal
     for linea in lineas_validas:
         if any(re.search(term, linea) for term in terminaciones):
             razon_social = linea.strip()
             break
 
-    # 3️⃣ Si no, usar línea anterior al RUC explícito
-    if not razon_social and ruc:
-        for idx, l in enumerate(lineas):
-            if ruc in l and idx > 0:
-                razon_social = lineas[idx - 1].strip()
+    # 2️⃣ Reconstruir de varias líneas (caso "CONSULTORIO DENTAL ACEVEDO ... RESPONSABILIDAD LIMITADA")
+    if not razon_social and len(lineas_validas) > 1:
+        joined = " ".join(lineas_validas[:3])  # tomar hasta 3 primeras
+        for term in terminaciones:
+            if re.search(term, joined):
+                razon_social = re.sub(r"\s+", " ", joined).strip()
                 break
 
-    # 4️⃣ Fallback: primera línea válida
+    # 3️⃣ Fallback: primera línea válida
     if not razon_social and lineas_validas:
         razon_social = lineas_validas[0]
 
-    # --- Limpieza final ---
+    # 🔹 Limpieza final
     if razon_social:
-        # Eliminar variantes de "RUC" al final (RUC, R.U.C., RUC:, R.U.C.:, etc.)
-        razon_social = re.sub(r"[\s,:;\-]*(R\.?\s*U\.?\s*C\.?[:.]*)+$", "", razon_social).strip()
-        # Eliminar FACTURA/BOLETA si se colaron
+        razon_social = re.sub(r"[\s,:;\-]*(R\.?\s*U\.?\s*C.*)+$", "", razon_social).strip()
         razon_social = re.sub(r"\b(FACTURA|BOLETA|ELECTRONICA|ELECTRÓNICA)\b", "", razon_social).strip()
         if ruc:
             razon_social = razon_social.replace(ruc, "").strip()
