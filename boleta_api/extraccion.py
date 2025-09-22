@@ -82,51 +82,40 @@ def normalizar_texto_ocr(texto: str) -> str:
 def normalizar_monto(monto_txt: str) -> Optional[str]:
     """
     Normaliza un monto detectado por OCR a formato '0.00'.
-
     Maneja:
-    - '1,234.56'
-    - '1.234,56'
-    - '1234,56'
-    - '1234.56'
-    - '1.234.567,89'
-    - '1,234,567.89'
+    - 1,234.56 | 1.234,56 | 1234,56 | 1234.56 | 1.234.567,89 | 1,234,567.89
     - Con o sin símbolos extraños (S/, $, etc.)
-
-    Retorna:
-        str -> '0.00' con dos decimales
-        None -> si no se puede parsear
+    Retorna str -> '0.00' o None si no se puede parsear.
     """
     if not monto_txt:
         return None
 
-    # 🔹 1. Limpiar caracteres no numéricos relevantes
+    import re
+    from decimal import Decimal, InvalidOperation
+
+    # 🔹 Limpiar caracteres no numéricos relevantes
     s = re.sub(r"[^\d,.\-]", "", monto_txt)
     if not s:
         return None
 
-    # 🔹 2. Determinar separador decimal
+    # 🔹 Determinar separador decimal
     if "," in s and "." in s:
-        # Caso mixto: 1.234,56 -> 1234.56
-        if s.rfind(",") > s.rfind("."):
+        if s.rfind(",") > s.rfind("."):  # 1.234,56 -> 1234.56
             s = s.replace(".", "").replace(",", ".")
-        else:
-            # Caso anglosajón: 1,234.56 -> 1234.56
+        else:  # 1,234.56 -> 1234.56
             s = s.replace(",", "")
     elif "," in s:
-        # Caso latino: 1234,56 -> 1234.56
-        if s.count(",") == 1:
+        if s.count(",") == 1:  # 1234,56 -> 1234.56
             s = s.replace(",", ".")
-        else:
-            # Caso: 1,234,567,89 -> 1234567.89
+        else:  # 1,234,567,89 -> 1234567.89
             partes = s.split(",")
             s = "".join(partes[:-1]) + "." + partes[-1]
     elif "." in s:
-        # Caso: 1.234.567.89 -> 1234567.89
         partes = s.split(".")
-        if len(partes) > 2:
+        if len(partes) > 2:  # 1.234.567.89 -> 1234567.89
             s = "".join(partes[:-1]) + "." + partes[-1]
 
-    # 🔹 3. Convertir a Decimal
+    # 🔹 Convertir a Decimal
     try:
         d = Decimal(s)
         return f"{d.quantize(Decimal('0.00'))}"
@@ -545,23 +534,27 @@ def detectar_total(texto: str) -> str:
       3) Fallback: el monto más alto del texto.
     Retorna '0.00' si no encuentra nada.
     """
+    import re
+    from decimal import Decimal, InvalidOperation
+
     if not texto:
         return "0.00"
 
     texto_norm = texto.upper()
 
-    # Correcciones OCR típicas para S/
+    # 🔹 Correcciones OCR típicas para S/
     texto_norm = (
         texto_norm.replace("S . /", "S/")
                   .replace("S-/", "S/")
                   .replace("S.", "S/")
+                  .replace("S /", "S/")
                   .replace("S /", "S/")
     )
 
     lineas = texto_norm.splitlines()
     candidatos_prioritarios = []
 
-    # Paso 1: líneas con palabras clave de total
+    # 1️⃣ Líneas con palabras clave de total
     for linea in lineas:
         if re.search(r"(TOTAL\s+A\s+PAGAR|IMPORTE\s+TOTAL|MONTO\s+TOTAL|TOTAL\s+FACTURA|TOTAL\s*$)", linea):
             montos = re.findall(r"\d{1,3}(?:[.,]\d{3})*[.,]\d{2}", linea)
@@ -573,7 +566,7 @@ def detectar_total(texto: str) -> str:
     if candidatos_prioritarios:
         return f"{max(candidatos_prioritarios).quantize(Decimal('0.00'))}"
 
-    # Paso 2: montos con prefijo S/ (tomar todos, no solo el primero)
+    # 2️⃣ Montos con prefijo S/
     montos_prefijo = []
     for m in re.findall(r"S/?\s*([\d.,]+\s?[.,]\d{2})", texto_norm):
         normal = normalizar_monto(m)
@@ -583,7 +576,7 @@ def detectar_total(texto: str) -> str:
     if montos_prefijo:
         return f"{max(montos_prefijo).quantize(Decimal('0.00'))}"
 
-    # Paso 3: buscar todos los montos con 2 decimales y elegir el mayor
+    # 3️⃣ Fallback: todos los montos detectados en el texto
     decs = re.findall(r"\d{1,3}(?:[.,]\d{3})*[.,]\d{2}", texto_norm)
     montos = []
     for d in decs:

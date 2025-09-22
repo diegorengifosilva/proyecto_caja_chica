@@ -10,10 +10,8 @@ export default function SubirArchivoModal({ idSolicitud, tipoSolicitud, open, on
   const [preview, setPreview] = useState(null);
   const [cargando, setCargando] = useState(false);
   const [errorOCR, setErrorOCR] = useState(null);
-  const [totalManual, setTotalManual] = useState("");
   const fileInputRef = useRef(null);
 
-  // Detectar móvil
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     setIsMobile(/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent));
@@ -39,7 +37,6 @@ export default function SubirArchivoModal({ idSolicitud, tipoSolicitud, open, on
 
     setArchivo(file);
     setErrorOCR(null);
-    setTotalManual("");
 
     const reader = new FileReader();
     reader.onloadend = () => setPreview(reader.result);
@@ -63,12 +60,6 @@ export default function SubirArchivoModal({ idSolicitud, tipoSolicitud, open, on
       const ocrResponse = await procesarDocumentoOCR(formData);
       const datos = Array.isArray(ocrResponse) && ocrResponse.length ? ocrResponse[0] : {};
 
-      let total = datos.total?.toString().replace(",", ".") || totalManual;
-      if (total) {
-        total = parseFloat(total);
-        if (isNaN(total)) total = null;
-      }
-
       const doc = {
         nombre_archivo: archivo.name,
         tipo_documento: datos.tipo_documento || "Otros",
@@ -76,7 +67,7 @@ export default function SubirArchivoModal({ idSolicitud, tipoSolicitud, open, on
         fecha: datos.fecha || "",
         ruc: datos.ruc || "",
         razon_social: datos.razon_social || "",
-        total: total || "",
+        total: datos.total || "",
         archivo,
       };
 
@@ -96,7 +87,6 @@ export default function SubirArchivoModal({ idSolicitud, tipoSolicitud, open, on
     }
   };
 
-  // Botones según dispositivo
   const botones = isMobile
     ? [
         { label: "Cámara", icon: <Camera className="w-4 h-4" />, accept: "image/*", capture: "environment", fromColor: "#60a5fa", toColor: "#3b82f6", hoverFrom: "#3b82f6", hoverTo: "#2563eb" },
@@ -118,7 +108,6 @@ export default function SubirArchivoModal({ idSolicitud, tipoSolicitud, open, on
         </DialogHeader>
 
         <div className="space-y-5">
-
           {/* Área Drag & Drop */}
           <div
             className="border-2 border-dashed border-gray-300 rounded-md p-4 sm:p-6 text-center cursor-pointer hover:border-blue-400 transition relative"
@@ -150,11 +139,11 @@ export default function SubirArchivoModal({ idSolicitud, tipoSolicitud, open, on
           {/* Botones de carga */}
           {botones.length > 0 && (
             <div className="w-full flex justify-center">
-              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3 w-full max-w-3xl">
+              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4 w-full max-w-5xl">
                 {botones.map((btn, idx) => {
                   const inputRef = React.createRef();
                   return (
-                    <div key={idx} className="flex-1 min-w-0">
+                    <div key={idx} className="flex justify-center">
                       <input
                         ref={inputRef}
                         type="file"
@@ -168,7 +157,7 @@ export default function SubirArchivoModal({ idSolicitud, tipoSolicitud, open, on
                         toColor={btn.toColor}
                         hoverFrom={btn.hoverFrom}
                         hoverTo={btn.hoverTo}
-                        className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 w-full sm:w-full lg:w-auto text-sm sm:text-base px-4 py-2 sm:px-5 sm:py-2.5 truncate transition-all"
+                        className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 w-full sm:w-full min-w-[150px] max-w-[300px] px-5 py-3 text-sm sm:text-base truncate transition-all"
                         onClick={() => inputRef.current && inputRef.current.click()}
                       >
                         {btn.icon} <span className="truncate">{btn.label}</span>
@@ -177,21 +166,6 @@ export default function SubirArchivoModal({ idSolicitud, tipoSolicitud, open, on
                   );
                 })}
               </div>
-            </div>
-          )}
-
-          {/* Total manual */}
-          {!errorOCR && archivo && (
-            <div className="mt-2">
-              <label className="block text-sm font-medium text-gray-700">Total (si OCR no lo detecta)</label>
-              <input
-                type="number"
-                step="0.01"
-                value={totalManual}
-                onChange={(e) => setTotalManual(e.target.value)}
-                className="mt-1 p-2 w-full border rounded-md focus:ring focus:ring-blue-200 text-sm placeholder-gray-400"
-                placeholder="Ej. 150.75"
-              />
             </div>
           )}
 
