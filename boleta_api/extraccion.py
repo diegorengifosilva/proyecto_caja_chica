@@ -430,6 +430,13 @@ def detectar_ruc(texto: str) -> Optional[str]:
     return None
 
 def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = False) -> str:
+    """
+    Detecta la razón social, universidad o institución a partir del OCR.
+    Mantiene la lógica previa pero:
+      - Más tolerante con nombres de instituciones.
+      - Quita prefijos irrelevantes (ES, LA, EL, LOS, UN, UNA).
+      - Repara errores comunes de OCR.
+    """
     if not texto:
         return "RAZÓN SOCIAL DESCONOCIDA"
 
@@ -439,7 +446,7 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
     texto_norm = re.sub(r"\s{2,}", " ", texto.strip())
     texto_norm = texto_norm.upper()
 
-    # 🔹 Diccionario de RUC conocidos (personalizable)
+    # 🔹 Diccionario de RUC conocidos
     ruc_mapeo = {
         "20100041953": "RIMAC SEGUROS Y REASEGUROS",
         "20600082524": "CONSULTORIO DENTAL ACEVEDO EMPRESA INDIVIDUAL DE RESPONSABILIDAD LIMITADA",
@@ -449,7 +456,7 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
     if ruc and ruc in ruc_mapeo:
         return ruc_mapeo[ruc]
 
-    # 🔹 Reemplazos comunes
+    # 🔹 Reemplazos comunes OCR
     reemplazos = {
         "5,A,": "S.A.", "5A": "S.A.", "5.A": "S.A.", "5 ,A": "S.A.",
         "$.A.C": "S.A.C", "S , A": "S.A", "S . A . C": "S.A.C", "S . A": "S.A",
@@ -465,9 +472,14 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
     # 🔹 Dividir líneas y limpiar
     lineas = [l.strip(" ,.-") for l in texto_norm.splitlines() if l.strip()]
 
+    # 🔹 Quitar prefijos irrelevantes al inicio de cada línea
+    prefijos_irrelevantes = ["ES", "LA", "EL", "LOS", "UN", "UNA", "CENTRUM", "UNIDAD"]
+    lineas = [" ".join([w for w in l.split() if w not in prefijos_irrelevantes]) for l in lineas]
+
+    # 🔹 Filtrado de líneas irrelevantes
     exclusiones = [r"V\s*&\s*C\s*CORPORATION", r"VC\s*CORPORATION", r"V\&C"]
     patron_exclusion = re.compile(
-        r"^(RUC|R\.U\.C|CLIENTE|DIRECCION|OFICINA|CAL|JR|AV|PSJE|MZA|LOTE|ASC|TELF|CIUDAD|PROV)",
+        r"^(RUC|R\.U\.C|CLIENTE|DIRECCION|OFICINA|CAL|JR|AV|PSJE|MZA|LOTE|ASC|TELF|CIUDAD|PROV|FECHA)", 
         flags=re.IGNORECASE
     )
 
@@ -481,13 +493,13 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
             nuevas_lineas.append(l)
     lineas = nuevas_lineas
 
-    # 🔹 Filtrar líneas válidas
     lineas_validas = [
-        l for l in lineas[:30]
+        l for l in lineas[:50]
         if not any(re.search(pat, l, flags=re.IGNORECASE) for pat in exclusiones)
         and not patron_exclusion.match(l)
     ]
 
+    # 🔹 Terminaciones legales conocidas (para empresas)
     terminaciones = [
         r"S\.?A\.?C\.?$", r"S\.?A\.?$", r"E\.?I\.?R\.?L\.?$",
         r"SOCIEDAD ANONIMA CERRADA$", r"SOCIEDAD ANONIMA$",
@@ -503,7 +515,7 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
             razon_social = linea.strip()
             break
 
-    # 2️⃣ Reconstrucción flexible (combinar hasta 3 líneas)
+    # 2️⃣ Reconstrucción flexible combinando hasta 3 líneas
     if not razon_social and len(lineas_validas) > 1:
         for i in range(len(lineas_validas)-1):
             combinado = " ".join(lineas_validas[i:i+3])
@@ -514,7 +526,7 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
             if razon_social:
                 break
 
-    # 3️⃣ Fallback: nombre más largo válido
+    # 3️⃣ Fallback: línea más larga válida (funciona para universidades/instituciones)
     if not razon_social:
         candidatos = [l for l in lineas_validas if len(l.split()) >= 2]
         if candidatos:
