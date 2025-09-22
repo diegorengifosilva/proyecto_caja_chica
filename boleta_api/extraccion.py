@@ -81,35 +81,54 @@ def normalizar_texto_ocr(texto: str) -> str:
 
 def normalizar_monto(monto_txt: str) -> Optional[str]:
     """
-    Normaliza un monto textual a formato '0.00':
-    - Maneja: '1,234.56', '1.234,56', '1234,56', '1234.56'
-    - Elimina símbolos extraños.
-    - Siempre retorna 2 decimales.
-    Retorna None si no se puede parsear.
+    Normaliza un monto detectado por OCR a formato '0.00'.
+
+    Maneja:
+    - '1,234.56'
+    - '1.234,56'
+    - '1234,56'
+    - '1234.56'
+    - '1.234.567,89'
+    - '1,234,567.89'
+    - Con o sin símbolos extraños (S/, $, etc.)
+
+    Retorna:
+        str -> '0.00' con dos decimales
+        None -> si no se puede parsear
     """
     if not monto_txt:
         return None
 
+    # 🔹 1. Limpiar caracteres no numéricos relevantes
     s = re.sub(r"[^\d,.\-]", "", monto_txt)
     if not s:
         return None
 
-    # Decide cuál es decimal
+    # 🔹 2. Determinar separador decimal
     if "," in s and "." in s:
+        # Caso mixto: 1.234,56 -> 1234.56
         if s.rfind(",") > s.rfind("."):
-            s = s.replace(".", "").replace(",", ".")  # 1.234,56 → 1234.56
+            s = s.replace(".", "").replace(",", ".")
         else:
-            s = s.replace(",", "")                    # 1,234.56 → 1234.56
+            # Caso anglosajón: 1,234.56 -> 1234.56
+            s = s.replace(",", "")
     elif "," in s:
+        # Caso latino: 1234,56 -> 1234.56
         if s.count(",") == 1:
-            s = s.replace(",", ".")                   # 1234,56 → 1234.56
+            s = s.replace(",", ".")
         else:
+            # Caso: 1,234,567,89 -> 1234567.89
             partes = s.split(",")
             s = "".join(partes[:-1]) + "." + partes[-1]
+    elif "." in s:
+        # Caso: 1.234.567.89 -> 1234567.89
+        partes = s.split(".")
+        if len(partes) > 2:
+            s = "".join(partes[:-1]) + "." + partes[-1]
 
+    # 🔹 3. Convertir a Decimal
     try:
         d = Decimal(s)
-        # Siempre 2 decimales
         return f"{d.quantize(Decimal('0.00'))}"
     except (InvalidOperation, ValueError):
         return None
@@ -385,6 +404,7 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
 
     import re
 
+    # 🔹 Normalizar espacios y mayúsculas
     texto_norm = re.sub(r"\s{2,}", " ", texto.strip())
     texto_norm = texto_norm.upper()
 
@@ -392,11 +412,13 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
     ruc_mapeo = {
         "20100041953": "RIMAC SEGUROS Y REASEGUROS",
         "20600082524": "CONSULTORIO DENTAL ACEVEDO EMPRESA INDIVIDUAL DE RESPONSABILIDAD LIMITADA",
-        # puedes seguir agregando aquí
+        "15606834117": "ACEVEDO PEREZ RONALD DAVID",
+        "20100049181": "TAI LOY S.A.",
     }
     if ruc and ruc in ruc_mapeo:
         return ruc_mapeo[ruc]
 
+    # 🔹 Reemplazos comunes
     reemplazos = {
         "5,A,": "S.A.", "5A": "S.A.", "5.A": "S.A.", "5 ,A": "S.A.",
         "$.A.C": "S.A.C", "S , A": "S.A", "S . A . C": "S.A.C", "S . A": "S.A",
@@ -406,11 +428,15 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
     for k, v in reemplazos.items():
         texto_norm = texto_norm.replace(k, v)
 
+    # 🔹 Quitar palabras basura frecuentes
+    texto_norm = re.sub(r"\b(FACTURA|BOLETA|ELECTRONICA|ELECTRÓNICA|RAZ\.?SOCIAL:?)\b", "", texto_norm, flags=re.IGNORECASE)
+
+    # 🔹 Dividir líneas y limpiar
     lineas = [l.strip(" ,.-") for l in texto_norm.splitlines() if l.strip()]
 
     exclusiones = [r"V\s*&\s*C\s*CORPORATION", r"VC\s*CORPORATION", r"V\&C"]
     patron_exclusion = re.compile(
-        r"^(RUC|R\.U\.C|BOLETA|FACTURA|ELECTRONICA|ELECTRÓNICA|CLIENTE|DIRECCION|OFICINA|CAL|JR|AV|PSJE|MZA|LOTE|ASC|TELF|CIUDAD|PROV)",
+        r"^(RUC|R\.U\.C|CLIENTE|DIRECCION|OFICINA|CAL|JR|AV|PSJE|MZA|LOTE|ASC|TELF|CIUDAD|PROV)",
         flags=re.IGNORECASE
     )
 
@@ -418,13 +444,13 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
     for l in lineas:
         l = re.split(r"R\.?\s*U\.?\s*C.*", l)[0].strip()
         l = re.split(r"\b[FBE]\d{3,}-\d+", l)[0].strip()
-        l = re.sub(r"\b(FACTURA|BOLETA|ELECTRONICA|ELECTRÓNICA)\b", "", l).strip()
         if ruc:
             l = l.replace(ruc, "").strip()
         if l:
             nuevas_lineas.append(l)
     lineas = nuevas_lineas
 
+    # 🔹 Filtrar líneas válidas
     lineas_validas = [
         l for l in lineas[:30]
         if not any(re.search(pat, l, flags=re.IGNORECASE) for pat in exclusiones)
@@ -440,13 +466,13 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
 
     razon_social = None
 
-    # 1️⃣ Buscar coincidencia exacta con terminación legal
+    # 1️⃣ Coincidencia exacta terminación legal
     for linea in lineas_validas:
         if any(re.search(term, linea) for term in terminaciones):
             razon_social = linea.strip()
             break
 
-    # 2️⃣ Reconstrucción flexible (combina hasta 3 seguidas, incluso si hay una basura en medio)
+    # 2️⃣ Reconstrucción flexible (combinar hasta 3 líneas)
     if not razon_social and len(lineas_validas) > 1:
         for i in range(len(lineas_validas)-1):
             combinado = " ".join(lineas_validas[i:i+3])
@@ -457,15 +483,15 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
             if razon_social:
                 break
 
-    # 3️⃣ Fallback: nombre más largo válido (ej. RIMAC SEGUROS Y REASEGUROS)
+    # 3️⃣ Fallback: nombre más largo válido
     if not razon_social:
         candidatos = [l for l in lineas_validas if len(l.split()) >= 2]
         if candidatos:
             razon_social = max(candidatos, key=len)
 
+    # 🔹 Limpieza final
     if razon_social:
         razon_social = re.sub(r"[\s,:;\-]*(R\.?\s*U\.?\s*C.*)+$", "", razon_social).strip()
-        razon_social = re.sub(r"\b(FACTURA|BOLETA|ELECTRONICA|ELECTRÓNICA|OFICINA)\b", "", razon_social).strip()
         if ruc:
             razon_social = razon_social.replace(ruc, "").strip()
 
@@ -475,28 +501,6 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
         print("🔹 Razón Social detectada:", resultado)
 
     return resultado
-
-def normalizar_monto(monto: str) -> Optional[str]:
-    """
-    Normaliza un monto detectado por OCR:
-    - Convierte ',' a '.' si corresponde.
-    - Elimina separadores de miles.
-    Retorna None si el monto no es válido.
-    """
-    if not monto:
-        return None
-
-    monto = monto.replace(" ", "").replace(",", ".")
-    # Quitar separadores de miles si hay
-    partes = monto.split(".")
-    if len(partes) > 2:
-        # ejemplo: 1.234.567,89 -> 1234567.89
-        monto = "".join(partes[:-1]) + "." + partes[-1]
-
-    try:
-        return f"{Decimal(monto):.2f}"
-    except InvalidOperation:
-        return None
 
 def detectar_total(texto: str) -> str:
     """
