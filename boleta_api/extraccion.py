@@ -428,7 +428,7 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
     texto_norm = re.sub(r"\s{2,}", " ", texto.strip())
     texto_norm = texto_norm.upper()
 
-    # 🔹 Diccionario de RUC conocidos (personalizable)
+    # 🔹 Diccionario de RUC conocidos
     ruc_mapeo = {
         "20100041953": "RIMAC SEGUROS Y REASEGUROS",
         "20600082524": "CONSULTORIO DENTAL ACEVEDO EMPRESA INDIVIDUAL DE RESPONSABILIDAD LIMITADA",
@@ -467,7 +467,6 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
         l = re.split(r"\b[FBE]\d{3,}-\d+", l)[0].strip()
         if ruc:
             l = l.replace(ruc, "").strip()
-        # 🔹 Quitar prefijos irrelevantes al inicio
         l = re.sub(r"^(ES|LA|EL|LOS|LAS)\s+", "", l)
         if l:
             nuevas_lineas.append(l)
@@ -480,16 +479,18 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
         and not patron_exclusion.match(l)
     ]
 
+    # 🔹 Terminaciones legales y de instituciones
     terminaciones = [
         r"S\.?A\.?C\.?$", r"S\.?A\.?$", r"E\.?I\.?R\.?L\.?$",
         r"SOCIEDAD ANONIMA CERRADA$", r"SOCIEDAD ANONIMA$",
         r"EMPRESA INDIVIDUAL DE RESPONSABILIDAD LIMITADA$",
         r"RESPONSABILIDAD LIMITADA$",
+        r"UNIVERSIDAD$", r"INSTITUTO$", r"COLEGIO$", r"CENTRO$", r"ACADEMIA$",
     ]
 
     razon_social = None
 
-    # 1️⃣ Coincidencia exacta terminación legal
+    # 1️⃣ Coincidencia exacta terminación legal o institucional
     for linea in lineas_validas:
         if any(re.search(term, linea) for term in terminaciones):
             razon_social = linea.strip()

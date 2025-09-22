@@ -99,18 +99,19 @@ export default function SubirArchivoModal({ idSolicitud, tipoSolicitud, open, on
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="w-[95vw] max-w-full sm:max-w-md md:max-w-lg lg:max-w-xl 2xl:max-w-[1024px] max-h-[90vh] overflow-y-auto p-4 sm:p-6 mx-auto">
+      <DialogContent className="w-[95vw] max-w-full sm:max-w-md md:max-w-lg lg:max-w-xl 2xl:max-w-[1024px] max-h-[90vh] overflow-y-auto p-4 sm:p-6 mx-auto bg-white rounded-xl shadow-xl transition-all duration-300 ease-in-out">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg font-semibold">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg font-semibold text-gray-800">
             <FileUp className="w-5 h-5 text-gray-700" />
             Subir Documento - Solicitud # {idSolicitud}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-5">
+        <div className="space-y-6">
+
           {/* Área Drag & Drop */}
           <div
-            className="border-2 border-dashed border-gray-300 rounded-md p-4 sm:p-6 text-center cursor-pointer hover:border-blue-400 transition relative"
+            className="border-2 border-dashed border-gray-300 rounded-md p-4 sm:p-6 text-center cursor-pointer hover:border-blue-400 transition duration-200 relative flex flex-col items-center justify-center bg-gray-50 shadow-sm hover:shadow-md"
             onClick={() => fileInputRef.current && fileInputRef.current.click()}
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
@@ -122,7 +123,7 @@ export default function SubirArchivoModal({ idSolicitud, tipoSolicitud, open, on
             {archivo ? (
               <div className="flex flex-col items-center gap-2">
                 {preview ? (
-                  <img src={preview} alt="Preview" className="max-h-40 w-auto rounded-md border shadow-sm object-contain" />
+                  <img src={preview} alt="Preview" className="max-h-44 w-auto rounded-md border shadow-sm object-contain transition-all duration-300" />
                 ) : (
                   <Paperclip className="w-8 h-8 text-gray-500" />
                 )}
@@ -130,7 +131,7 @@ export default function SubirArchivoModal({ idSolicitud, tipoSolicitud, open, on
               </div>
             ) : (
               <>
-                <FileUp className="w-8 h-8 mx-auto text-gray-400" />
+                <FileUp className="w-10 h-10 mx-auto text-gray-400 transition-transform duration-200 hover:scale-110" />
                 <p className="text-sm sm:text-base text-gray-500 mt-2">Arrastra un archivo aquí o haz clic para seleccionar</p>
               </>
             )}
@@ -138,7 +139,7 @@ export default function SubirArchivoModal({ idSolicitud, tipoSolicitud, open, on
 
           {/* Botones de carga */}
           {botones.length > 0 && (
-            <div className="w-full flex justify-center">
+            <div className="w-full flex justify-center mt-3">
               <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4 w-full max-w-5xl">
                 {botones.map((btn, idx) => {
                   const inputRef = React.createRef();
@@ -157,7 +158,7 @@ export default function SubirArchivoModal({ idSolicitud, tipoSolicitud, open, on
                         toColor={btn.toColor}
                         hoverFrom={btn.hoverFrom}
                         hoverTo={btn.hoverTo}
-                        className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 w-full sm:w-full min-w-[150px] max-w-[300px] px-5 py-3 text-sm sm:text-base truncate transition-all"
+                        className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 w-full sm:w-full min-w-[150px] max-w-[320px] px-6 py-3 text-sm sm:text-base truncate transition-all duration-300 ease-in-out hover:scale-[1.03] shadow-sm hover:shadow-md"
                         onClick={() => inputRef.current && inputRef.current.click()}
                       >
                         {btn.icon} <span className="truncate">{btn.label}</span>
@@ -171,14 +172,14 @@ export default function SubirArchivoModal({ idSolicitud, tipoSolicitud, open, on
 
           {/* Barra de progreso */}
           {cargando && (
-            <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-              <div className="bg-blue-500 h-2 rounded-full animate-progress" style={{ width: "70%" }} />
+            <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden mt-2">
+              <div className="bg-blue-500 h-2 rounded-full animate-progress transition-all duration-300" style={{ width: "70%" }} />
             </div>
           )}
 
           {/* Mensaje de error */}
           {errorOCR && (
-            <p className="text-sm text-red-600 bg-red-100 rounded p-2 flex items-center gap-2">
+            <p className="text-sm text-red-600 bg-red-100 rounded p-2 flex items-center gap-2 shadow-sm">
               <AlertCircle className="w-4 h-4" /> {errorOCR}
             </p>
           )}
@@ -192,7 +193,7 @@ export default function SubirArchivoModal({ idSolicitud, tipoSolicitud, open, on
             toColor="#ef4444"
             hoverFrom="#ef4444"
             hoverTo="#dc2626"
-            className="flex items-center gap-2 justify-center w-full sm:w-auto"
+            className="flex items-center gap-2 justify-center w-full sm:w-auto shadow-sm hover:shadow-md transition-all duration-200"
             onClick={onClose}
           >
             <X className="w-4 h-4" /> Cerrar
@@ -204,7 +205,7 @@ export default function SubirArchivoModal({ idSolicitud, tipoSolicitud, open, on
             toColor="#10b981"
             hoverFrom="#10b981"
             hoverTo="#059669"
-            className="flex items-center gap-2 justify-center w-full sm:w-auto"
+            className="flex items-center gap-2 justify-center w-full sm:w-auto shadow-sm hover:shadow-md transition-all duration-200"
             onClick={handleProcesar}
             disabled={cargando}
           >
