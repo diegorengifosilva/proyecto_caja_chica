@@ -597,12 +597,14 @@ def procesar_documento(request):
             ]
         ).get()
 
-        # Actualizar tipo_documento usando OCR detectado (si existe)
+        # Asegurarse de que tipo_documento provenga del OCR
         for r in resultados:
             if "datos_detectados" in r:
                 tipo_ocr = r["datos_detectados"].get("tipo_documento")
-                if tipo_ocr:
-                    r["datos_detectados"]["tipo_documento"] = tipo_ocr
+                if tipo_ocr and tipo_ocr.strip():
+                    r["datos_detectados"]["tipo_documento"] = tipo_ocr.strip()
+                else:
+                    r["datos_detectados"]["tipo_documento"] = "Boleta"  # fallback
 
         return Response({"resultado": resultados}, status=200)
 
@@ -673,7 +675,7 @@ def presentar_liquidacion(request):
     """
     Guarda documentos asociados a una solicitud y crea la liquidación correspondiente.
     Compatible con múltiples archivos y documentos JSON.
-    Eliminado el campo 'concepto_gasto' ya que no se usa.
+    Asegura que tipo_documento provenga del OCR si está disponible.
     """
     try:
         solicitud_id = request.data.get("id_solicitud")
@@ -688,7 +690,6 @@ def presentar_liquidacion(request):
 
         documentos_guardados = []
 
-        # Guardar cada documento
         for idx, doc in enumerate(documentos):
             archivo = archivos[idx] if idx < len(archivos) else None
 
@@ -699,10 +700,14 @@ def presentar_liquidacion(request):
             except (InvalidOperation, TypeError):
                 total = Decimal("0.00")
 
+            # Usar tipo_documento detectado por OCR, fallback a "Boleta"
+            tipo_doc = doc.get("tipo_documento")
+            tipo_documento_final = tipo_doc.strip() if tipo_doc and tipo_doc.strip() else "Boleta"
+
             # Crear documento
             documento = DocumentoGasto.objects.create(
                 solicitud=solicitud,
-                tipo_documento=doc.get("tipo_documento") or "Boleta",
+                tipo_documento=tipo_documento_final,
                 numero_documento=doc.get("numero_documento") or "ND",
                 fecha=doc.get("fecha") or date.today(),
                 ruc=doc.get("ruc") or "00000000000",
@@ -776,13 +781,11 @@ def test_ocr(request):
 @parser_classes([MultiPartParser, FormParser])
 def guardar_documento(request):
     try:
-        # Obtener solicitud
         solicitud_id = request.data.get("solicitud_id") or request.data.get("solicitud")
         if not solicitud_id:
             return Response({"error": "Falta el ID de la solicitud."}, status=400)
         solicitud = get_object_or_404(Solicitud, id=solicitud_id)
 
-        # Documentos enviados desde frontend (ya contienen los datos extraídos desde Celery/extraccion.py)
         documentos_json = request.data.get("documentos")
         if not documentos_json:
             return Response({"error": "No se enviaron datos de documentos"}, status=400)
@@ -794,19 +797,14 @@ def guardar_documento(request):
         for idx, doc in enumerate(documentos):
             archivo = archivos[idx] if idx < len(archivos) else None
 
-            # Procesar cada página si es PDF multipágina
             imagenes, _ = archivo_a_imagenes(archivo) if archivo else ([], [])
 
             for pagina_idx, img in enumerate(imagenes):
-                # Datos ya extraídos desde extraccion.py / Celery
                 datos_extraidos = doc.copy()
 
-                # Usar tipo_documento detectado por OCR
+                # Usar tipo_documento detectado por OCR, fallback a Boleta
                 tipo_ocr = doc.get("tipo_documento")
-                if tipo_ocr:
-                    datos_extraidos["tipo_documento"] = tipo_ocr
-                else:
-                    datos_extraidos["tipo_documento"] = "Boleta"  # fallback
+                datos_extraidos["tipo_documento"] = tipo_ocr.strip() if tipo_ocr and tipo_ocr.strip() else "Boleta"
 
                 datos_extraidos.update({
                     "solicitud": solicitud.id,
@@ -815,7 +813,6 @@ def guardar_documento(request):
                     "numero_operacion": generar_numero_operacion("DOC"),
                 })
 
-                # Convertir total a Decimal si no está limpio
                 try:
                     datos_extraidos["total"] = Decimal(str(datos_extraidos.get("total", "0")).replace("S/", "").replace("s/", "").strip())
                 except (InvalidOperation, TypeError):
@@ -831,7 +828,6 @@ def guardar_documento(request):
                 else:
                     print(f"❌ Error guardando documento página {pagina_idx+1}: {serializer.errors}")
 
-        # Actualizar estado de la solicitud
         if solicitud.estado == "Atendido, Pendiente de Liquidación":
             solicitud.estado = "Liquidación enviada para Aprobación"
             solicitud.save(update_fields=["estado"])
