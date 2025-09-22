@@ -383,6 +383,8 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
     if not texto:
         return "RAZÓN SOCIAL DESCONOCIDA"
 
+    import re
+
     texto_norm = re.sub(r"\s{2,}", " ", texto.strip())
     texto_norm = texto_norm.upper()
 
@@ -399,25 +401,26 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
 
     exclusiones = [r"V\s*&\s*C\s*CORPORATION", r"VC\s*CORPORATION", r"V\&C"]
     patron_exclusion = re.compile(
-        r"^(RUC|R\.U\.C|BOLETA|FACTURA|ELECTRONICA|ELECTRÓNICA|CLIENTE|DIRECCION|CAL|JR|AV|PSJE|MZA|LOTE|ASC|TELF|CIUDAD|PROV)",
+        r"^(RUC|R\.U\.C|BOLETA|FACTURA|ELECTRONICA|ELECTRÓNICA|CLIENTE|DIRECCION|OFICINA|CAL|JR|AV|PSJE|MZA|LOTE|ASC|TELF|CIUDAD|PROV)",
         flags=re.IGNORECASE
     )
 
+    # 🔹 Preliminar: limpiar cada línea
     nuevas_lineas = []
     for l in lineas:
         # Cortar en RUC en cualquiera de sus variantes
         l = re.split(r"R\.?\s*U\.?\s*C.*", l)[0].strip()
-        # Cortar en número de documento (ej. F001-, B001-), pero conservar lo previo
+        # Cortar en número de documento (ej. F001-, B001-)
         l = re.split(r"\b[FBE]\d{3,}-\d+", l)[0].strip()
-        # Quitar basura FACTURA/BOLETA/ELECTRONICA solo si la línea es solo eso
-        if re.fullmatch(r"(FACTURA|BOLETA|ELECTRONICA|ELECTRÓNICA)", l):
-            continue
+        # Quitar palabras basura FACTURA/BOLETA/ELECTRONICA
+        l = re.sub(r"\b(FACTURA|BOLETA|ELECTRONICA|ELECTRÓNICA)\b", "", l).strip()
         if ruc:
             l = l.replace(ruc, "").strip()
         if l:
             nuevas_lineas.append(l)
     lineas = nuevas_lineas
 
+    # 🔹 Filtrar válidas
     lineas_validas = [
         l for l in lineas[:30]
         if not any(re.search(pat, l, flags=re.IGNORECASE) for pat in exclusiones)
@@ -433,31 +436,33 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
 
     razon_social = None
 
-    # 1️⃣ Buscar línea con terminación legal
+    # 1️⃣ Buscar línea con terminación legal directa
     for linea in lineas_validas:
         if any(re.search(term, linea) for term in terminaciones):
             razon_social = linea.strip()
             break
 
-    # 2️⃣ Reconstrucción multinea tolerante (salta ruido en medio)
-    if not razon_social and len(lineas_validas) >= 2:
-        for i in range(len(lineas_validas) - 1):
-            joined = " ".join(lineas_validas[i:i+3])  # unir hasta 3 seguidas
+    # 2️⃣ Reconstrucción: juntar líneas previas + terminación legal
+    if not razon_social and len(lineas_validas) > 1:
+        for i in range(len(lineas_validas)-1):
+            combinado = " ".join(lineas_validas[i:i+3])  # unir hasta 3 seguidas
             for term in terminaciones:
-                if re.search(term, joined):
-                    razon_social = re.sub(r"\s+", " ", joined).strip()
+                if re.search(term, combinado):
+                    razon_social = re.sub(r"\s+", " ", combinado).strip()
                     break
             if razon_social:
                 break
 
-    # 3️⃣ Fallback: tomar la primera línea larga y sin dirección
-    if not razon_social and lineas_validas:
-        razon_social = max(lineas_validas, key=len)
+    # 3️⃣ Fallback: buscar línea con mayúsculas largas (ej. RIMAC SEGUROS Y REASEGUROS)
+    if not razon_social:
+        candidatos = [l for l in lineas_validas if len(l.split()) >= 2]
+        if candidatos:
+            razon_social = max(candidatos, key=len)
 
     # 🔹 Limpieza final
     if razon_social:
         razon_social = re.sub(r"[\s,:;\-]*(R\.?\s*U\.?\s*C.*)+$", "", razon_social).strip()
-        razon_social = re.sub(r"\b(FACTURA|BOLETA|ELECTRONICA|ELECTRÓNICA)\b", "", razon_social).strip()
+        razon_social = re.sub(r"\b(FACTURA|BOLETA|ELECTRONICA|ELECTRÓNICA|OFICINA)\b", "", razon_social).strip()
         if ruc:
             razon_social = razon_social.replace(ruc, "").strip()
 
