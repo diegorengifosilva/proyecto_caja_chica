@@ -489,7 +489,7 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
         "20100053361": "SERVICIO NACIONAL DE SANIDAD AGRARIA (SENASA)",
         "20100054532": "INSTITUTO NACIONAL DE DEFENSA CIVIL (INDECI)",
         "20100052370": "POLICÍA NACIONAL DEL PERÚ",
-        "20100041953": "ESSALUD – SEGURO SOCIAL DE SALUD",
+        "20131257750": "ESSALUD – SEGURO SOCIAL DE SALUD",
         "20505208626": "SIS – SEGURO INTEGRAL DE SALUD",
 
         # --- Tiendas ---
@@ -517,7 +517,6 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
         "20536550783": "URBANO EXPRESS PERÚ S.A.C.",
         "20601997772": "AMAZON COURIER PERÚ S.A.C.",
     }
-
 
     if ruc and ruc in ruc_mapeo:
         return ruc_mapeo[ruc]

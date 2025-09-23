@@ -9,7 +9,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import ChartWrapped, { tooltipFormatter, radialTooltipFormatter } from "@/components/ui/ChartWrapped";
+import ChartWrapped from "@/components/ui/ChartWrapped";
 import { BarChart2 } from "lucide-react";
 
 export default function GraficoComparativoMensual({ data }) {

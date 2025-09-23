@@ -7,7 +7,7 @@ import {
   ResponsiveContainer,
   Tooltip as RechartsTooltip,
 } from "recharts";
-import ChartWrapped, { tooltipFormatter, radialTooltipFormatter } from "@/components/ui/ChartWrapped";
+import ChartWrapped from "@/components/ui/ChartWrapped";
 import { ChartPie } from "lucide-react";
 
 // Colores predefinidos para las categorías
