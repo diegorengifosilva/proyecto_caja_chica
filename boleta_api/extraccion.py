@@ -446,6 +446,8 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
 
     # 🔹 Diccionario de RUC conocidos (se mantiene como respaldo)
     ruc_mapeo = {
+        "20600082524": "CONSULTORIO DENTAL ACEVEDO EMPRESA INDIVIDUAL DE RESPONSABILIDAD LIMITADA",
+        "15606834117": "ACEVEDO PEREZ RONALD DAVID",
         # --- Aseguradoras ---
         "20100041953": "RIMAC SEGUROS Y REASEGUROS S.A.",
         "20332970411": "PACÍFICO COMPAÑÍA DE SEGUROS Y REASEGUROS S.A.",
