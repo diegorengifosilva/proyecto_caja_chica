@@ -10,7 +10,7 @@ const FilterCard = ({ children, className = "", title, icon }) => {
       transition={{ duration: 0.4, ease: "easeOut" }}
       className={cn(
         `
-          bg-white rounded-2xl border border-gray-200 shadow-sm
+          bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm
           w-full
           p-3 sm:p-4 md:p-6
           flex flex-col
@@ -24,10 +24,11 @@ const FilterCard = ({ children, className = "", title, icon }) => {
           className="
             flex items-center gap-2
             text-sm sm:text-base md:text-lg lg:text-xl
-            font-semibold text-gray-800 mb-3 sm:mb-4
+            font-semibold text-gray-800 dark:text-gray-100
+            mb-3 sm:mb-4
           "
         >
-          {icon && <span className="text-gray-500">{icon}</span>}
+          {icon && <span className="text-gray-500 dark:text-gray-400">{icon}</span>}
           {title}
         </h3>
       )}
@@ -36,10 +37,12 @@ const FilterCard = ({ children, className = "", title, icon }) => {
       <div
         className="
           grid 
-          grid-cols-2            /* en móviles → 2 columnas */
+          grid-cols-1            /* móviles → 1 filtro por fila para no apretar */
+          xs:grid-cols-2         /* móviles grandes → 2 columnas */
           sm:grid-cols-2         /* tablets → 2 columnas */
           md:grid-cols-3         /* laptops → 3 columnas */
-          xl:grid-cols-4         /* pantallas grandes → 4 columnas */
+          lg:grid-cols-4         /* pantallas grandes → 4 columnas */
+          2xl:grid-cols-6        /* ultra anchas → 6 columnas */
           gap-3 sm:gap-4 md:gap-6
           w-full
         "

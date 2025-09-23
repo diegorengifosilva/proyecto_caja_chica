@@ -140,67 +140,61 @@ export default function LiquidacionesPendientes() {
 
         {/* Filtros */}
         <FilterCard title="Filtros" icon={<Filter size={16} />} className="mb-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 md:gap-5 w-full">
-            
-            {/* Solicitante */}
-            <div className="flex flex-col w-full">
-              <label className="text-[10px] sm:text-xs md:text-sm font-semibold text-gray-600 mb-1 flex items-center gap-1">
-                <span className="w-2 h-2 bg-blue-500 rounded-full"></span> Solicitante
-              </label>
-              <select
-                value={filtroSolicitante}
-                onChange={(e) => setFiltroSolicitante(e.target.value)}
-                className="border rounded-lg px-2 py-2 text-xs sm:text-sm md:text-base w-full focus:ring-2 focus:ring-blue-400 focus:outline-none"
-              >
-                <option value="">Todos</option>
-                {solicitantes.map((sol) => (
-                  <option key={sol} value={sol}>
-                    {sol}
-                  </option>
-                ))}
-              </select>
+          {/* Solicitante */}
+          <div className="flex flex-col w-full">
+            <label className="text-[10px] sm:text-xs md:text-sm font-semibold text-gray-600 mb-1 flex items-center gap-1">
+              <span className="w-2 h-2 bg-blue-500 rounded-full"></span> Solicitante
+            </label>
+            <select
+              value={filtroSolicitante}
+              onChange={(e) => setFiltroSolicitante(e.target.value)}
+              className="border rounded-lg px-2 py-2 text-xs sm:text-sm md:text-base w-full focus:ring-2 focus:ring-blue-400 focus:outline-none"
+            >
+              <option value="">Todos</option>
+              {solicitantes.map((sol) => (
+                <option key={sol} value={sol}>
+                  {sol}
+                </option>
+              ))}
+            </select>
+          </div>
+          {/* Tipo */}
+          <div className="flex flex-col w-full">
+            <label className="text-[10px] sm:text-xs md:text-sm font-semibold text-gray-600 mb-1 flex items-center gap-1">
+              <span className="w-2 h-2 bg-green-500 rounded-full"></span> Tipo
+            </label>
+            <select
+              value={filtroTipo}
+              onChange={(e) => setFiltroTipo(e.target.value)}
+              className="border rounded-lg px-2 py-2 text-xs sm:text-sm md:text-base w-full focus:ring-2 focus:ring-green-400 focus:outline-none"
+            >
+              <option value="">Todos</option>
+              {Object.keys(TYPE_COLORS).map((tipo) => (
+                <option key={tipo} value={tipo}>
+                  {tipo}
+                </option>
+              ))}
+            </select>
+          </div>
+          {/* Rango de Fechas → que ocupe 2 columnas en pantallas chicas */}
+          <div className="flex flex-col w-full sm:col-span-2 md:col-span-1">
+            <label className="text-[10px] sm:text-xs md:text-sm font-semibold text-gray-600 mb-1 flex items-center gap-1">
+              <span className="w-2 h-2 bg-purple-500 rounded-full"></span> Rango de Fechas
+            </label>
+            <div className="flex flex-col sm:flex-row gap-2 w-full">
+              <input
+                type="date"
+                value={fechaInicio}
+                onChange={(e) => setFechaInicio(e.target.value)}
+                className="border rounded-lg px-2 py-2 text-xs sm:text-sm md:text-base w-full sm:w-1/2 focus:ring-2 focus:ring-purple-400 focus:outline-none"
+              />
+              <input
+                type="date"
+                value={fechaFin}
+                onChange={(e) => setFechaFin(e.target.value)}
+                className="border rounded-lg px-2 py-2 text-xs sm:text-sm md:text-base w-full sm:w-1/2 focus:ring-2 focus:ring-purple-400 focus:outline-none"
+              />
             </div>
-
-            {/* Tipo */}
-            <div className="flex flex-col w-full">
-              <label className="text-[10px] sm:text-xs md:text-sm font-semibold text-gray-600 mb-1 flex items-center gap-1">
-                <span className="w-2 h-2 bg-green-500 rounded-full"></span> Tipo
-              </label>
-              <select
-                value={filtroTipo}
-                onChange={(e) => setFiltroTipo(e.target.value)}
-                className="border rounded-lg px-2 py-2 text-xs sm:text-sm md:text-base w-full focus:ring-2 focus:ring-green-400 focus:outline-none"
-              >
-                <option value="">Todos</option>
-                {Object.keys(TYPE_COLORS).map((tipo) => (
-                  <option key={tipo} value={tipo}>
-                    {tipo}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Rango de Fechas */}
-            <div className="flex flex-col w-full sm:col-span-2 md:col-span-1">
-              <label className="text-[10px] sm:text-xs md:text-sm font-semibold text-gray-600 mb-1 flex items-center gap-1">
-                <span className="w-2 h-2 bg-purple-500 rounded-full"></span> Rango de Fechas
-              </label>
-              <div className="flex flex-col sm:flex-row gap-2 w-full">
-                <input
-                  type="date"
-                  value={fechaInicio}
-                  onChange={(e) => setFechaInicio(e.target.value)}
-                  className="border rounded-lg px-2 py-2 text-xs sm:text-sm md:text-base w-full sm:w-1/2 focus:ring-2 focus:ring-purple-400 focus:outline-none"
-                />
-                <input
-                  type="date"
-                  value={fechaFin}
-                  onChange={(e) => setFechaFin(e.target.value)}
-                  className="border rounded-lg px-2 py-2 text-xs sm:text-sm md:text-base w-full sm:w-1/2 focus:ring-2 focus:ring-purple-400 focus:outline-none"
-                />
-              </div>
-            </div>
-            
           </div>
         </FilterCard>
 

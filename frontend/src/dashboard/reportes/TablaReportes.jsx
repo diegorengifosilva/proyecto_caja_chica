@@ -2,6 +2,8 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { FileText, Eye } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import Table from "@/components/ui/table";
 
 const COLORS = {
   categorias: {
@@ -15,70 +17,85 @@ const COLORS = {
 
 export default function TablaReportes({ data = [], abrirModal }) {
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-md p-6 overflow-x-auto">
+    <motion.div
+      whileHover={{ scale: 1.01 }}
+      className="bg-white dark:bg-gray-800 rounded-2xl shadow-md p-6"
+    >
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200 flex items-center gap-2">
-          <FileText size={18} />
-          Detalle de Reportes
+          <FileText size={18} /> Detalle de Reportes
         </h3>
         <div className="text-sm text-gray-500 dark:text-gray-400">
           Total: {data.length}
         </div>
       </div>
 
-      {/* Tabla */}
-      <table className="min-w-full table-auto rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
-        <thead className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-100 text-center">
-          <tr>
-            <th className="px-4 py-3">#</th>
-            <th className="px-4 py-3">Fecha</th>
-            <th className="px-4 py-3">Categoría</th>
-            <th className="px-4 py-3 hidden sm:table-cell">Descripción</th>
-            <th className="px-4 py-3">Monto</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.length === 0 && (
-            <tr>
-              <td colSpan={6} className="px-4 py-10 text-center text-gray-500 dark:text-gray-400">
-                No hay registros disponibles.
-              </td>
-            </tr>
-          )}
+      {/* Tabla unificada */}
+      <div className="overflow-x-auto max-h-[70vh] w-full">
+        <Table
+          headers={[
+            "#",
+            "Fecha",
+            "Categoría",
+            <span key="descripcion" className="hidden sm:table-cell">
+              Descripción
+            </span>,
+            "Monto",
+            <span key="accion" className="hidden md:table-cell">
+              Acción
+            </span>,
+          ]}
+          data={data}
+          emptyMessage="No hay registros disponibles."
+          renderRow={(item, index) => [
+            // Número
+            <span className="text-center font-semibold">{index + 1}</span>,
 
-          {data.map((item, index) => (
-            <motion.tr
-              key={item.id ?? index}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2 }}
-              className="border-t border-gray-100 dark:border-gray-700 hover:shadow-lg hover:translate-y-[-2px] hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-transform duration-200"
+            // Fecha
+            <span className="text-center">{item.fecha ?? "-"}</span>,
+
+            // Categoría
+            <span
+              className={`px-2 py-0.5 rounded-full text-xs sm:text-sm ${
+                COLORS.categorias[item.categoria] ?? COLORS.categorias["Otros"]
+              } text-center`}
             >
-              {/* Número secuencial */}
-              <td className="px-4 py-3 font-semibold">{index + 1}</td>
+              {item.categoria ?? "-"}
+            </span>,
 
-              {/* Fecha */}
-              <td className="px-4 py-3">{item.fecha ?? "-"}</td>
+            // Descripción
+            <span className="hidden sm:table-cell truncate sm:whitespace-normal max-w-[180px] text-center">
+              {item.descripcion ?? "-"}
+            </span>,
 
-              {/* Categoría con colores */}
-              <td className="px-4 py-3">
-                <span className={`text-xs px-2 py-1 rounded-full ${COLORS.categorias[item.categoria] ?? COLORS.categorias["Otros"]}`}>
-                  {item.categoria ?? "-"}
-                </span>
-              </td>
+            // Monto
+            <span className="text-center font-semibold">
+              S/ {item.monto?.toFixed(2) ?? "0.00"}
+            </span>,
 
-              {/* Descripción */}
-              <td className="px-4 py-3 hidden sm:table-cell">{item.descripcion ?? "-"}</td>
-
-              {/* Monto */}
-              <td className="px-4 py-3 font-semibold">
-                S/ {item.monto?.toFixed(2) ?? "0.00"}
-              </td>
-            </motion.tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+            // Acción
+            <div className="hidden md:flex justify-center">
+              <Button
+                variant="default"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  abrirModal?.(item);
+                }}
+                className="flex items-center gap-1 px-2 py-1"
+              >
+                <Eye className="w-4 h-4" /> Detalle
+              </Button>
+            </div>,
+          ]}
+          onRowClick={(item) => {
+            if (window.innerWidth < 768) {
+              abrirModal?.(item);
+            }
+          }}
+        />
+      </div>
+    </motion.div>
   );
 }
