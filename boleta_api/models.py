@@ -325,14 +325,18 @@ class CorreccionOCR(models.Model):
         return f"{self.campo} corregido: '{self.valor_original}' → '{self.valor_correccion}'"
 
 class RazonSocial(models.Model):
+    id = models.BigAutoField(primary_key=True)
     ruc = models.CharField(max_length=11, unique=True)
     razon_social = models.CharField(max_length=255)
+    estado = models.CharField(max_length=50, default="inicial")
+    fecha_creacion = models.DateTimeField(default=timezone.now)  # 👈 default seguro
 
     class Meta:
         db_table = "boleta_api_razonsocial"
 
     def __str__(self):
         return f"{self.ruc} - {self.razon_social}"
+
 
 #========================================================================================
 
