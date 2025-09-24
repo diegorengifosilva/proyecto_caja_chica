@@ -22,6 +22,7 @@ import {
   BadgeAlert,
   ClipboardList,
   FilePlus2,
+  Pencil,
 } from "lucide-react";
 import api from "@/services/api";
 import Table from "@/components/ui/table";
@@ -34,6 +35,10 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
   const [documentos, setDocumentos] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showSubirArchivoModal, setShowSubirArchivoModal] = useState(false);
+
+  // 👇 nuevos estados para edición
+  const [editingCell, setEditingCell] = useState(null); // { rowIndex, field }
+  const [isMobileEditing, setIsMobileEditing] = useState(false);
 
   if (!solicitud) return null;
 
@@ -60,6 +65,14 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
+  // 👇 actualizar campo editable
+  const handleUpdateField = (rowIndex, field, value) => {
+    const nuevosDocs = [...documentos];
+    nuevosDocs[rowIndex][field] = value;
+    setDocumentos(nuevosDocs);
+    setEditingCell(null);
+  };
+
   const handlePresentarLiquidacion = async () => {
     if (documentos.length === 0)
       return alert("⚠️ Agrega al menos un comprobante.");
@@ -73,7 +86,6 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
       const formData = new FormData();
       formData.append("solicitud_id", solicitud.id);
 
-      // Datos de los documentos (sin archivos)
       const documentosSinArchivo = documentos.map((doc) => ({
         tipo_documento: doc.tipo_documento,
         numero_documento: doc.numero_documento,
@@ -84,7 +96,6 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
       }));
       formData.append("documentos", JSON.stringify(documentosSinArchivo));
 
-      // Archivos con validación
       const validTypes = ["image/jpeg", "image/png", "application/pdf"];
       for (let doc of documentos) {
         if (doc.archivo instanceof File) {
@@ -104,7 +115,6 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
         }
       }
 
-      // POST con JWT
       const res = await api.post("/boleta/documentos/guardar/", formData, {
         headers: {
           "Content-Type": "multipart/form-data",
@@ -140,19 +150,54 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
               <CardContent className="p-4 space-y-2 text-sm sm:text-base">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                   {[
-                    { icon: <ClipboardList className="w-4 h-4 text-gray-800" />, label: "Solicitud", value: solicitud.numero_solicitud },
-                    { icon: <User className="w-4 h-4 text-gray-800" />, label: "Solicitante", value: solicitud.solicitante || "—" },
-                    { icon: <Tag className="w-4 h-4 text-gray-800" />, label: "Tipo", value: solicitud.tipo_solicitud || "—" },
-                    { icon: <WalletMinimal className="w-4 h-4 text-gray-800" />, label: "Monto Soles (S/.)", value: solicitud.total_soles || solicitud.monto || "—" },
-                    { icon: <DollarSign className="w-4 h-4 text-gray-800" />, label: "Monto Dólares ($)", value: solicitud.total_dolares || "—" },
-                    { icon: <Calendar className="w-4 h-4 text-gray-800" />, label: "Fecha", value: solicitud.fecha || "—" },
-                    { icon: <BadgeAlert className="w-4 h-4 text-gray-800" />, label: "Estado", value: solicitud.estado || "Pendiente", full: true },
+                    {
+                      icon: <ClipboardList className="w-4 h-4 text-gray-800" />,
+                      label: "Solicitud",
+                      value: solicitud.numero_solicitud,
+                    },
+                    {
+                      icon: <User className="w-4 h-4 text-gray-800" />,
+                      label: "Solicitante",
+                      value: solicitud.solicitante || "—",
+                    },
+                    {
+                      icon: <Tag className="w-4 h-4 text-gray-800" />,
+                      label: "Tipo",
+                      value: solicitud.tipo_solicitud || "—",
+                    },
+                    {
+                      icon: <WalletMinimal className="w-4 h-4 text-gray-800" />,
+                      label: "Monto Soles (S/.)",
+                      value: solicitud.total_soles || solicitud.monto || "—",
+                    },
+                    {
+                      icon: <DollarSign className="w-4 h-4 text-gray-800" />,
+                      label: "Monto Dólares ($)",
+                      value: solicitud.total_dolares || "—",
+                    },
+                    {
+                      icon: <Calendar className="w-4 h-4 text-gray-800" />,
+                      label: "Fecha",
+                      value: solicitud.fecha || "—",
+                    },
+                    {
+                      icon: <BadgeAlert className="w-4 h-4 text-gray-800" />,
+                      label: "Estado",
+                      value: solicitud.estado || "Pendiente",
+                      full: true,
+                    },
                   ].map((item, idx) => (
                     <p
                       key={idx}
-                      className={`flex items-center gap-1 ${item.full ? "col-span-full sm:col-span-2 lg:col-span-3" : ""} break-words text-sm sm:text-base`}
+                      className={`flex items-center gap-1 ${
+                        item.full
+                          ? "col-span-full sm:col-span-2 lg:col-span-3"
+                          : ""
+                      } break-words text-sm sm:text-base`}
                     >
-                      {item.icon} <span className="font-semibold">{item.label}:</span> {item.value}
+                      {item.icon}{" "}
+                      <span className="font-semibold">{item.label}:</span>{" "}
+                      {item.value}
                     </p>
                   ))}
                 </div>
@@ -168,19 +213,31 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
                     Comprobantes OCR
                   </h3>
 
-                  <Button
-                    size="sm"
-                    onClick={() => setShowSubirArchivoModal(true)}
-                    fromColor="#8b5cf6"    // violeta inicial
-                    toColor="#a78bfa"       // violeta final
-                    hoverFrom="#7c3aed"     // hover inicial
-                    hoverTo="#6d28d9"       // hover final
-                    className="flex items-center gap-2 w-full sm:w-auto"
-                  >
-                    <Plus className="h-4 w-4" /> Agregar
-                  </Button>
+                  {/* Agregar */}
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => setShowSubirArchivoModal(true)}
+                      fromColor="#8b5cf6"
+                      toColor="#a78bfa"
+                      hoverFrom="#7c3aed"
+                      hoverTo="#6d28d9"
+                      className="flex items-center gap-2 w-full sm:w-auto"
+                    >
+                      <Plus className="h-4 w-4" /> Agregar
+                    </Button>
+
+                    {/* Botón edición solo en móvil */}
+                    <button
+                      className="sm:hidden p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition"
+                      onClick={() => setIsMobileEditing((prev) => !prev)}
+                    >
+                      <Pencil className="w-5 h-5 text-gray-600" />
+                    </button>
+                  </div>
                 </div>
 
+                {/* Tabla OCR */}
                 <div className="overflow-x-auto">
                   <Table
                     headers={[
@@ -191,22 +248,84 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
                       "RUC",
                       "Razón Social",
                       "Total",
-                    ]}
+                      isMobileEditing && "Acciones", // Solo se muestra en móvil
+                    ].filter(Boolean)}
                     data={documentos}
                     emptyMessage="No se han agregado comprobantes todavía."
-                    renderRow={(doc) => [
+                    renderRow={(doc, rowIndex) => [
+                      // nombre archivo (no editable)
                       <span
                         className="cursor-pointer text-blue-600 hover:underline whitespace-normal break-words text-center"
                         onClick={() => handleAbrirArchivo(doc.archivo)}
                       >
                         {doc.nombre_archivo}
                       </span>,
-                      <span className="text-center">{doc.numero_documento}</span>,
-                      <span className="text-center whitespace-normal break-words">{doc.tipo_documento}</span>,
-                      <span className="text-center">{doc.fecha}</span>,
-                      <span className="text-center">{doc.ruc}</span>,
-                      <span className="truncate sm:whitespace-normal max-w-[140px] text-center">{doc.razon_social}</span>,
-                      <span className="text-center">{doc.total}</span>,
+
+                      // campos editables
+                      [
+                        "numero_documento",
+                        "tipo_documento",
+                        "fecha",
+                        "ruc",
+                        "razon_social",
+                        "total",
+                      ].map((field) => (
+                        <span
+                          key={field}
+                          className={`text-center cursor-pointer ${
+                            !isMobileEditing && "hover:bg-gray-50"
+                          }`}
+                          onDoubleClick={() => {
+                            if (!isMobileEditing) setEditingCell({ rowIndex, field });
+                          }}
+                        >
+                          {editingCell?.rowIndex === rowIndex &&
+                          editingCell?.field === field ? (
+                            <input
+                              type="text"
+                              autoFocus
+                              defaultValue={doc[field]}
+                              className="border rounded px-2 py-1 text-sm w-full"
+                              onBlur={(e) => handleUpdateField(rowIndex, field, e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  handleUpdateField(rowIndex, field, e.target.value);
+                                }
+                              }}
+                            />
+                          ) : (
+                            doc[field]
+                          )}
+                        </span>
+                      )),
+
+                      // botón editar en mobile
+                      isMobileEditing && (
+                        <button
+                          onClick={() =>
+                            setEditingCell({
+                              rowIndex,
+                              field: "numero_documento", // empieza editando el primer campo
+                            })
+                          }
+                          className="text-blue-600 hover:text-blue-800 flex items-center justify-center"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-4 w-4"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M15.232 5.232l3.536 3.536M4 13.5V19h5.5l9.732-9.732a1 1 0 00-1.414-1.414L8.5 17.5H4z"
+                            />
+                          </svg>
+                        </button>
+                      ),
                     ]}
                     onDeleteRow={(doc) => handleEliminarDocumento(doc)}
                   />
@@ -224,10 +343,10 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
           <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-4">
             <Button
               onClick={onClose}
-              fromColor="#f87171"      // rojo inicial
-              toColor="#ef4444"        // rojo final
-              hoverFrom="#ef4444"      // hover inicial
-              hoverTo="#dc2626"        // hover final
+              fromColor="#f87171"
+              toColor="#ef4444"
+              hoverFrom="#ef4444"
+              hoverTo="#dc2626"
               className="flex items-center gap-2 w-full sm:w-auto"
             >
               <X className="w-4 h-4" /> Cancelar
@@ -236,13 +355,14 @@ const PresentarDocumentacionModal = ({ open, onClose, solicitud }) => {
             <Button
               onClick={handlePresentarLiquidacion}
               disabled={loading || documentos.length === 0}
-              fromColor="#60a5fa"      // azul inicial
-              toColor="#3b82f6"        // azul final
-              hoverFrom="#3b82f6"      // hover inicial
-              hoverTo="#2563eb"        // hover final
+              fromColor="#60a5fa"
+              toColor="#3b82f6"
+              hoverFrom="#3b82f6"
+              hoverTo="#2563eb"
               className="flex items-center gap-2 w-full sm:w-auto"
             >
-              <Send className="w-4 h-4" /> {loading ? "Presentando..." : "Presentar Liquidación"}
+              <Send className="w-4 h-4" />{" "}
+              {loading ? "Presentando..." : "Presentar Liquidación"}
             </Button>
           </DialogFooter>
         </DialogContent>

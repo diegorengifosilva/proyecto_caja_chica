@@ -159,8 +159,6 @@ def debug_tesseract():
 if platform.system() != "Windows":
     debug_tesseract()
 
-
-
 PLANTILLAS_DIR = os.path.join(os.path.dirname(__file__), "plantillas")
 
 # ===== Obtener y asegurar token CSRF =====

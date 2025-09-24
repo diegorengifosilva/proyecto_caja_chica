@@ -4,6 +4,8 @@ import os
 import requests
 import unicodedata
 import pytesseract
+import psycopg2
+from urllib.parse import urlparse
 from typing import Optional, Dict, List, Union, Tuple
 from datetime import datetime, date, timedelta
 from django.db import transaction
@@ -438,109 +440,41 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
     if not texto:
         return "RAZÓN SOCIAL DESCONOCIDA"
 
-    import re
+    # 🔹 Normalizar texto
+    texto_norm = re.sub(r"\s{2,}", " ", texto.strip()).upper()
 
-    # 🔹 Normalizar
-    texto_norm = re.sub(r"\s{2,}", " ", texto.strip())
-    texto_norm = texto_norm.upper()
+    # 1️⃣ Buscar en la base de datos primero
+    razon_social_db = None
+    if ruc:
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT razon_social FROM boleta_api_razonsocial WHERE ruc = %s LIMIT 1;", (ruc,))
+                row = cur.fetchone()
+                if row:
+                    razon_social_db = row[0].strip()
+                    if debug:
+                        print("🔹 Razón Social desde DB:", razon_social_db)
+        except Exception as e:
+            print("Error al consultar DB:", e)
 
-    # 🔹 Diccionario de RUC conocidos (se mantiene como respaldo)
-    ruc_mapeo = {
-        "20600082524": "CONSULTORIO DENTAL ACEVEDO EMPRESA INDIVIDUAL DE RESPONSABILIDAD LIMITADA",
-        "15606834117": "ACEVEDO PEREZ RONALD DAVID",
-        # --- Aseguradoras ---
-        "20100041953": "RIMAC SEGUROS Y REASEGUROS S.A.",
-        "20332970411": "PACÍFICO COMPAÑÍA DE SEGUROS Y REASEGUROS S.A.",
-        "20418896915": "MAPFRE PERÚ COMPAÑÍA DE SEGUROS Y REASEGUROS S.A.",
-        "20431115825": "PACIFICO S.A. ENT. PRESTADORA DE SALUD",
-        "20100210909": "LA POSITIVA SEGUROS Y REASEGUROS S.A.A.",
-        "20390625007": "CHUBB PERÚ S.A. COMPAÑÍA DE SEGUROS Y REASEGUROS",
-        "20382748566": "INTERSEGURO COMPAÑÍA DE SEGUROS S.A.",
-        "20513328819": "BNP PARIBAS CARDIF S.A. COMPAÑÍA DE SEGUROS Y REASEGUROS",
+    if razon_social_db:
+        return razon_social_db
 
-        # --- Universidades ---
-        "20155945860": "PONTIFICIA UNIVERSIDAD CATÓLICA DEL PERÚ",
-        "20107798049": "UNIVERSIDAD DE LIMA",
-        "20110768151": "UNIVERSIDAD PERUANA CAYETANO HEREDIA",
-        "20211614545": "UNIVERSIDAD PERUANA DE CIENCIAS APLICADAS S.A.C.",
-        "20462509236": "UNIVERSIDAD TECNOLÓGICA DEL PERÚ S.A.C.",
-        "20148092282": "UNIVERSIDAD NACIONAL MAYOR DE SAN MARCOS",
-        "20145561095": "UNIVERSIDAD NACIONAL FEDERICO VILLARREAL",
-        "20131376503": "UNIVERSIDAD NACIONAL AGRARIA LA MOLINA",
-        "20100051897": "UNIVERSIDAD NACIONAL DE INGENIERÍA",
-
-        # --- Bancos ---
-        "20100047218": "BANCO DE CRÉDITO DEL PERÚ S.A.",
-        "20100043140": "SCOTIABANK PERÚ S.A.A.",
-        "20100130204": "BANCO BBVA PERÚ",
-        "20330401991": "BANCO FALABELLA PERÚ S.A.",
-        "20101036813": "BANCO INTERAMERICANO DE FINANZAS S.A.",
-        "20100105862": "BANCO PICHINCHA S.A.",
-        "20255993225": "FINANCIERA SANTANDER CONSUMER S.A.",
-        "20382036655": "MIBANCO – BANCO DE LA MICROEMPRESA S.A.",
-        "20100116635": "CITIBANK DEL PERÚ S.A.",
-        "20100030595": "BANCO DE LA NACIÓN",
-
-        # --- Instituciones ---
-        "20100031287": "SUPERINTENDENCIA NACIONAL DE ADUANAS Y DE ADMINISTRACIÓN TRIBUTARIA (SUNAT)",
-        "20100053265": "SUPERINTENDENCIA DE BANCA, SEGUROS Y AFP (SBS)",
-        "20100028152": "MINISTERIO DE SALUD (MINSA)",
-        "20100061127": "MINISTERIO DE EDUCACIÓN (MINEDU)",
-        "20100053361": "SERVICIO NACIONAL DE SANIDAD AGRARIA (SENASA)",
-        "20100054532": "INSTITUTO NACIONAL DE DEFENSA CIVIL (INDECI)",
-        "20100052370": "POLICÍA NACIONAL DEL PERÚ",
-        "20131257750": "ESSALUD – SEGURO SOCIAL DE SALUD",
-        "20505208626": "SIS – SEGURO INTEGRAL DE SALUD",
-
-        # --- Tiendas ---
-        "20100049181": "TAI LOY S.A.",
-        "20608300393": "COMPAÑÍA FOOD RETAIL S.A.C.",
-        "20109072177": "CENCOSUD RETAIL PERÚ S.A.",
-        "20508565934": "HIPERMERCADOS TOTTUS S.A.",
-
-        # --- Transporte ---
-        "20512528458": "SHALOM EMPRESARIAL S.A.C.",
-        "20100227461": "TRANSPORTES CRUZ DEL SUR S.A.C.",
-        "20555901179": "MOVIL BUS S.A.C.",
-        "20106076635": "EMPRESA DE TRANSPORTES PERU BUS S.A.",
-        "20100059918": "EMPRESA DE TRANSPORTES TEPSA S.A.",
-        "20100088917": "OLTURSA S.A.C.",
-        "20600411226": "EMPRESA DE TRANSPORTES JULI BUSS S.A.C.",
-        "20221304552": "EMPRESA DE TRANSPORTE EL HUARALINO S.A.C.",
-
-        # --- Courier ---
-        "20100686814": "OLVA COURIER S.A.C.",
-        "20101128777": "DHL EXPRESS PERÚ S.A.C.",
-        "20110964928": "SCHARFF INTERNATIONAL COURIER & CARGO S.A.",
-        "20463958590": "SCHARFF LOGÍSTICA INTEGRADA S.A.",
-        "20100199781": "SERVICIOS POSTALES DEL PERÚ S.A. (SERPOST)",
-        "20536550783": "URBANO EXPRESS PERÚ S.A.C.",
-        "20601997772": "AMAZON COURIER PERÚ S.A.C.",
-    }
-
-    if ruc and ruc in ruc_mapeo:
-        return ruc_mapeo[ruc]
-
-    # 🔹 Reemplazos OCR típicos
+    # 2️⃣ Si no está en DB → intentar extraer con OCR/regex como ya tienes
     reemplazos = {
         "5,A,": "S.A.", "5A": "S.A.", "5.A": "S.A.", "5 ,A": "S.A.",
         "$.A.C": "S.A.C", "S , A": "S.A", "S . A . C": "S.A.C", "S . A": "S.A",
         "3.A.C.": "S.A.C", "SA.": "S.A.", "SAC.": "S.A.C",
-        "E.I.R.L.": "E.I.R.L", "EIRL.": "E.I.R.L",
+        "E.I.R.L.": "E.I.R.L", "EIRL.": "S.A.C",
     }
     for k, v in reemplazos.items():
         texto_norm = texto_norm.replace(k, v)
 
-    # 🔹 Quitar palabras basura frecuentes
     texto_norm = re.sub(r"\b(FACTURA|BOLETA|ELECTRONICA|ELECTRÓNICA|RAZ\.?SOCIAL:?)\b", "", texto_norm, flags=re.IGNORECASE)
-
-    # 🔹 Dividir líneas y limpiar
     lineas = [l.strip(" ,.-") for l in texto_norm.splitlines() if l.strip()]
 
-    # 🔹 Excluir líneas que no son razón social
-    exclusiones = [r"V\s*&\s*C\s*CORPORATION", r"VC\s*CORPORATION", r"V\&C"]
     patron_exclusion = re.compile(
-        r"^(RUC|R\.U\.C|CLIENTE|DIRECCION|OFICINA|CAL|JR|AV|PSJE|MZA|LOTE|ASC|TELF|CIUDAD|PROV)",
+        r"^(RUC|CLIENTE|DIRECCION|OFICINA|CAL|JR|AV|PSJE|MZA|LOTE|TELF|CIUDAD|PROV)",
         flags=re.IGNORECASE
     )
 
@@ -555,14 +489,11 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
             nuevas_lineas.append(l)
     lineas = nuevas_lineas
 
-    # 🔹 Filtrar válidas
     lineas_validas = [
         l for l in lineas[:30]
-        if not any(re.search(pat, l, flags=re.IGNORECASE) for pat in exclusiones)
-        and not patron_exclusion.match(l)
+        if not patron_exclusion.match(l)
     ]
 
-    # 🔹 Terminaciones legales / institucionales
     terminaciones = [
         r"S\.?A\.?C\.?$", r"S\.?A\.?$", r"E\.?I\.?R\.?L\.?$",
         r"SOCIEDAD ANONIMA CERRADA$", r"SOCIEDAD ANONIMA$",
@@ -572,14 +503,11 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
     ]
 
     razon_social = None
-
-    # 1️⃣ Coincidencia en una sola línea
     for linea in lineas_validas:
         if any(re.search(term, linea) for term in terminaciones):
             razon_social = linea.strip()
             break
 
-    # 2️⃣ Reconstrucción multi-línea (ej: CONSULTORIO DENTAL ACEVEDO EMPRESA... RESPONSABILIDAD LIMITADA)
     if not razon_social and len(lineas_validas) > 1:
         for i in range(len(lineas_validas)-1):
             combinado = " ".join(lineas_validas[i:i+3])
@@ -590,13 +518,11 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
             if razon_social:
                 break
 
-    # 3️⃣ Fallback: línea válida más larga
     if not razon_social:
         candidatos = [l for l in lineas_validas if len(l.split()) >= 2]
         if candidatos:
             razon_social = max(candidatos, key=len)
 
-    # 🔹 Limpieza final
     if razon_social:
         razon_social = re.sub(r"[\s,:;\-]*(R\.?\s*U\.?\s*C.*)+$", "", razon_social).strip()
         if ruc:
@@ -605,7 +531,7 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
     resultado = razon_social if razon_social else "RAZÓN SOCIAL DESCONOCIDA"
 
     if debug:
-        print("🔹 Razón Social detectada:", resultado)
+        print("🔹 Razón Social detectada (OCR/Regex):", resultado)
 
     return resultado
 
@@ -675,6 +601,28 @@ def detectar_total(texto: str) -> str:
         return f"{max(montos).quantize(Decimal('0.00'))}"
 
     return "0.00"
+
+# ============#
+# CONECTAR DB #
+# ============#
+# Detectar si estamos en local o producción
+DATABASE_URL = os.environ.get(
+    "DATABASE_URL",  
+    "postgres://boleta_user:270509@localhost:5432/proyecto_db"  # fallback local
+)
+
+# 🔹 Parsear la URL (postgres://...)
+result = urlparse(DATABASE_URL)
+
+# 🔹 Conexión global a PostgreSQL
+conn = psycopg2.connect(
+    dbname=result.path[1:],  # quita el "/"
+    user=result.username,
+    password=result.password,
+    host=result.hostname,
+    port=result.port,
+    sslmode="require" if "render.com" in result.hostname else "prefer"
+)
 
 # ==========================#
 # PROCESAMIENTO GENERAL OCR #
