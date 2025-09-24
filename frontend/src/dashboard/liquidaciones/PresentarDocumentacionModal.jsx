@@ -23,6 +23,7 @@ import {
   ClipboardList,
   FilePlus2,
   Pencil,
+  Check
 } from "lucide-react";
 import api from "@/services/api";
 import Table from "@/components/ui/table";
@@ -37,15 +38,17 @@ export default function PresentarDocumentacionModal({ open, onClose, solicitud }
   const [showSubirArchivoModal, setShowSubirArchivoModal] = useState(false);
 
   // edición controlada
-  const [editingCells, setEditingCells] = useState({}); // keys like "2_numero_documento": true
-  const [editingValues, setEditingValues] = useState({}); // { "2_numero_documento": "..." }
-  const [editingRow, setEditingRow] = useState(null); // index -> edición por fila (móvil)
+  const [editingCells, setEditingCells] = useState({});
+  const [editingValues, setEditingValues] = useState({});
+  const [editingRow, setEditingRow] = useState(null);
   const [isMobileEditing, setIsMobileEditing] = useState(false);
   const [isMobileView, setIsMobileView] = useState(false);
+  const [editingCell, setEditingCell] = useState(null); // { rowIndex, field, value }
 
-  // detectar mobile (para UX)
+  // detectar mobile
   useEffect(() => {
-    const check = () => setIsMobileView(typeof window !== "undefined" ? window.innerWidth < 768 : false);
+    const check = () =>
+      setIsMobileView(typeof window !== "undefined" ? window.innerWidth < 768 : false);
     check();
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
@@ -57,9 +60,8 @@ export default function PresentarDocumentacionModal({ open, onClose, solicitud }
     return { totalSoles: totalS, totalDolares: totalS / TIPO_CAMBIO };
   }, [documentos]);
 
-  // llamada desde SubirArchivoModal -> agrega doc
+  // agregar doc
   const handleArchivoSubido = (doc) => {
-    // doc expected to include: nombre_archivo, tipo_documento, numero_documento, fecha, ruc, razon_social, total, archivo
     setDocumentos((prev) => [...prev, doc]);
     console.log("✅ Documento agregado:", doc);
   };
@@ -74,102 +76,62 @@ export default function PresentarDocumentacionModal({ open, onClose, solicitud }
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
-  // helpers para keys
+  // helpers
   const keyFor = (rowIndex, field) => `${rowIndex}_${field}`;
 
-  // iniciar edición de una celda (toggle)
-  const toggleEditCell = (rowIndex, field) => {
-    const key = keyFor(rowIndex, field);
-    setEditingCells((prev) => {
-      const next = { ...prev };
-      if (next[key]) {
-        // si ya estaba, cancelar (y quitar valor temporal)
-        delete next[key];
-        setEditingValues((ev) => {
-          const copy = { ...ev };
-          delete copy[key];
-          return copy;
-        });
-      } else {
-        next[key] = true;
-        setEditingValues((ev) => ({ ...ev, [key]: documentos[rowIndex]?.[field] ?? "" }));
-      }
-      return next;
-    });
-  };
-
-  // abrir edición para fila (mobile)
+  // abrir edición de fila (mobile)
   const startEditingRow = (rowIndex) => {
     setEditingRow(rowIndex);
-    // precargar todos los campos de esa fila
-    const fields = ["numero_documento","tipo_documento","fecha","ruc","razon_social","total"];
+    const fields = ["numero_documento", "tipo_documento", "fecha", "ruc", "razon_social", "total"];
     setEditingValues((ev) => {
       const copy = { ...ev };
       fields.forEach((f) => {
         copy[keyFor(rowIndex, f)] = documentos[rowIndex]?.[f] ?? "";
-        copy[keyFor(rowIndex, f) + "_rowmode"] = true; // helper flag (no usado ampliamente)
       });
-      return copy;
-    });
-  };
-
-  const cancelEditCell = (rowIndex, field) => {
-    const key = keyFor(rowIndex, field);
-    setEditingCells((prev) => {
-      const next = { ...prev };
-      delete next[key];
-      return next;
-    });
-    setEditingValues((ev) => {
-      const copy = { ...ev };
-      delete copy[key];
       return copy;
     });
   };
 
   const cancelEditRow = () => {
     if (editingRow === null) return;
-    // remove all editingValues keys for that row
     const row = editingRow;
     setEditingValues((ev) => {
       const copy = { ...ev };
-      ["numero_documento","tipo_documento","fecha","ruc","razon_social","total"].forEach((f) => {
-        delete copy[keyFor(row, f)];
-        delete copy[keyFor(row, f) + "_rowmode"];
-      });
+      ["numero_documento", "tipo_documento", "fecha", "ruc", "razon_social", "total"].forEach(
+        (f) => {
+          delete copy[keyFor(row, f)];
+        }
+      );
       return copy;
     });
     setEditingRow(null);
   };
 
-  // validaciones simples
+  // validaciones
   const validateField = (field, value) => {
     if (field === "total") {
       const parsed = parseFloat(String(value).replace(",", "."));
-      if (isNaN(parsed) || parsed < 0) return { ok: false, msg: "Total debe ser un número válido mayor o igual a 0." };
+      if (isNaN(parsed) || parsed < 0)
+        return { ok: false, msg: "Total debe ser un número válido mayor o igual a 0." };
       return { ok: true, value: parsed };
     }
     if (field === "fecha") {
-      // permitimos yyyy-mm-dd (input date) o parseables
       const parsed = Date.parse(value);
       if (isNaN(parsed)) return { ok: false, msg: "Fecha inválida." };
-      // keep original string
       return { ok: true, value };
     }
     if (field === "ruc") {
       const digits = String(value).replace(/\D/g, "");
-      if (digits.length > 0 && digits.length < 8) return { ok: false, msg: "RUC muy corto (mínimo 8 dígitos)." };
+      if (digits.length > 0 && digits.length < 8)
+        return { ok: false, msg: "RUC muy corto (mínimo 8 dígitos)." };
       return { ok: true, value: digits || value };
     }
-    // otros campos: permitimos vacío
     return { ok: true, value };
   };
 
-  // guardar una celda editada
-  const saveCell = (rowIndex, field) => {
-    const key = keyFor(rowIndex, field);
-    const raw = editingValues[key];
-    const validation = validateField(field, raw);
+  // guardar una celda (desktop)
+  const handleUpdateField = (rowIndex, field, value) => {
+    const validation = validateField(field, value);
     if (!validation.ok) {
       alert("⚠️ " + validation.msg);
       return;
@@ -181,47 +143,34 @@ export default function PresentarDocumentacionModal({ open, onClose, solicitud }
       copy[rowIndex] = target;
       return copy;
     });
-    // limpiar
-    cancelEditCell(rowIndex, field);
   };
 
   // guardar fila completa (mobile)
   const saveRow = (rowIndex) => {
-    const fields = ["numero_documento","tipo_documento","fecha","ruc","razon_social","total"];
-    // validate all
+    const fields = ["numero_documento", "tipo_documento", "fecha", "ruc", "razon_social", "total"];
     for (let field of fields) {
-      const key = keyFor(rowIndex, field);
-      const raw = editingValues[key];
+      const raw = editingValues[keyFor(rowIndex, field)];
       const validation = validateField(field, raw);
       if (!validation.ok) {
         alert(`Fila: ${rowIndex + 1} -> ${validation.msg}`);
         return;
       }
     }
-    // commit
     setDocumentos((prev) => {
       const copy = [...prev];
       const target = { ...(copy[rowIndex] || {}) };
       fields.forEach((field) => {
-        const key = keyFor(rowIndex, field);
-        const raw = editingValues[key];
+        const raw = editingValues[keyFor(rowIndex, field)];
         const validation = validateField(field, raw);
         target[field] = validation.value;
       });
       copy[rowIndex] = target;
       return copy;
     });
-    // limpiar edición row
     cancelEditRow();
   };
 
-  // manejar cambio de input controlado
-  const handleEditingValueChange = (rowIndex, field, value) => {
-    const key = keyFor(rowIndex, field);
-    setEditingValues((prev) => ({ ...prev, [key]: value }));
-  };
-
-  // presentar liquidación (sin cambiar)
+  // presentar liquidación
   const handlePresentarLiquidacion = async () => {
     if (documentos.length === 0) return alert("⚠️ Agrega al menos un comprobante.");
 
@@ -255,7 +204,9 @@ export default function PresentarDocumentacionModal({ open, onClose, solicitud }
             return;
           }
           if (!validTypes.includes(doc.archivo.type)) {
-            alert(`⚠️ El archivo ${doc.archivo.name} no tiene un formato válido. Usa JPG, PNG o PDF.`);
+            alert(
+              `⚠️ El archivo ${doc.archivo.name} no tiene un formato válido. Usa JPG, PNG o PDF.`
+            );
             setLoading(false);
             return;
           }
@@ -281,7 +232,6 @@ export default function PresentarDocumentacionModal({ open, onClose, solicitud }
     }
   };
 
-  // render
   if (!solicitud) return null;
 
   return (
@@ -376,79 +326,28 @@ export default function PresentarDocumentacionModal({ open, onClose, solicitud }
                         </span>
                       );
 
-                      // fields list
-                      const fields = ["numero_documento","tipo_documento","fecha","ruc","razon_social","total"];
-                      const fieldCells = fields.map((field) => {
-                        const key = keyFor(rowIndex, field);
-                        const isEditing = Boolean(editingCells[key]) || editingRow === rowIndex;
-                        const currentValue = isEditing ? (editingValues[key] ?? "") : (doc[field] ?? "");
+                      // campos editables en tabla
+                      const fields = ["numero_documento", "tipo_documento", "fecha", "ruc", "razon_social", "total"];
+                      const fieldCells = fields.map((field) => (
+                        <span
+                          key={field}
+                          className={`text-center block cursor-pointer ${!isMobileView ? "hover:bg-gray-50" : ""}`}
+                          onDoubleClick={() => {
+                            if (!isMobileView) {
+                              // abrir modal pequeño para editar solo esa celda
+                              setEditingCell({
+                                rowIndex,
+                                field,
+                                value: doc[field] ?? "",
+                              });
+                            }
+                          }}
+                        >
+                          {doc[field] ?? "—"}
+                        </span>
+                      ));
 
-                        // usar input type=date para fecha cuando se está editando
-                        if (isEditing) {
-                          if (field === "fecha") {
-                            return (
-                              <input
-                                key={field}
-                                type="date"
-                                value={currentValue || ""}
-                                onChange={(e) => handleEditingValueChange(rowIndex, field, e.target.value)}
-                                onBlur={() => {
-                                  // si no estamos en row edit mode, guardar
-                                  if (editingRow !== rowIndex && editingCells[key]) saveCell(rowIndex, field);
-                                }}
-                                className="border rounded px-2 py-1 text-sm w-full"
-                              />
-                            );
-                          }
-                          // total -> number input
-                          if (field === "total") {
-                            return (
-                              <input
-                                key={field}
-                                type="number"
-                                step="0.01"
-                                value={currentValue === "" ? "" : currentValue}
-                                onChange={(e) => handleEditingValueChange(rowIndex, field, e.target.value)}
-                                onBlur={() => { if (editingRow !== rowIndex && editingCells[key]) saveCell(rowIndex, field); }}
-                                className="border rounded px-2 py-1 text-sm w-full"
-                              />
-                            );
-                          }
-
-                          // textos
-                          return (
-                            <input
-                              key={field}
-                              type="text"
-                              value={currentValue}
-                              onChange={(e) => handleEditingValueChange(rowIndex, field, e.target.value)}
-                              onBlur={() => { if (editingRow !== rowIndex && editingCells[key]) saveCell(rowIndex, field); }}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" && editingRow !== rowIndex) saveCell(rowIndex, field);
-                              }}
-                              className="border rounded px-2 py-1 text-sm w-full"
-                            />
-                          );
-                        }
-
-                        // vista no editable -> muestra valor y permite doble-clic en desktop
-                        return (
-                          <span
-                            key={field}
-                            className={`text-center block cursor-pointer ${!isMobileView ? "hover:bg-gray-50" : ""}`}
-                            onDoubleClick={() => {
-                              if (!isMobileView) {
-                                // enable editing this cell
-                                toggleEditCell(rowIndex, field);
-                              }
-                            }}
-                          >
-                            {doc[field] ?? "—"}
-                          </span>
-                        );
-                      });
-
-                      // mobile actions (editar fila)
+                      // acciones móviles: editar fila completa
                       const actionsCell = isMobileEditing ? (
                         <div className="flex items-center justify-center gap-2">
                           {editingRow === rowIndex ? (
@@ -458,7 +357,10 @@ export default function PresentarDocumentacionModal({ open, onClose, solicitud }
                                 size="sm"
                                 fromColor="#10b981"
                                 toColor="#34d399"
-                                onClick={(e) => { e.stopPropagation(); saveRow(rowIndex); }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  saveRow(rowIndex);
+                                }}
                               >
                                 Guardar
                               </Button>
@@ -467,7 +369,10 @@ export default function PresentarDocumentacionModal({ open, onClose, solicitud }
                                 size="sm"
                                 fromColor="#f87171"
                                 toColor="#ef4444"
-                                onClick={(e) => { e.stopPropagation(); cancelEditRow(); }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  cancelEditRow();
+                                }}
                               >
                                 Cancelar
                               </Button>
@@ -478,19 +383,73 @@ export default function PresentarDocumentacionModal({ open, onClose, solicitud }
                               size="sm"
                               fromColor="#60a5fa"
                               toColor="#3b82f6"
-                              onClick={(e) => { e.stopPropagation(); startEditingRow(rowIndex); }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                startEditingRow(rowIndex);
+                              }}
                             >
-                              Editar
+                              <Pencil className="w-4 h-4 mr-1" /> Editar
                             </Button>
                           )}
                         </div>
                       ) : null;
 
-                      // devolver fila (orden de columnas)
                       return [nameCell, ...fieldCells, actionsCell];
                     }}
                     onDeleteRow={(doc) => handleEliminarDocumento(doc)}
                   />
+
+                  {/* Modal de edición por celda (desktop) */}
+                  {editingCell && !isMobileView && (
+                    <Dialog open={!!editingCell} onOpenChange={() => setEditingCell(null)}>
+                      <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                          <DialogTitle>Editar campo</DialogTitle>
+                        </DialogHeader>
+                        <input
+                          type={editingCell.field === "fecha" ? "date" : editingCell.field === "total" ? "number" : "text"}
+                          step={editingCell.field === "total" ? "0.01" : undefined}
+                          autoFocus
+                          defaultValue={editingCell.value}
+                          className="border rounded px-2 py-1 text-sm w-full mb-4"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              handleUpdateField(editingCell.rowIndex, editingCell.field, e.target.value);
+                              setEditingCell(null);
+                            }
+                          }}
+                        />
+                        <DialogFooter className="flex justify-end gap-2">
+                          <Button
+                            fromColor="#f87171" // rojo claro
+                            toColor="#ef4444"   // rojo medio
+                            hoverFrom="#ef4444"
+                            hoverTo="#dc2626"
+                            size="default"
+                            onClick={() => setEditingCell(null)}
+                          >
+                            <X />
+                          </Button>
+                          <Button
+                            fromColor="#34d399" // verde claro
+                            toColor="#10b981"   // verde medio
+                            hoverFrom="#059669"
+                            hoverTo="#10b981"
+                            size="default"
+                            onClick={() => {
+                              const inputEl = document.querySelector("input[type]");
+                              if (inputEl) {
+                                handleUpdateField(editingCell.rowIndex, editingCell.field, inputEl.value);
+                              }
+                              setEditingCell(null);
+                            }}
+                          >
+                            <Check />
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  )}
                 </div>
 
                 <div className="mt-4 text-right font-semibold text-gray-800 text-sm sm:text-base">

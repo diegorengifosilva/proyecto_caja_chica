@@ -212,10 +212,8 @@ class DocumentoGasto(models.Model):
     creado = models.DateTimeField(auto_now_add=True)
 
 class Liquidacion(models.Model):
-    NUM_PREFIX = "LIQ"
-
     # ===============================
-    # ESTADOS (directos, sin alias raros)
+    # ESTADOS
     # ===============================
     ESTADO_CHOICES = [
         ("Pendiente de Envío", "Pendiente de Envío"),                       
@@ -226,9 +224,6 @@ class Liquidacion(models.Model):
         ("Rechazado", "Rechazado"),
     ]
 
-    numero_operacion = models.CharField(
-        max_length=50, unique=True, db_index=True, blank=True, null=True
-    )
     fecha = models.DateField(default=timezone.now, db_index=True)
     hora = models.TimeField(null=True, blank=True)
 
@@ -265,14 +260,13 @@ class Liquidacion(models.Model):
     class Meta:
         ordering = ["-fecha", "-created_at"]
         indexes = [
-            models.Index(fields=["numero_operacion"]),
             models.Index(fields=["fecha"]),
             models.Index(fields=["usuario"]),
             models.Index(fields=["estado"]),
         ]
 
     def __str__(self):
-        return f"Liquidación {self.numero_operacion or 'Sin Número'} - {self.fecha} - {self.usuario}"
+        return f"Liquidación {self.pk or 'Nueva'} - {self.fecha} - {self.usuario}"
 
     # ===============================
     # MÉTODOS DE NEGOCIO
@@ -312,15 +306,7 @@ class Liquidacion(models.Model):
     def save(self, *args, **kwargs):
         if not self.hora:
             self.hora = timezone.now().time()
-
-        if not self.numero_operacion:
-            try:
-                self.numero_operacion = generar_numero_operacion(self.NUM_PREFIX)
-            except Exception:
-                self.numero_operacion = f"{self.NUM_PREFIX}-{timezone.now().strftime('%Y%m%d%H%M%S%f')}"
-
         super().save(*args, **kwargs)
-
         self.calcular_totales()
         super().save(update_fields=["total_soles", "total_dolares"])
 
