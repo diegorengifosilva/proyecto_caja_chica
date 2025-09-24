@@ -337,7 +337,17 @@ class CorreccionOCR(models.Model):
 
     def __str__(self):
         return f"{self.campo} corregido: '{self.valor_original}' → '{self.valor_correccion}'"
-    
+
+class RazonSocial(models.Model):
+    ruc = models.CharField(max_length=11, unique=True)
+    razon_social = models.CharField(max_length=255)
+
+    class Meta:
+        db_table = "boleta_api_razonsocial"
+
+    def __str__(self):
+        return f"{self.ruc} - {self.razon_social}"
+
 #========================================================================================
 
 ##===========================##

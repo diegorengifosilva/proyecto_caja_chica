@@ -83,7 +83,7 @@ TEMPLATES = [
 DATABASES = {
     'default': dj_database_url.config(
         default=os.environ.get(
-            'postgresql://boleta_user:1Hlohgz2P18uxLxTix9Pe4Njx8TpQzt7@dpg-d34r5rnfte5s73acmuig-a.oregon-postgres.render.com/proyecto_db_y9lf',
+            'DATABASE_URL',
             'postgres://boleta_user:270509@localhost:5432/proyecto_db'
         ),
         conn_max_age=600,

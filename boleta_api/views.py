@@ -75,7 +75,8 @@ from .models import (
     Actividad,
     GuiaSalida,
     Liquidacion,
-    SolicitudGastoEstadoHistorial
+    SolicitudGastoEstadoHistorial,
+    RazonSocial,
     )
 from .serializers import (
     RegisterSerializer,
@@ -666,14 +667,16 @@ def liquidaciones_pendientes(request):
 
 # Presentar Liquidacion
 @csrf_exempt
-@api_view(['POST'])
+@api_view(["POST"])
 @permission_classes([IsAuthenticated])
 @parser_classes([MultiPartParser, FormParser])
 def presentar_liquidacion(request):
     """
-    Guarda documentos asociados a una solicitud y crea la liquidación correspondiente.
-    Compatible con múltiples archivos y documentos JSON.
-    Asegura que tipo_documento provenga del OCR si está disponible.
+    Presenta una liquidación:
+    - Guarda los documentos asociados.
+    - Crea la liquidación correspondiente.
+    - Actualiza el estado de la solicitud.
+    - Registra automáticamente RUC + Razón Social en boleta_api_razonsocial si no existen.
     """
     try:
         solicitud_id = request.data.get("id_solicitud")
@@ -691,23 +694,23 @@ def presentar_liquidacion(request):
         for idx, doc in enumerate(documentos):
             archivo = archivos[idx] if idx < len(archivos) else None
 
-            # Limpiar total
+            # 🔹 Limpiar total
             total = doc.get("total") or "0.00"
             try:
                 total = Decimal(str(total).replace("S/", "").replace("s/", "").strip())
             except (InvalidOperation, TypeError):
                 total = Decimal("0.00")
 
-            # Usar tipo_documento detectado por OCR, fallback a "Boleta"
+            # 🔹 Tipo de documento (fallback a Boleta)
             tipo_doc = doc.get("tipo_documento")
             tipo_documento_final = tipo_doc.strip() if tipo_doc and tipo_doc.strip() else "Boleta"
 
-            # Crear documento
+            # 🔹 Crear documento
             documento = DocumentoGasto.objects.create(
                 solicitud=solicitud,
                 tipo_documento=tipo_documento_final,
                 numero_documento=doc.get("numero_documento") or "ND",
-                fecha=doc.get("fecha") or date.today(),
+                fecha=doc.get("fecha") or now().date(),
                 ruc=doc.get("ruc") or "00000000000",
                 razon_social=doc.get("razon_social") or "RAZÓN SOCIAL DESCONOCIDA",
                 total=total,
@@ -717,40 +720,54 @@ def presentar_liquidacion(request):
             )
             documentos_guardados.append(documento)
 
-        # Crear liquidación
+            # 🔹 Registrar RUC + Razón Social si no existe
+            if documento.ruc and documento.razon_social:
+                RazonSocial.objects.get_or_create(
+                    ruc=documento.ruc,
+                    defaults={"razon_social": documento.razon_social}
+                )
+
+        # 🔹 Crear liquidación
         liquidacion = Liquidacion.objects.create(
             solicitud=solicitud,
             usuario=request.user,
-            estado="Liquidación enviada para Aprobación"
+            estado="Liquidación enviada para Aprobación",
         )
 
-        # Actualizar estado de la solicitud
+        # 🔹 Actualizar estado de la solicitud
         solicitud.estado = "Liquidación enviada para Aprobación"
         solicitud.save(update_fields=["estado"])
 
-        # Retornar info de documentos y liquidación
-        return Response({
-            "success": True,
-            "id_liquidacion": liquidacion.id,
-            "documentos": [
-                {
-                    "id": d.id,
-                    "tipo_documento": d.tipo_documento,
-                    "numero_documento": d.numero_documento,
-                    "fecha": str(d.fecha),
-                    "ruc": d.ruc,
-                    "razon_social": d.razon_social,
-                    "total": str(d.total),
-                    "archivo_url": request.build_absolute_uri(d.archivo.url) if d.archivo else None,
-                    "numero_operacion": d.numero_operacion,
-                }
-                for d in documentos_guardados
-            ]
-        }, status=201)
+        # 🔹 Respuesta
+        return Response(
+            {
+                "success": True,
+                "id_liquidacion": liquidacion.id,
+                "documentos": [
+                    {
+                        "id": d.id,
+                        "tipo_documento": d.tipo_documento,
+                        "numero_documento": d.numero_documento,
+                        "fecha": str(d.fecha),
+                        "ruc": d.ruc,
+                        "razon_social": d.razon_social,
+                        "total": str(d.total),
+                        "archivo_url": request.build_absolute_uri(d.archivo.url)
+                        if d.archivo
+                        else None,
+                        "numero_operacion": d.numero_operacion,
+                    }
+                    for d in documentos_guardados
+                ],
+            },
+            status=201,
+        )
 
     except Exception as e:
         print("❌ Error en presentar_liquidacion:", str(e))
-        return Response({"error": f"No se pudo presentar la liquidación: {str(e)}"}, status=500)
+        return Response(
+            {"error": f"No se pudo presentar la liquidación: {str(e)}"}, status=500
+        )
 
 # Endpoint de prueba OCR #
 @api_view(['POST'])
