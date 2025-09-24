@@ -1,11 +1,9 @@
 # boleta_api/extraccion.py
 import re
 import os
-import requests
 import unicodedata
 import pytesseract
-import psycopg2
-from urllib.parse import urlparse
+from boleta_api.db_connection import get_connection
 from typing import Optional, Dict, List, Union, Tuple
 from datetime import datetime, date, timedelta
 from django.db import transaction
@@ -440,15 +438,17 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
     if not texto:
         return "RAZÓN SOCIAL DESCONOCIDA"
 
-    # 🔹 Normalizar texto
     texto_norm = re.sub(r"\s{2,}", " ", texto.strip()).upper()
 
-    # 1️⃣ Buscar en la base de datos primero
+    # 🔹 Buscar en la DB si el RUC ya existe
     razon_social_db = None
     if ruc:
         try:
-            with conn.cursor() as cur:
-                cur.execute("SELECT razon_social FROM boleta_api_razonsocial WHERE ruc = %s LIMIT 1;", (ruc,))
+            with get_connection() as conn, conn.cursor() as cur:
+                cur.execute(
+                    "SELECT razon_social FROM boleta_api_razonsocial WHERE ruc = %s LIMIT 1;",
+                    (ruc,)
+                )
                 row = cur.fetchone()
                 if row:
                     razon_social_db = row[0].strip()
@@ -460,21 +460,25 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
     if razon_social_db:
         return razon_social_db
 
-    # 2️⃣ Si no está en DB → intentar extraer con OCR/regex como ya tienes
+    # 🔹 Normalización OCR
     reemplazos = {
         "5,A,": "S.A.", "5A": "S.A.", "5.A": "S.A.", "5 ,A": "S.A.",
         "$.A.C": "S.A.C", "S , A": "S.A", "S . A . C": "S.A.C", "S . A": "S.A",
         "3.A.C.": "S.A.C", "SA.": "S.A.", "SAC.": "S.A.C",
-        "E.I.R.L.": "E.I.R.L", "EIRL.": "S.A.C",
+        "E.I.R.L.": "E.I.R.L", "EIRL.": "E.I.R.L",
     }
     for k, v in reemplazos.items():
         texto_norm = texto_norm.replace(k, v)
 
-    texto_norm = re.sub(r"\b(FACTURA|BOLETA|ELECTRONICA|ELECTRÓNICA|RAZ\.?SOCIAL:?)\b", "", texto_norm, flags=re.IGNORECASE)
+    texto_norm = re.sub(
+        r"\b(FACTURA|BOLETA|ELECTRONICA|ELECTRÓNICA|RAZ\.?SOCIAL:?)\b", 
+        "", texto_norm, flags=re.IGNORECASE
+    )
+
     lineas = [l.strip(" ,.-") for l in texto_norm.splitlines() if l.strip()]
 
     patron_exclusion = re.compile(
-        r"^(RUC|CLIENTE|DIRECCION|OFICINA|CAL|JR|AV|PSJE|MZA|LOTE|TELF|CIUDAD|PROV)",
+        r"^(RUC|R\.U\.C|CLIENTE|DIRECCION|OFICINA|CAL|JR|AV|PSJE|MZA|LOTE|ASC|TELF|CIUDAD|PROV)",
         flags=re.IGNORECASE
     )
 
@@ -503,6 +507,7 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
     ]
 
     razon_social = None
+
     for linea in lineas_validas:
         if any(re.search(term, linea) for term in terminaciones):
             razon_social = linea.strip()
@@ -531,7 +536,7 @@ def detectar_razon_social(texto: str, ruc: Optional[str] = None, debug: bool = F
     resultado = razon_social if razon_social else "RAZÓN SOCIAL DESCONOCIDA"
 
     if debug:
-        print("🔹 Razón Social detectada (OCR/Regex):", resultado)
+        print("🔹 Razón Social detectada:", resultado)
 
     return resultado
 
@@ -601,28 +606,6 @@ def detectar_total(texto: str) -> str:
         return f"{max(montos).quantize(Decimal('0.00'))}"
 
     return "0.00"
-
-# ============#
-# CONECTAR DB #
-# ============#
-# Detectar si estamos en local o producción
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL",  
-    "postgres://boleta_user:270509@localhost:5432/proyecto_db"  # fallback local
-)
-
-# 🔹 Parsear la URL (postgres://...)
-result = urlparse(DATABASE_URL)
-
-# 🔹 Conexión global a PostgreSQL
-conn = psycopg2.connect(
-    dbname=result.path[1:],  # quita el "/"
-    user=result.username,
-    password=result.password,
-    host=result.hostname,
-    port=result.port,
-    sslmode="require" if "render.com" in result.hostname else "prefer"
-)
 
 # ==========================#
 # PROCESAMIENTO GENERAL OCR #
