@@ -641,7 +641,7 @@ def procesar_datos_ocr(entrada: Union[str, Image.Image], debug: bool = True) -> 
     # --- PDF ---
     elif isinstance(entrada, str) and entrada.lower().endswith(".pdf") and os.path.exists(entrada):
         # Extraer texto nativo primero
-        paginas = procesar_pdf(entrada, dpi=100)  # DPI más bajo para acelerar
+        paginas = procesar_pdf(entrada, dpi=140)  # DPI más bajo para acelerar
         textos = []
 
         for pag in paginas:

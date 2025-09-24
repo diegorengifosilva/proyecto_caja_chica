@@ -53,7 +53,7 @@ def procesar_documento_celery(self, ruta_archivo, nombre_archivo,
                     # Solo OCR si no hay información útil
                     if not any(k in texto_crudo.upper() for k in ["RUC", "TOTAL", "FECHA"]):
                         imagen = convert_from_bytes(
-                            archivo_bytes, dpi=100, first_page=idx+1, last_page=idx+1
+                            archivo_bytes, dpi=140, first_page=idx+1, last_page=idx+1
                         )[0]
 
                         # Redimensionar ancho máximo 1200px
