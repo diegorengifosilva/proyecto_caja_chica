@@ -615,11 +615,10 @@ logger.setLevel(logging.INFO)
 
 def procesar_datos_ocr(entrada: Union[str, Image.Image], debug: bool = True) -> Dict[str, Optional[str]]:
     """
-    Procesa texto OCR de un documento (boleta/factura).
+    Procesa texto OCR de un documento (boleta/factura) optimizado:
     - Si recibe `str` con texto → lo usa directamente.
     - Si recibe `PIL.Image` → optimiza y corre OCR.
-    - Si recibe ruta a PDF → convierte, optimiza y corre OCR en todas las páginas.
-    
+    - Si recibe ruta a PDF → extrae texto nativo primero y solo hace OCR si es necesario.
     Devuelve un diccionario con RUC, Razón Social, Nº Documento, Fecha, Total, Tipo Documento.
     """
     msg_inicio = "🔥 DETECTOR NUMERO DOCUMENTO EJECUTADO"
@@ -630,20 +629,37 @@ def procesar_datos_ocr(entrada: Union[str, Image.Image], debug: bool = True) -> 
 
     texto = None
 
-    # --- Detección del tipo de entrada ---
+    # --- Imagen ---
     if isinstance(entrada, Image.Image):
-        # 📷 Foto o imagen
         img_opt = procesar_imagen_camara(entrada)
+        # Limitar resolución a ancho máximo 1200px para acelerar OCR
+        if img_opt.width > 1200:
+            h = int(img_opt.height * 1200 / img_opt.width)
+            img_opt = img_opt.resize((1200, h), Image.Resampling.LANCZOS)
         texto = pytesseract.image_to_string(img_opt, lang="spa")
 
+    # --- PDF ---
     elif isinstance(entrada, str) and entrada.lower().endswith(".pdf") and os.path.exists(entrada):
-        # 📄 PDF
-        paginas = procesar_pdf(entrada, dpi=150)
-        textos = [pytesseract.image_to_string(pag, lang="spa") for pag in paginas]
+        # Extraer texto nativo primero
+        paginas = procesar_pdf(entrada, dpi=100)  # DPI más bajo para acelerar
+        textos = []
+
+        for pag in paginas:
+            txt = pag.extract_text() if hasattr(pag, "extract_text") else ""
+            txt = (txt or "").strip()
+            # Solo OCR si no hay info útil
+            if not any(k in txt.upper() for k in ["RUC", "TOTAL", "FECHA"]):
+                # Convertir imagen si página no tiene texto digital
+                img_pag = pag.to_image(resolution=100).original if hasattr(pag, "to_image") else pag
+                if isinstance(img_pag, Image.Image) and img_pag.width > 1200:
+                    h = int(img_pag.height * 1200 / img_pag.width)
+                    img_pag = img_pag.resize((1200, h), Image.Resampling.LANCZOS)
+                txt = pytesseract.image_to_string(img_pag, lang="spa")
+            textos.append(txt)
         texto = "\n".join(textos)
 
+    # --- Texto ya extraído ---
     elif isinstance(entrada, str):
-        # 📜 Texto ya extraído
         texto = entrada
 
     else:
@@ -663,7 +679,6 @@ def procesar_datos_ocr(entrada: Union[str, Image.Image], debug: bool = True) -> 
     lineas = [l.strip() for l in texto.splitlines() if l.strip()]
     primeras_lineas = lineas[:50]
 
-    # --- Debug/log de las primeras 50 líneas ---
     debug_msg = ["\n📝 OCR LINEAS CRUDAS (máx 50 líneas):", "=" * 60]
     for i, linea in enumerate(primeras_lineas):
         linea_corta = (linea[:120] + '...') if len(linea) > 120 else linea
@@ -684,7 +699,6 @@ def procesar_datos_ocr(entrada: Union[str, Image.Image], debug: bool = True) -> 
     total = detectar_total(texto)
     tipo_documento = detectar_tipo_documento(texto, debug=debug)
 
-    # --- Debug/log de resultados detectados ---
     datos_msg = [
         f"  - RUC              : {ruc}",
         f"  - Razón Social     : {razon_social}",

@@ -2,11 +2,11 @@
 from celery import shared_task
 from io import BytesIO
 import base64
+import pytesseract
 from .extraccion import procesar_datos_ocr
 from pdf2image import convert_from_bytes
 import pdfplumber
 from PIL import Image
-import pytesseract
 import os
 import logging
 
@@ -22,20 +22,20 @@ if not logger.handlers:
 
 @shared_task(bind=True)
 def procesar_documento_celery(self, ruta_archivo, nombre_archivo,
-                              tipo_documento="Boleta", concepto="Solicitud de gasto",
-                              generar_imagenes=True):
+                               tipo_documento="Boleta", concepto="Solicitud de gasto",
+                               generar_imagenes=True):
     """
     Procesa PDF o imagen de manera eficiente.
-    Optimizado para tamaño grande y OCR solo si necesario.
-    Normaliza el tipo_documento para consistencia.
+    Optimizado para archivos grandes y OCR solo si es necesario.
+    No usa .get() síncrono: devuelve resultados directos a Celery worker.
     """
     resultados = []
 
-    # Para compatibilidad con Pillow 10+
+    # Compatibilidad Pillow 10+
     try:
         resample_method = Image.Resampling.LANCZOS
     except AttributeError:
-        resample_method = Image.ANTIALIAS  # para Pillow < 10
+        resample_method = Image.ANTIALIAS
 
     try:
         with open(ruta_archivo, "rb") as f:
@@ -44,37 +44,33 @@ def procesar_documento_celery(self, ruta_archivo, nombre_archivo,
         es_pdf = ruta_archivo.lower().endswith(".pdf")
 
         if es_pdf:
+            # --- PDF multipágina ---
             with pdfplumber.open(BytesIO(archivo_bytes)) as pdf:
                 for idx, page in enumerate(pdf.pages):
                     texto_crudo = (page.extract_text() or "").strip()
+                    img_b64 = None
 
-                    # OCR solo si texto nativo no tiene info útil
+                    # Solo OCR si no hay información útil
                     if not any(k in texto_crudo.upper() for k in ["RUC", "TOTAL", "FECHA"]):
                         imagen = convert_from_bytes(
-                            archivo_bytes, dpi=150, first_page=idx+1, last_page=idx+1
+                            archivo_bytes, dpi=100, first_page=idx+1, last_page=idx+1
                         )[0]
 
-                        max_width = 1200
-                        if imagen.width > max_width:
-                            h = int(imagen.height * max_width / imagen.width)
-                            imagen = imagen.resize((max_width, h), resample_method)
+                        # Redimensionar ancho máximo 1200px
+                        if imagen.width > 1200:
+                            h = int(imagen.height * 1200 / imagen.width)
+                            imagen = imagen.resize((1200, h), resample_method)
 
                         texto_crudo = pytesseract.image_to_string(imagen, lang="spa")
 
-                        img_b64 = None
                         if generar_imagenes:
                             buffer_img = BytesIO()
                             imagen.save(buffer_img, format="PNG")
                             img_b64 = f"data:image/png;base64,{base64.b64encode(buffer_img.getvalue()).decode('utf-8')}"
-                    else:
-                        img_b64 = None
 
-                    # --- Detectores OCR ---
-                    datos = procesar_datos_ocr(texto_crudo, debug=True)
-
-                    # Normalizar tipo_documento
-                    tipo_doc = datos.get("tipo_documento") or tipo_documento
-                    datos["tipo_documento"] = tipo_doc.strip().capitalize()
+                    # --- Procesar OCR mejorado ---
+                    datos = procesar_datos_ocr(texto_crudo, debug=False)
+                    datos["tipo_documento"] = (datos.get("tipo_documento") or tipo_documento).capitalize()
                     datos.update({"concepto": concepto, "nombre_archivo": nombre_archivo})
 
                     resultados.append({
@@ -85,23 +81,22 @@ def procesar_documento_celery(self, ruta_archivo, nombre_archivo,
                     })
 
         else:
+            # --- Imagen ---
             imagen = Image.open(BytesIO(archivo_bytes))
-            max_width = 1200
-            if imagen.width > max_width:
-                h = int(imagen.height * max_width / imagen.width)
-                imagen = imagen.resize((max_width, h), resample_method)
+            if imagen.width > 1200:
+                h = int(imagen.height * 1200 / imagen.width)
+                imagen = imagen.resize((1200, h), resample_method)
 
             texto_crudo = pytesseract.image_to_string(imagen, lang="spa")
-
             img_b64 = None
+
             if generar_imagenes:
                 buffer_img = BytesIO()
                 imagen.save(buffer_img, format="PNG")
                 img_b64 = f"data:image/png;base64,{base64.b64encode(buffer_img.getvalue()).decode('utf-8')}"
 
-            datos = procesar_datos_ocr(texto_crudo, debug=True)
-            tipo_doc = datos.get("tipo_documento") or tipo_documento
-            datos["tipo_documento"] = tipo_doc.strip().capitalize()
+            datos = procesar_datos_ocr(texto_crudo, debug=False)
+            datos["tipo_documento"] = (datos.get("tipo_documento") or tipo_documento).capitalize()
             datos.update({"concepto": concepto, "nombre_archivo": nombre_archivo})
 
             resultados.append({
