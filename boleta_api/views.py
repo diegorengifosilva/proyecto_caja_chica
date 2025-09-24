@@ -585,25 +585,20 @@ def procesar_documento(request):
             for chunk in archivo.chunks():
                 f.write(chunk)
 
-        # Ejecutar OCR vía Celery (síncrono)
-        resultados = procesar_documento_celery.apply(
-            args=[
-                temp_path,
-                archivo.name,
-                request.data.get("tipo_documento", "Boleta"),  # fallback
-                request.data.get("concepto", "Solicitud de gasto"),
-                True
-            ]
-        ).get()
+        # Ejecutar OCR directamente (síncrono, optimizado)
+        resultados = procesar_documento_celery(
+            ruta_archivo=temp_path,
+            nombre_archivo=archivo.name,
+            tipo_documento=request.data.get("tipo_documento", "Boleta"),
+            concepto=request.data.get("concepto", "Solicitud de gasto"),
+            generar_imagenes=True
+        )
 
         # Asegurarse de que tipo_documento provenga del OCR
         for r in resultados:
             if "datos_detectados" in r:
                 tipo_ocr = r["datos_detectados"].get("tipo_documento")
-                if tipo_ocr and tipo_ocr.strip():
-                    r["datos_detectados"]["tipo_documento"] = tipo_ocr.strip()
-                else:
-                    r["datos_detectados"]["tipo_documento"] = "Boleta"  # fallback
+                r["datos_detectados"]["tipo_documento"] = tipo_ocr.strip() if tipo_ocr and tipo_ocr.strip() else "Boleta"
 
         return Response({"resultado": resultados}, status=200)
 
@@ -617,6 +612,7 @@ def procesar_documento(request):
                 os.remove(temp_path)
             except Exception as e:
                 logger.warning(f"No se pudo borrar el archivo temporal {temp_path}: {e}")
+
 
 # Liquidaciones Pendientes View
 @api_view(['GET'])
