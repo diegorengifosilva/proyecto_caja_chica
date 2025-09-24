@@ -571,7 +571,6 @@ class SolicitudGastoViewSetCRUD(viewsets.ModelViewSet):
 from .task import procesar_documento_celery
 logger = logging.getLogger(__name__)
 # Endpoint Principal
-# Endpoint Principal Optimizado para Free Render
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def procesar_documento(request):
@@ -586,22 +585,16 @@ def procesar_documento(request):
             for chunk in archivo.chunks():
                 f.write(chunk)
 
-        # Ejecutar OCR directamente (síncrono y optimizado)
-        resultados = []
-        
-        # ⚡ Desactivar generación de imagen base64 para ahorrar RAM/CPU
-        generar_imagenes = False
-
-        # Llamada a la función optimizada
+        # Ejecutar OCR directamente (síncrono, optimizado)
         resultados = procesar_documento_celery(
             ruta_archivo=temp_path,
             nombre_archivo=archivo.name,
             tipo_documento=request.data.get("tipo_documento", "Boleta"),
             concepto=request.data.get("concepto", "Solicitud de gasto"),
-            generar_imagenes=generar_imagenes
+            generar_imagenes=True
         )
 
-        # Ajuste final del tipo de documento
+        # Asegurarse de que tipo_documento provenga del OCR
         for r in resultados:
             if "datos_detectados" in r:
                 tipo_ocr = r["datos_detectados"].get("tipo_documento")
