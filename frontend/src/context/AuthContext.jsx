@@ -40,26 +40,39 @@ export const AuthProvider = ({ children }) => {
     } else setLoading(false);
   }, []);
 
-  const login = async ({ email, password }) => {
+  // ✅ Versión adaptada para SegUsuario
+  const login = async ({ usuario, password }) => {
     try {
-      console.log("🔹 Enviando login:", { email, password });
+      console.log("🔹 Enviando login (SegUsuario):", { usuario, password });
 
-      const res = await api.post("login/", { email, password });
-      const { access, refresh, user } = res.data;
+      // Enviamos al nuevo endpoint personalizado
+      const res = await api.post("login_usuario/", { 
+        usuario_usu: email, 
+        password_usu: password 
+      });
+
+      // Los nombres devueltos desde la API
+      const { token: access, refresh, usuario: user } = res.data;
 
       if (!access || !user) throw new Error("Token o usuario no recibido");
 
+      // Guardamos los datos en localStorage
       localStorage.setItem("access_token", access);
-      localStorage.setItem("refresh_token", refresh);
+      if (refresh) localStorage.setItem("refresh_token", refresh);
       localStorage.setItem("auth_user", JSON.stringify(user));
+
       api.defaults.headers.common["Authorization"] = `Bearer ${access}`;
       setAuthUser(user);
 
-      console.log("🔹 Login exitoso:", user);
+      console.log("✅ Login exitoso:", user);
       return { success: true };
     } catch (err) {
       console.error("❌ Error de inicio de sesión:", err.response?.data || err.message);
-      return { success: false, message: "Credenciales inválidas o servidor no disponible" };
+      return {
+        success: false,
+        message:
+          err.response?.data?.error || "Credenciales inválidas o servidor no disponible",
+      };
     }
   };
 
@@ -87,7 +100,9 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ authUser, setAuthUser, login, logout, refreshToken, loading }}>
+    <AuthContext.Provider
+      value={{ authUser, setAuthUser, login, logout, refreshToken, loading }}
+    >
       {children}
     </AuthContext.Provider>
   );

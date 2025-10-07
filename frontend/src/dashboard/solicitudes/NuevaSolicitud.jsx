@@ -75,7 +75,7 @@ export default function NuevaSolicitud({ open, onClose, onCreated }) {
     tipo_solicitud: "",
     area: "",
     tipo_moneda: "",
-    tipo_cambio: "3.55",
+    tipo_cambio: "3.52",
     monto_soles: "",
     monto_dolares: "",
     fecha_transferencia: "",
@@ -100,7 +100,7 @@ export default function NuevaSolicitud({ open, onClose, onCreated }) {
       area: user?.area || "",
       banco: user?.banco || "",
       numero_cuenta: user?.numero_cuenta || "",
-      tipo_cambio: "3.55",
+      tipo_cambio: "3.52",
     }));
   }, [open, user]);
 
@@ -162,14 +162,14 @@ export default function NuevaSolicitud({ open, onClose, onCreated }) {
   
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl sm:max-w-4xl lg:max-w-5xl w-[95%] max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-lg animate-fadeIn p-4 sm:p-6">
+      <DialogContent className="max-w-3xl sm:max-w-4xl lg:max-w-5xl w-[95%] max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-lg animate-fadeIn p-4 sm:p-6 ">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl sm:text-2xl font-bold text-gray-800">
             <FilePen className="w-6 h-6 sm:w-7 sm:h-7" /> Nueva Solicitud de Gasto
           </DialogTitle>
         </DialogHeader>
 
-        <p className="text-gray-700 mb-4 text-sm sm:text-base">
+        <p className="text-gray-700 mb-4 text-sm sm:text-base ">
           Completa los campos para registrar una nueva solicitud de gasto.
         </p>
 

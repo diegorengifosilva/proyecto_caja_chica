@@ -7,7 +7,6 @@ from django.db.models import Sum
 import datetime
 import uuid
 from .models import (
-    CustomUser,
     DocumentoGasto,
     CorreccionOCR,
     CajaDiaria,
@@ -35,72 +34,52 @@ User = get_user_model()
 #==================#
 # REGISTER Y LOGIN #
 #==================#
-# Serializador de registro
-class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, min_length=6)
+from boleta_api.models import SegUsuario
+# Serializador para devolver información del usuario
+class SegUsuarioSerializer(serializers.ModelSerializer):
+    area_nombre = serializers.SerializerMethodField()
+    cargo_nombre = serializers.SerializerMethodField()
+    banco_nombre = serializers.SerializerMethodField()
 
     class Meta:
-        model = User
-        fields = (
-            'email',
-            'password',
-            'nombre',
-            'apellido',
-            'empresa',
-            'edad',
-            'pais',
-            'rol',
-            'area'
-        )
+        model = SegUsuario
+        fields = [
+            'usuario_usu',
+            'nomb_cort_usu',  # Nombre completo
+            'nom', 'ape',      # Nombres y apellidos separados
+            'area', 'area_nombre',
+            'cargo', 'cargo_nombre',
+            'ban', 'banco_nombre',
+            'banc',            # Número de cuenta
+        ]
 
-    def validate_email(self, value):
-        if User.objects.filter(email=value).exists():
-            raise serializers.ValidationError("Este correo ya está registrado.")
-        return value
+    def get_area_nombre(self, obj):
+        return obj.get_area_nombre() if hasattr(obj, 'get_area_nombre') else None
 
-    def validate_edad(self, value):
-        if value is not None and value <= 0:
-            raise serializers.ValidationError("La edad debe ser mayor a 0.")
-        return value
+    def get_cargo_nombre(self, obj):
+        return obj.get_cargo_nombre() if hasattr(obj, 'get_cargo_nombre') else None
 
-    def create(self, validated_data):
-        return User.objects.create_user(**validated_data)
+    def get_banco_nombre(self, obj):
+        return obj.get_banco_nombre() if hasattr(obj, 'get_banco_nombre') else None
 
-# Serializador login con email
-class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
-    def validate(self, attrs):
-        email = attrs.get("email")
-        password = attrs.get("password")
-
-        if not email or not password:
-            raise serializers.ValidationError("Correo y contraseña son obligatorios.")
-
-        attrs["username"] = email  # SimpleJWT requiere username
-
-        try:
-            data = super().validate(attrs)
-        except Exception as e:
-            raise serializers.ValidationError(f"Error interno de login: {str(e)}")
-
-        user = self.user
-        data["user"] = {
-            "id": user.id,
-            "email": user.email,
-            "nombre": getattr(user, "nombre", ""),
-            "apellido": getattr(user, "apellido", ""),
-            "rol": getattr(user, "rol", ""),
-            "area": getattr(user, "area", None),
-        }
-
-        return data
-
+# Token Perzonalizado para login
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
-        token["nombre_completo"] = f"{getattr(user, 'nombre', '')} {getattr(user, 'apellido', '')}"
-        token["area"] = getattr(user, "area", None)
-        return token
 
+        # Reemplazamos el identificador por usuario_usu
+        token['user_id'] = user.usuario_usu
+
+        # Agregamos datos útiles al token
+        token['nombre'] = user.nomb_cort_usu or ''
+        token['area'] = user.area or ''
+        token['cargo'] = user.cargo or ''
+        token['banco'] = user.ban or ''
+        token['cuenta'] = user.banc or ''
+
+        return token
+    
 #========================================================================================
 
 ##====================##
@@ -120,7 +99,7 @@ class SolicitudGastoSerializer(serializers.ModelSerializer):
     solicitante = serializers.PrimaryKeyRelatedField(read_only=True)
     destinatario_id = serializers.PrimaryKeyRelatedField(
         source="destinatario",
-        queryset=CustomUser.objects.all(),
+        queryset=SegUsuario.objects.using("db_vc").all(),
         required=False,
         allow_null=True
     )
@@ -129,7 +108,7 @@ class SolicitudGastoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Solicitud
         fields = '__all__'
-        read_only_fields = ['solicitante', 'estado', 'creado', 'numero_solicitud', 'codigo']
+        read_only_fields = ['solicitante', 'estado', 'creado', 'numero_solicitud', 'codigo', 'comentario']
 
     # ---------- Métodos extra ----------
     def get_solicitante_nombre(self, obj):
@@ -189,7 +168,8 @@ class SolicitudGastoSimpleSerializer(serializers.ModelSerializer):
             'id', 'numero_solicitud',
             'total_soles', 'total_dolares',
             'liquidacion_numero_operacion',
-            'solicitante_nombre', 'estado'
+            'solicitante_nombre', 'estado',
+            'comentario',
         ]
         read_only_fields = ['numero_solicitud', 'estado']
 
@@ -213,7 +193,7 @@ class MisSolicitudesTablaSerializer(serializers.ModelSerializer):
             "id",
             "numero_solicitud",
             "fecha",
-            "hora",   # 👈 nuevo
+            "hora",
             "solicitante_nombre",
             "destinatario",
             "tipo_solicitud",
@@ -227,6 +207,7 @@ class MisSolicitudesTablaSerializer(serializers.ModelSerializer):
             "numero_cuenta",
             "concepto_gasto",
             "observacion",
+            "comentario",
         ]
 
     def get_solicitante_nombre(self, obj):
@@ -258,6 +239,7 @@ class MisSolicitudesDetalleSerializer(serializers.ModelSerializer):
             "observacion",
             "creado",
             "solicitante",
+            "comentario"
         ]
 
     def get_solicitante_nombre(self, obj):
@@ -345,6 +327,12 @@ class LiquidacionSerializer(serializers.ModelSerializer):
             "total_dolares": obj.solicitud.total_dolares,
             "estado": obj.solicitud.estado,  # 👈 mismo formato legible
         }
+    
+    def get_total_documentado(self, obj):
+        documentos = getattr(obj, "documentos", None)
+        if not documentos:
+            return Decimal("0.00")
+        return sum([d.total or Decimal("0.00") for d in documentos.all()])
 
 class SolicitudLiquidacionSerializer(serializers.ModelSerializer):
     solicitante_nombre = serializers.CharField(source="solicitante.username", read_only=True)
@@ -363,7 +351,8 @@ class SolicitudLiquidacionSerializer(serializers.ModelSerializer):
         ]
 
 class DocumentoGastoSerializer(serializers.ModelSerializer):
-    archivo_url = serializers.SerializerMethodField()
+    # Ahora usamos directamente el campo del modelo, no un SerializerMethodField
+    archivo_url = serializers.URLField(read_only=True)
 
     numero_documento = serializers.CharField(
         allow_null=True, required=False, default="ND"
@@ -392,25 +381,16 @@ class DocumentoGastoSerializer(serializers.ModelSerializer):
             "total",
             "nombre_archivo",
             "archivo",
-            "archivo_url",
+            "archivo_url",  # ahora directo del modelo
             "creado"
         ]
-
-    def get_archivo_url(self, obj):
-        """Devuelve la URL absoluta del archivo si existe"""
-        if obj.archivo and hasattr(obj.archivo, "url"):
-            request = self.context.get("request")
-            return request.build_absolute_uri(obj.archivo.url) if request else obj.archivo.url
-        return None
 
     def to_representation(self, instance):
         """Normaliza tipo_documento y asegura que se respete OCR"""
         data = super().to_representation(instance)
         tipo = data.get("tipo_documento")
         if tipo:
-            # Normalizamos mayúsculas, minúsculas y espacios
             tipo = tipo.strip().replace("_", " ").title()
-            # Mantenemos variantes electrónicas intactas
             data["tipo_documento"] = tipo
         else:
             data["tipo_documento"] = "Desconocido"
@@ -508,17 +488,6 @@ class GuiaSalidaSerializer(serializers.ModelSerializer):
 ##====================##
 
 #========================================================================================
-
-
-class UserSerializer(serializers.ModelSerializer):
-    nombre_completo = serializers.SerializerMethodField()
-
-    class Meta:
-        model = User
-        fields = ['id', 'nombre_completo']
-
-    def get_nombre_completo(self, obj):
-        return f"{obj.nombre} {obj.apellido}"
 
 
 

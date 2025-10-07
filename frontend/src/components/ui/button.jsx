@@ -55,14 +55,15 @@ const Button = React.forwardRef(
     // Gradiente principal dinámico
     const gradientStyle =
       fromColor && toColor
-        ? { backgroundImage: `linear-gradient(to right, ${fromColor}, ${toColor})`, ...style }
+        ? {
+            backgroundImage: `linear-gradient(to right, ${fromColor}, ${toColor})`,
+            transition: "all 0.3s ease-in-out",
+            ...style,
+          }
         : style;
 
-    // Color del spinner adaptativo: blanco si gradiente oscuro, negro si claro
-    const spinnerColor =
-      fromColor || toColor
-        ? getContrastColor(fromColor || "#4f46e5")
-        : "white";
+    // Color del spinner y texto adaptativo según gradiente
+    const contrastColor = getContrastColor(fromColor || "#4f46e5");
 
     return (
       <Comp
@@ -75,16 +76,18 @@ const Button = React.forwardRef(
         style={gradientStyle}
         ref={ref}
         disabled={disabled}
+        aria-busy={loading}
+        aria-disabled={disabled}
         {...props}
       >
-        {/* Spinner adaptativo */}
+        {/* Spinner centrado verticalmente */}
         {loading && (
-          <Loader2
-            className={`animate-spin absolute left-3 w-4 h-4`}
-            style={{ color: spinnerColor }}
-          />
+          <div className="absolute inset-y-0 left-3 flex items-center">
+            <Loader2 className="animate-spin w-4 h-4" style={{ color: contrastColor }} />
+          </div>
         )}
 
+        {/* Contenido del botón */}
         <span className={cn(loading ? "opacity-50" : "", "flex items-center justify-center w-full")}>
           {children}
         </span>
@@ -124,7 +127,6 @@ function getContrastColor(hex) {
   let r = (rgb >> 16) & 0xff;
   let g = (rgb >> 8) & 0xff;
   let b = rgb & 0xff;
-  // Fórmula de luminancia relativa
   const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
   return luminance > 186 ? "black" : "white";
 }

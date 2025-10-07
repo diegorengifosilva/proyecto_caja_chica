@@ -1,3 +1,6 @@
+import pymysql
+pymysql.install_as_MySQLdb()
+
 import os
 from pathlib import Path
 from datetime import timedelta
@@ -10,18 +13,19 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Seguridad
 # ---------------------------
 SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-dev-key")
-DEBUG = os.environ.get("DEBUG", "False") == "True"
+DEBUG = True  # activado para pruebas locales
 ALLOWED_HOSTS = [
-    "proyecto-caja-chica-backend.onrender.com",
     "localhost",
     "127.0.0.1",
+    "192.168.1.14",  # tu IP local
+    "*",
 ]
 
 # ---------------------------
 # Entorno
 # ---------------------------
 ENVIRONMENT = os.environ.get("DJANGO_ENV", "local")
-IS_LOCAL = ENVIRONMENT == "local"
+IS_LOCAL = True
 
 # ---------------------------
 # Apps instaladas
@@ -44,7 +48,7 @@ INSTALLED_APPS = [
 # Middleware
 # ---------------------------
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',  # siempre arriba
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -77,18 +81,33 @@ TEMPLATES = [
     },
 ]
 
-# ---------------------------
-# Base de datos
-# ---------------------------
+# =====================================================
+# CONFIGURACIÓN DE BASE DE DATOS (SOLO LECTURA)
+# =====================================================
+import pymysql
+pymysql.install_as_MySQLdb()
+
 DATABASES = {
-    'default': dj_database_url.config(
-        default=os.environ.get(
-            'DATABASE_URL',
-            'postgres://boleta_user:270509@localhost:5432/proyecto_db'
-        ),
-        conn_max_age=600,
-        ssl_require=not IS_LOCAL,
-    )
+    "default": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": "db_vc",
+        "USER": "admin",
+        "PASSWORD": "270509",
+        "HOST": "127.0.0.1",
+        "PORT": "3306",
+        "OPTIONS": {
+            # Modo solo lectura y UTF-8 completo
+            "init_command": "SET SESSION TRANSACTION READ ONLY;",
+            "charset": "utf8mb4",
+        },
+    }
+}
+
+# Router para asegurar que los modelos usen solo db_vc
+DATABASE_ROUTERS = ["backend.db_router.VCRouter"]
+
+MIGRATION_MODULES = {
+    'boleta_api': None,  # Django no intentará migrar esta app todavía
 }
 
 # ---------------------------
@@ -96,7 +115,7 @@ DATABASES = {
 # ---------------------------
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'backend.authentication.CustomJWTAuthentication',
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10,
@@ -158,36 +177,27 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ---------------------------
-# CORS y CSRF
+# CORS y CSRF para pruebas locales
 # ---------------------------
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = list(default_headers) + ["content-type", "authorization"]
 CORS_ALLOW_METHODS = ["GET","POST","PUT","PATCH","DELETE","OPTIONS"]
 
-if IS_LOCAL:
-    CORS_ALLOW_ALL_ORIGINS = True
-    CSRF_TRUSTED_ORIGINS = ["http://localhost:5173"]
-    CSRF_COOKIE_SECURE = False
-    SESSION_COOKIE_SECURE = False
-else:
-    CORS_ALLOW_ALL_ORIGINS = False
-    CORS_ALLOWED_ORIGINS = [
-        "https://proyecto-caja-chica-frontend.onrender.com",
-    ]
-    CSRF_TRUSTED_ORIGINS = [
-        "https://proyecto-caja-chica-frontend.onrender.com",
-        "https://proyecto-caja-chica-backend.onrender.com",
-    ]
-    CSRF_COOKIE_SECURE = True
-    SESSION_COOKIE_SECURE = True
-
-CSRF_COOKIE_SAMESITE = "None"
-SESSION_COOKIE_SAMESITE = "None"
+CORS_ALLOW_ALL_ORIGINS = True
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "http://192.168.1.14:5173",  # tu PC
+    "http://192.168.1.10:5173",  # tu celular o otro dispositivo
+]
+CSRF_COOKIE_SECURE = False
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_SAMESITE = "Lax"
 
 # ---------------------------
 # Usuario personalizado
 # ---------------------------
-AUTH_USER_MODEL = "boleta_api.CustomUser"
+# AUTH_USER_MODEL = "boleta_api.CustomUser"
 
 # ---------------------------
 # JWT
@@ -201,36 +211,15 @@ SIMPLE_JWT = {
 }
 
 # ---------------------------
-# CELERY
+# CELERY (si lo usas)
 # ---------------------------
 CELERY_BROKER_URL = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
 CELERY_RESULT_BACKEND = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
-
-# Formato de mensajes
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
-
-# Zona horaria
 CELERY_TIMEZONE = 'UTC'
 CELERY_ENABLE_UTC = True
-
-# Opcional: para reintentos automáticos en tareas fallidas
-CELERY_TASK_ACKS_LATE = True        # marca la tarea como completada solo al terminar
-CELERY_TASK_RETRY_ON_TIMEOUT = True # reintenta si hay timeout
-CELERY_TASK_TIME_LIMIT = 300        # máximo 5 min por tarea
-
-# ---------------------------
-# Seguridad adicional producción
-# ---------------------------
-if not IS_LOCAL:
-    SECURE_BROWSER_XSS_FILTER = True
-    SECURE_CONTENT_TYPE_NOSNIFF = True
-    X_FRAME_OPTIONS = 'DENY'
-    SECURE_HSTS_SECONDS = 31536000
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_HSTS_PRELOAD = True
-    SECURE_SSL_REDIRECT = True
 
 # ---------------------------
 # OCR / PDF extras

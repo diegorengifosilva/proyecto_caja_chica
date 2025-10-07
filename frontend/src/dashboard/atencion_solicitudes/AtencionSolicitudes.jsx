@@ -156,7 +156,7 @@ export default function AtencionSolicitudes() {
   // Render principal
   // -------------------------------
   return (
-    <div className="min-h-screen w-full flex flex-col bg-gray-50 font-sans">
+    <div className="min-h-screen w-full flex flex-col bg-gray-50 font-sans ">
       <div className="flex-1 flex flex-col px-3 sm:px-6 md:px-8 py-4 lg:py-6">
         {/* Encabezado */}
         <header className="mb-5 sm:mb-8">
@@ -204,7 +204,7 @@ export default function AtencionSolicitudes() {
         </div>
 
         {/* Gráficos */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full mb-8">
+        <div className="flex flex-col lg:flex-row gap-4 sm:gap-6 mb-6 w-full">
           {/* Evolución de solicitudes */}
           <ChartWrapped
             title="Evolución de solicitudes"
@@ -247,7 +247,7 @@ export default function AtencionSolicitudes() {
 
           {/* Distribución por estado */}
           <ChartWrapped
-            title="Distribución por estado"
+            title="Distribución por tipo"
             icon={<PieChart size={18} />}
             className="w-full h-64 sm:h-72 md:h-80 xl:h-[28rem]"
             tooltipFormatter={radialTooltipFormatter}
@@ -257,7 +257,7 @@ export default function AtencionSolicitudes() {
               <div className="flex-1 min-h-[200px] sm:min-h-[240px] md:min-h-[280px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <RadialBarChart innerRadius="10%" outerRadius="95%" data={estados}>
-                    <RadialBar minAngle={10} background clockWise dataKey="value" cornerRadius={8}>
+                    <RadialBar minAngle={10} background clockwise dataKey="value" cornerRadius={8}>
                       {estados.map((entry, i) => (
                         <Cell key={`cell-${i}`} fill={STATE_COLORS[entry.name] || "#9ca3af"} />
                       ))}
@@ -298,9 +298,10 @@ export default function AtencionSolicitudes() {
               "N° Solicitud",
               "Solicitante",
               "Tipo de Solicitud",
-              "Monto S/.",
-              "Monto $",
+              "Monto Soles",
+              "Monto Dólares",
               "Fecha",
+              "Concepto",
               "Estado",
               <span key="accion" className="hidden md:table-cell">Acción</span>,
             ]}
@@ -321,6 +322,7 @@ export default function AtencionSolicitudes() {
               <span className="whitespace-pre-wrap break-words text-center">
                 {s.fecha ? new Date(s.fecha).toLocaleDateString("es-PE") : "-"}
               </span>,
+              <span className="whitespace-pre-wrap break-words text-center">{s.concepto_gasto || "-" } </span>,
               <span
                 className={`px-2 py-0.5 rounded-full text-[10px] sm:text-xs md:text-sm ${
                   STATE_CLASSES[s.estado] || "bg-gray-200 text-gray-700"

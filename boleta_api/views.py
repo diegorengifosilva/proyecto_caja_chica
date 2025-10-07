@@ -79,8 +79,6 @@ from .models import (
     RazonSocial,
     )
 from .serializers import (
-    RegisterSerializer,
-    EmailTokenObtainPairSerializer,
     SolicitudGastoSerializer,
     SolicitudGastoSimpleSerializer, 
     DocumentoGastoSerializer, 
@@ -89,14 +87,12 @@ from .serializers import (
     NotificacionSerializer,
     SolicitudSerializer,
     EstadoCajaSerializer,
-    SolicitudParaLiquidarSerializer,
     ActividadSerializer,
     GuiaSalidaSerializer,
     LiquidacionSerializer,
     MisSolicitudesDetalleSerializer,
     MisSolicitudesTablaSerializer,
     SolicitudGastoEstadoHistorialSerializer,
-    SolicitudLiquidacionSerializer
 )
 
 from boleta_api.extraccion import (
@@ -173,6 +169,117 @@ def get_csrf_token(request):
 
 #========================================================================================
 
+#=========#
+# USUARIO #
+#=========#
+from boleta_api.models import SegUsuario
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.auth.hashers import check_password
+from boleta_api.serializers import SegUsuarioSerializer
+from rest_framework_simplejwt.authentication import JWTAuthentication
+
+# Login DB_VC
+@csrf_exempt
+@api_view(['POST'])
+def login_usuario(request):
+    """
+    Login seguro usando la tabla seg_usuarios (base empresarial).
+    Usa usuario_usu como identificador único (user_id) en el JWT.
+    Compatible con contraseñas planas o hasheadas.
+    Devuelve JWT y datos del usuario.
+    """
+    usuario_input = request.data.get("usuario_usu")
+    password_input = request.data.get("password_usu")
+
+    # Validación básica
+    if not usuario_input or not password_input:
+        return Response(
+            {"error": "Debe enviar usuario y contraseña."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        # Buscar usuario en base principal
+        usuario = SegUsuario.objects.using("default").get(usuario_usu=usuario_input.strip())
+    except SegUsuario.DoesNotExist:
+        return Response(
+            {"error": "Usuario no encontrado."},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+
+    # Validar contraseña (plana o hasheada)
+    password_db = (usuario.password_usu or "").strip()
+    if not (password_db == password_input or check_password(password_input, password_db)):
+        return Response(
+            {"error": "Contraseña incorrecta."},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+
+    # ==========================
+    #  GENERAR TOKEN PERSONALIZADO
+    # ==========================
+    refresh = RefreshToken()
+    access = refresh.access_token
+
+    # Usar usuario_usu como identificador único
+    refresh["user_id"] = usuario.usuario_usu
+    access["user_id"] = usuario.usuario_usu
+    refresh["username"] = usuario.usuario_usu
+    access["username"] = usuario.usuario_usu
+
+    # (Opcional) incluir nombre corto o cargo para validaciones rápidas en frontend
+    refresh["nombre"] = usuario.nomb_cort_usu
+    access["nombre"] = usuario.nomb_cort_usu
+
+    # Serializar datos del usuario
+    user_data = SegUsuarioSerializer(usuario).data
+
+    # Respuesta final
+    return Response({
+        "access": str(access),
+        "refresh": str(refresh),
+        "user": user_data
+    }, status=status.HTTP_200_OK)
+
+# Datos Usuario
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def usuario_actual(request):
+    """
+    Devuelve la información del usuario autenticado usando el JWT.
+    Obtiene el usuario desde el claim user_id del token.
+    """
+    # Decodificar el token manualmente
+    jwt_auth = JWTAuthentication()
+    header = jwt_auth.get_header(request)
+    if header is None:
+        return Response({"error": "Token no proporcionado."}, status=status.HTTP_401_UNAUTHORIZED)
+
+    raw_token = jwt_auth.get_raw_token(header)
+    validated_token = jwt_auth.get_validated_token(raw_token)
+
+    # Extraer user_id (que es usuario_usu)
+    usuario_usu = validated_token.get("user_id")
+
+    if not usuario_usu:
+        return Response(
+            {"error": "No se pudo obtener el usuario desde el token."},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+
+    try:
+        usuario = SegUsuario.objects.using("default").get(usuario_usu=usuario_usu)
+    except SegUsuario.DoesNotExist:
+        return Response(
+            {"error": "Usuario no encontrado en la base de datos."},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    user_data = SegUsuarioSerializer(usuario).data
+    return Response(user_data, status=status.HTTP_200_OK)
+
+#========================================================================================
+
 #====================#
 # PANTALLA PRINCIPAL #
 #====================#
@@ -200,25 +307,31 @@ def home(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def solicitudes_dashboard_view(request):
+    """
+    Retorna estadísticas y gráficos para el dashboard de Solicitudes de Gasto
+    del usuario autenticado.
+    """
     try:
         usuario = request.user
         solicitudes = Solicitud.objects.filter(solicitante=usuario)
 
-        # Estados y Tipos disponibles en el modelo
-        estados_validos = dict(Solicitud.ESTADOS).keys()
+        # Estados y Tipos válidos del modelo
+        estados_validos = list(dict(Solicitud.ESTADOS).keys())
         estado_map = {estado: 0 for estado in estados_validos}
 
-        tipo_map = {tipo: 0 for tipo in dict(Solicitud.TIPOS_SOLICITUD).keys()}
+        tipos_validos = list(dict(Solicitud.TIPOS_SOLICITUD).keys())
+        tipo_map = {tipo: 0 for tipo in tipos_validos}
 
-        # Variables para métricas
+        # Inicialización de métricas
         este_mes = 0
         monto_total_soles = 0
         monto_total_dolares = 0
-        meses = [0] * 12
+        meses = [0] * 12  # índice 0–11
 
         hoy = date.today()
-        mes_actual = hoy.month - 1  # índice 0–11
+        mes_actual = hoy.month - 1
 
+        # Procesar solicitudes
         for s in solicitudes:
             # Estado
             estado = s.estado if s.estado in estados_validos else "Pendiente de Envío"
@@ -226,8 +339,9 @@ def solicitudes_dashboard_view(request):
 
             # Conteo mensual
             if s.fecha:
-                meses[s.fecha.month - 1] += 1
-                if s.fecha.month - 1 == mes_actual:
+                mes_index = s.fecha.month - 1
+                meses[mes_index] += 1
+                if mes_index == mes_actual:
                     este_mes += 1
 
             # Montos
@@ -235,30 +349,37 @@ def solicitudes_dashboard_view(request):
             monto_total_dolares += float(s.total_dolares or 0)
 
             # Tipo
-            tipo = s.tipo_solicitud or "Otros Gastos"
+            tipo = s.tipo_solicitud if s.tipo_solicitud in tipos_validos else "Otros Gastos"
             tipo_map[tipo] = tipo_map.get(tipo, 0) + 1
 
         total = solicitudes.count()
-        monto_promedio = (monto_total_soles / total) if total > 0 else 0
+        monto_promedio_soles = round((monto_total_soles / total) if total else 0, 2)
+        monto_promedio_dolares = round((monto_total_dolares / total) if total else 0, 2)
+
+        # Preparar datos para gráficos
+        chartAreaMes = [
+            {"mes": date(1900, i + 1, 1).strftime("%b"), "solicitudes": m}
+            for i, m in enumerate(meses)
+        ]
+
+        chartRadialEstado = [
+            {"name": e, "value": estado_map[e]} for e in estados_validos
+        ]
+
+        chartTreemapTipo = [
+            {"name": k, "value": tipo_map.get(k, 0)} for k in tipos_validos
+        ]
 
         data = {
             "total": total,
             "esteMes": este_mes,
             "montoTotalSoles": round(monto_total_soles, 2),
             "montoTotalDolares": round(monto_total_dolares, 2),
-            "montoPromedio": round(monto_promedio, 2),
-
-            # Gráficas
-            "chartAreaMes": [
-                {"mes": date(1900, i + 1, 1).strftime("%b"), "solicitudes": m}
-                for i, m in enumerate(meses)
-            ],
-            "chartRadialEstado": [
-                {"name": e, "value": estado_map[e]} for e in estados_validos
-            ],
-            "chartTreemapTipo": [
-                {"name": k, "value": v} for k, v in tipo_map.items()
-            ],
+            "promedioSoles": monto_promedio_soles,
+            "promedioDolares": monto_promedio_dolares,
+            "chartAreaMes": chartAreaMes,
+            "chartRadialEstado": chartRadialEstado,
+            "chartTreemapTipo": chartTreemapTipo,
         }
 
         return Response(data)
@@ -568,9 +689,15 @@ class SolicitudGastoViewSetCRUD(viewsets.ModelViewSet):
 ##===============##
 ## LIQUIDACIONES ##
 ##===============##
-from .task import procesar_documento_celery
+from .task import procesar_documento_celery, dividir_paginas_pdf
+from .extraccion import preprocesar_imagen_para_ocr, detectar_qr
+from tempfile import NamedTemporaryFile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 logger = logging.getLogger(__name__)
+
 # Endpoint Principal
+MAX_THREADS = 8  # Ajustable según tu CPU
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def procesar_documento(request):
@@ -578,38 +705,100 @@ def procesar_documento(request):
     if not archivo:
         return Response({"error": "No se envió ningún archivo"}, status=400)
 
-    temp_path = os.path.join(settings.MEDIA_ROOT, archivo.name)
+    tipo_documento = request.data.get("tipo_documento", "Boleta")
+    concepto = request.data.get("concepto", "Solicitud de gasto")
+    resultados_finales = []
+
     try:
-        # Guardar archivo temporal
-        with open(temp_path, "wb") as f:
+        # Crear archivo temporal seguro
+        with NamedTemporaryFile(delete=False, dir=settings.MEDIA_ROOT, suffix=os.path.splitext(archivo.name)[1]) as tmp:
             for chunk in archivo.chunks():
-                f.write(chunk)
+                tmp.write(chunk)
+            temp_path = tmp.name
 
-        # Ejecutar OCR directamente (síncrono, optimizado)
-        resultados = procesar_documento_celery(
-            ruta_archivo=temp_path,
-            nombre_archivo=archivo.name,
-            tipo_documento=request.data.get("tipo_documento", "Boleta"),
-            concepto=request.data.get("concepto", "Solicitud de gasto"),
-            generar_imagenes=True
-        )
+        logger.info(f"[OCR Endpoint] Archivo temporal guardado en {temp_path}")
 
-        # Asegurarse de que tipo_documento provenga del OCR
-        for r in resultados:
+        # Dividir PDF en páginas o usar imagen única
+        paginas = dividir_paginas_pdf(temp_path)
+        if not paginas:
+            paginas = [temp_path]
+
+        # === 🔹 Detectar QR en todas las páginas antes del OCR
+        qr_datos = {}
+        for p in paginas:
+            try:
+                qr_datos = detectar_qr(p)  # <-- tu función de QR
+                if qr_datos:  # si encontró QR, rompe (normalmente solo hay 1 por doc)
+                    break
+            except Exception as e:
+                logger.warning(f"[QR] Error leyendo QR en {p}: {e}")
+
+        # Preprocesamiento OCR: binarización / redimensionamiento ligero
+        paginas_preprocesadas = []
+        for p in paginas:
+            pre_path = preprocesar_imagen_para_ocr(p)
+            paginas_preprocesadas.append(pre_path)
+
+        # Procesar cada página en paralelo con OCR
+        resultados_paginas = []
+        with ThreadPoolExecutor(max_workers=min(MAX_THREADS, len(paginas_preprocesadas))) as executor:
+            futures = [
+                executor.submit(
+                    procesar_documento_celery,
+                    ruta_archivo=p,
+                    nombre_archivo=archivo.name,
+                    tipo_documento=tipo_documento,
+                    concepto=concepto,
+                    generar_imagenes=True
+                )
+                for p in paginas_preprocesadas
+            ]
+
+            for future in as_completed(futures):
+                try:
+                    res = future.result(timeout=120)
+                    if res:
+                        resultados_paginas.extend(res)
+                except Exception as e:
+                    logger.error(f"[OCR Endpoint] Error procesando página: {e}", exc_info=True)
+
+        # === 🔹 Fusionar resultados OCR + QR
+        for r in resultados_paginas:
             if "datos_detectados" in r:
-                tipo_ocr = r["datos_detectados"].get("tipo_documento")
-                r["datos_detectados"]["tipo_documento"] = tipo_ocr.strip() if tipo_ocr and tipo_ocr.strip() else "Boleta"
+                datos = r["datos_detectados"]
 
-        return Response({"resultado": resultados}, status=200)
+                # Normalizar tipo de documento
+                tipo_ocr = datos.get("tipo_documento")
+                datos["tipo_documento"] = tipo_ocr.strip() if tipo_ocr and tipo_ocr.strip() else tipo_documento
+
+                # Merge con QR (QR tiene prioridad)
+                if qr_datos.get("ruc"):
+                    datos["ruc"] = qr_datos["ruc"]
+                if qr_datos.get("total"):
+                    datos["total"] = qr_datos["total"]
+                if qr_datos.get("fecha"):
+                    datos["fecha"] = qr_datos["fecha"]
+
+            resultados_finales.append(r)
+
+        return Response({"resultado": resultados_finales}, status=200)
 
     except Exception as e:
         logger.error(f"[OCR Endpoint] Error procesando documento {archivo.name}: {e}", exc_info=True)
-        return Response({"error": f"Ocurrió un error procesando OCR: {str(e)}"}, status=500)
+        return Response({"error": f"Ocurrió un error procesando OCR/QR: {str(e)}"}, status=500)
 
     finally:
-        if os.path.exists(temp_path):
+        if 'paginas_preprocesadas' in locals():
+            for p in paginas_preprocesadas:
+                if os.path.exists(p) and p != temp_path:
+                    try:
+                        os.remove(p)
+                    except Exception as e:
+                        logger.warning(f"No se pudo borrar la página temporal {p}: {e}")
+        if 'temp_path' in locals() and os.path.exists(temp_path):
             try:
                 os.remove(temp_path)
+                logger.info(f"[OCR Endpoint] Archivo temporal {temp_path} eliminado")
             except Exception as e:
                 logger.warning(f"No se pudo borrar el archivo temporal {temp_path}: {e}")
 
@@ -668,10 +857,11 @@ def liquidaciones_pendientes(request):
 def presentar_liquidacion(request):
     """
     Presenta una liquidación:
-    - Guarda los documentos asociados.
     - Crea la liquidación correspondiente.
+    - Guarda los documentos asociados vinculados a la liquidación.
     - Actualiza el estado de la solicitud.
-    - Registra automáticamente RUC + Razón Social en boleta_api_razonsocial si no existen.
+    - Registra automáticamente RUC + Razón Social si no existen.
+    - Devuelve el total documentado (suma de los documentos) en la respuesta.
     """
     try:
         solicitud_id = request.data.get("id_solicitud")
@@ -683,26 +873,29 @@ def presentar_liquidacion(request):
 
         solicitud = get_object_or_404(Solicitud, id=solicitud_id)
         documentos = json.loads(documentos_json)
-
         documentos_guardados = []
 
+        # 🔹 Crear liquidación primero
+        liquidacion = Liquidacion.objects.create(
+            solicitud=solicitud,
+            usuario=request.user,
+            estado="Liquidación enviada para Aprobación",
+        )
+
+        # 🔹 Guardar documentos vinculados a la liquidación
         for idx, doc in enumerate(documentos):
             archivo = archivos[idx] if idx < len(archivos) else None
 
-            # 🔹 Limpiar total
-            total = doc.get("total") or "0.00"
+            tipo_documento_final = doc.get("tipo_documento", "").strip() or "Boleta"
+
             try:
-                total = Decimal(str(total).replace("S/", "").replace("s/", "").strip())
+                total = Decimal(str(doc.get("total", "0")).replace("S/", "").replace("s/", "").strip())
             except (InvalidOperation, TypeError):
                 total = Decimal("0.00")
 
-            # 🔹 Tipo de documento (fallback a Boleta)
-            tipo_doc = doc.get("tipo_documento")
-            tipo_documento_final = tipo_doc.strip() if tipo_doc and tipo_doc.strip() else "Boleta"
-
-            # 🔹 Crear documento
             documento = DocumentoGasto.objects.create(
                 solicitud=solicitud,
+                liquidacion=liquidacion,  # 🔹 Aquí vinculamos la liquidación
                 tipo_documento=tipo_documento_final,
                 numero_documento=doc.get("numero_documento") or "ND",
                 fecha=doc.get("fecha") or now().date(),
@@ -713,56 +906,37 @@ def presentar_liquidacion(request):
                 nombre_archivo=archivo.name if archivo else "ND",
                 numero_operacion=generar_numero_operacion("DOC"),
             )
+
             documentos_guardados.append(documento)
 
-            # 🔹 Registrar RUC + Razón Social si no existe
+            # Registrar RUC + Razón Social si no existe
             if documento.ruc and documento.razon_social:
                 RazonSocial.objects.get_or_create(
                     ruc=documento.ruc,
                     defaults={"razon_social": documento.razon_social}
                 )
 
-        # 🔹 Crear liquidación
-        liquidacion = Liquidacion.objects.create(
-            solicitud=solicitud,
-            usuario=request.user,
-            estado="Liquidación enviada para Aprobación",
-        )
+        # 🔹 Calcular total documentado de todos los documentos vinculados a esta liquidación
+        total_documentado_soles = sum(d.total or Decimal("0.00") for d in documentos_guardados)
 
         # 🔹 Actualizar estado de la solicitud
         solicitud.estado = "Liquidación enviada para Aprobación"
         solicitud.save(update_fields=["estado"])
 
-        # 🔹 Respuesta
-        return Response(
-            {
-                "success": True,
-                "id_liquidacion": liquidacion.id,
-                "documentos": [
-                    {
-                        "id": d.id,
-                        "tipo_documento": d.tipo_documento,
-                        "numero_documento": d.numero_documento,
-                        "fecha": str(d.fecha),
-                        "ruc": d.ruc,
-                        "razon_social": d.razon_social,
-                        "total": str(d.total),
-                        "archivo_url": request.build_absolute_uri(d.archivo.url)
-                        if d.archivo
-                        else None,
-                        "numero_operacion": d.numero_operacion,
-                    }
-                    for d in documentos_guardados
-                ],
-            },
-            status=201,
-        )
+        # 🔹 Serializar documentos
+        serializer = DocumentoGastoSerializer(documentos_guardados, many=True, context={"request": request})
+
+        return Response({
+            "success": True,
+            "id_liquidacion": liquidacion.id,
+            "total_documentado_soles": total_documentado_soles,  # ✅ agregado
+            "documentos": serializer.data,
+            "solicitud_estado": solicitud.estado,
+        }, status=201)
 
     except Exception as e:
         print("❌ Error en presentar_liquidacion:", str(e))
-        return Response(
-            {"error": f"No se pudo presentar la liquidación: {str(e)}"}, status=500
-        )
+        return Response({"error": f"No se pudo presentar la liquidación: {str(e)}"}, status=500)
 
 # Endpoint de prueba OCR #
 @api_view(['POST'])
@@ -790,6 +964,10 @@ def test_ocr(request):
 @permission_classes([IsAuthenticated])
 @parser_classes([MultiPartParser, FormParser])
 def guardar_documento(request):
+    """
+    Guarda documentos de una solicitud y asegura que cada archivo tenga URL accesible.
+    Convierte fechas automáticamente a YYYY-MM-DD si vienen en DD/MM/YYYY.
+    """
     try:
         solicitud_id = request.data.get("solicitud_id") or request.data.get("solicitud")
         if not solicitud_id:
@@ -807,45 +985,75 @@ def guardar_documento(request):
         for idx, doc in enumerate(documentos):
             archivo = archivos[idx] if idx < len(archivos) else None
 
+            # Convertimos archivo a imágenes si necesitas OCR
             imagenes, _ = archivo_a_imagenes(archivo) if archivo else ([], [])
 
-            for pagina_idx, img in enumerate(imagenes):
+            for pagina_idx, img in enumerate(imagenes or [None]):
                 datos_extraidos = doc.copy()
 
-                # Usar tipo_documento detectado por OCR, fallback a Boleta
+                # Tipo de documento fallback
                 tipo_ocr = doc.get("tipo_documento")
-                datos_extraidos["tipo_documento"] = tipo_ocr.strip() if tipo_ocr and tipo_ocr.strip() else "Boleta"
+                datos_extraidos["tipo_documento"] = tipo_ocr.strip() if tipo_ocr else "Boleta"
 
-                datos_extraidos.update({
-                    "solicitud": solicitud.id,
-                    "archivo": archivo,
-                    "nombre_archivo": f"{archivo.name}_p{pagina_idx+1}" if archivo else "ND",
-                    "numero_operacion": generar_numero_operacion("DOC"),
-                })
+                nombre_archivo = f"{archivo.name}_p{pagina_idx+1}" if archivo else "ND"
+
+                # Validación y conversión de fecha
+                fecha_str = datos_extraidos.get("fecha")
+                fecha_obj = None
+                if fecha_str:
+                    try:
+                        # Primero intentamos formato ISO YYYY-MM-DD
+                        fecha_obj = datetime.strptime(fecha_str, "%Y-%m-%d").date()
+                    except ValueError:
+                        try:
+                            # Intentamos formato DD/MM/YYYY
+                            fecha_obj = datetime.strptime(fecha_str, "%d/%m/%Y").date()
+                        except ValueError:
+                            fecha_obj = None  # Si viene mal formateada, dejamos NULL
 
                 try:
-                    datos_extraidos["total"] = Decimal(str(datos_extraidos.get("total", "0")).replace("S/", "").replace("s/", "").strip())
+                    total = Decimal(str(datos_extraidos.get("total", "0")).replace("S/", "").replace("s/", "").strip())
                 except (InvalidOperation, TypeError):
-                    datos_extraidos["total"] = Decimal("0.00")
+                    total = Decimal("0.00")
 
-                serializer = DocumentoGastoSerializer(data=datos_extraidos, context={"request": request})
-                if serializer.is_valid():
-                    doc_guardado = serializer.save()
-                    documentos_guardados.append({
-                        **serializer.data,
-                        "archivo_url": request.build_absolute_uri(doc_guardado.archivo.url) if archivo else None
-                    })
-                else:
-                    print(f"❌ Error guardando documento página {pagina_idx+1}: {serializer.errors}")
+                # Guardamos directamente el documento incluyendo 'subido_por'
+                doc_guardado = DocumentoGasto.objects.create(
+                    solicitud=solicitud,
+                    numero_operacion=generar_numero_operacion("DOC"),
+                    fecha=fecha_obj,  # ✅ usamos el objeto fecha seguro
+                    tipo_documento=datos_extraidos["tipo_documento"],
+                    numero_documento=datos_extraidos.get("numero_documento", "ND"),
+                    ruc=datos_extraidos.get("ruc", "00000000000"),
+                    razon_social=datos_extraidos.get("razon_social", "RAZÓN SOCIAL DESCONOCIDA"),
+                    total=total,
+                    total_documentado=Decimal(str(datos_extraidos.get("total_documentado", total))),
+                    nombre_archivo=nombre_archivo,
+                    archivo=archivo,
+                    subido_por=request.user 
+                )
 
+                # Guardamos la URL absoluta en la DB para consulta directa
+                if archivo:
+                    doc_guardado.archivo_url = request.build_absolute_uri(doc_guardado.archivo.url)
+                    doc_guardado.save(update_fields=["archivo_url"])
+
+                documentos_guardados.append(doc_guardado)
+
+        # 🔹 Calcular total documentado de todos los documentos vinculados a esta solicitud
+        total_documentado_soles = sum(d.total or Decimal("0.00") for d in documentos_guardados)
+
+        # Actualizamos estado de solicitud si aplica
         if solicitud.estado == "Atendido, Pendiente de Liquidación":
             solicitud.estado = "Liquidación enviada para Aprobación"
             solicitud.save(update_fields=["estado"])
-            print(f"✅ Estado solicitud {solicitud.id} actualizado a '{solicitud.estado}'")
+
+        # Serializamos la respuesta
+        serializer = DocumentoGastoSerializer(documentos_guardados, many=True, context={"request": request})
 
         return Response({
             "mensaje": "Documentos guardados correctamente",
-            "documentos": documentos_guardados,
+            "total_documentado_soles": total_documentado_soles,  # ✅ agregado
+            "documentos": serializer.data,
             "solicitud_estado": solicitud.estado
         }, status=201)
 
@@ -927,6 +1135,14 @@ def detectar_origen_imagen(img_bgr, umbral_blur=100.0, umbral_sombra=25.0):
     else:
         return 'foto'
 
+# Filtrar Liquidaciones #
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def listar_documentos_solicitud(request, solicitud_id):
+    documentos = DocumentoGasto.objects.filter(solicitud_id=solicitud_id).order_by('creado')
+    serializer = DocumentoGastoSerializer(documentos, many=True, context={"request": request})
+    return Response(serializer.data)
+
 #========================================================================================
 
 ##===========================##
@@ -935,32 +1151,33 @@ def detectar_origen_imagen(img_bgr, umbral_blur=100.0, umbral_sombra=25.0):
 # Liquidaciones Pendientes View
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def liquidaciones_pendientes_view(request):
+def solicitudes_pendientes_aprobacion_view(request):
     """
-    Devuelve todas las liquidaciones pendientes para el usuario destinatario.
+    Devuelve todas las solicitudes pendientes de aprobación para el usuario destinatario.
+    Si se pasa ?estado=<estado>, filtra por ese estado; si no, trae todas.
     """
     try:
         usuario = request.user
-        estado = request.query_params.get("estado", "Liquidación enviada para Aprobación")
+        estado = request.query_params.get("estado", None)
 
-        liquidaciones = Liquidacion.objects.filter(
-            destinatario=usuario,
-            estado=estado
-        ).order_by('-fecha')
+        queryset = Solicitud.objects.filter(destinatario=usuario)
+        if estado:
+            queryset = queryset.filter(estado=estado)
 
-        serializer = LiquidacionSerializer(liquidaciones, many=True)
+        queryset = queryset.order_by('-fecha')
+        serializer = SolicitudSerializer(queryset, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
     except Exception as e:
         import traceback
-        print("Error en liquidaciones_pendientes_view:", traceback.format_exc())
+        print("Error en solicitudes_pendientes_aprobacion_view:", traceback.format_exc())
         return Response(
-            {"error": "No se pudieron obtener las liquidaciones pendientes.", "detalle": str(e)},
+            {"error": "No se pudieron obtener las solicitudes.", "detalle": str(e)},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-
 # Detalle Liquidacion Views #
-TASA_CAMBIO = 3.55  # S/ -> $
+TASA_CAMBIO = 3.52  # S/ -> $
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -1267,49 +1484,6 @@ def exportar_reportes_pdf(request):
 ##=======================##
 ## FUNCIONES ADICIONALES ##
 ##=======================##
-# Datos Usuario
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def usuario_actual(request):
-    """
-    Devuelve información del usuario autenticado, incluyendo área.
-    """
-    user = request.user
-    data = {
-        "id": user.id,
-        "nombre": user.nombre,
-        "apellido": user.apellido,
-        "email": user.email,
-        "rol": user.rol,
-        "area": user.area.id if user.area else None,
-        "area_nombre": user.area.nombre if user.area else "",
-    }
-    return Response(data)
-
-# Vista de registro
-class RegisterView(generics.CreateAPIView):
-    serializer_class = RegisterSerializer
-
-    def post(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save()
-        return Response({
-            'user': {
-                'id': user.id,
-                'email': user.email,
-                'nombre': user.nombre,
-                'apellido': user.apellido,
-                'rol': user.rol,
-                'area': user.area,
-            },
-            'message': 'Registro exitoso'
-        }, status=status.HTTP_201_CREATED)
-
-# Vista de login personalizada que devuelve también datos del usuario
-class EmailTokenObtainPairView(TokenObtainPairView):
-    serializer_class = EmailTokenObtainPairSerializer
-
 # Solicitud Decision View
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -1326,6 +1500,7 @@ def solicitud_decision_view(request, pk):
     DECISION_MAP = {
         "Atendido": "Atendido, Pendiente de Liquidación",
         "Rechazado": "Rechazado",
+        "Aprobar": "Liquidación Aprobada",   # <-- NUEVO
     }
 
     if decision not in DECISION_MAP:
@@ -1339,7 +1514,7 @@ def solicitud_decision_view(request, pk):
             # 1. Actualizar estado y comentario
             solicitud.estado = estado_nuevo
             if comentario:
-                solicitud.observacion = comentario
+                solicitud.comentario = comentario
             solicitud.save()
 
             # 2. Registrar historial de cambio de estado
@@ -1350,12 +1525,12 @@ def solicitud_decision_view(request, pk):
                 usuario=request.user
             )
 
-            # 3. Crear liquidación si se atiende la solicitud
+            # 3. Crear liquidación solo si se atiende la solicitud (no al aprobar directamente)
             if decision == "Atendido":
                 Liquidacion.objects.create(
                     solicitud=solicitud,
                     usuario=solicitud.solicitante,
-                    estado="Pendiente para Atención",  # <--- estado válido actual
+                    estado="Pendiente para Atención",  # estado válido actual
                     observaciones="Liquidación generada automáticamente",
                     total_soles=solicitud.total_soles,
                     total_dolares=solicitud.total_dolares,
@@ -1423,10 +1598,6 @@ def aprobar_solicitud_view(request, solicitud_id):
     except Exception as e:
         return Response({"error": str(e)}, status=500)
 
-
-
-
-
 # ========= Establecer monto diario ==========
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -1454,14 +1625,6 @@ def set_monto_diario_view(request):
 
     except Exception as e:
         return Response({"error": str(e)}, status=500)
-
-
-
-# 🧾 ATENCION DE SOLICITUDES
-
-
-
-
 
 # 🧾 APROBACION DE SOLICITUDES
 # ========= Liquidaciones Aprobación ==========
@@ -1502,13 +1665,6 @@ def liquidacion_accion(request, pk):
         liquidacion.save()
         serializer = LiquidacionSerializer(liquidacion)
         return Response(serializer.data, status=status.HTTP_200_OK)
-
-
-
-
-
-
-
 
 #  📦 ARQUEO DE CAJA
 # ========= Arqueos View ==========
@@ -1750,11 +1906,6 @@ class HistorialCajaDiariaView(APIView):
             return Response(data)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-
-
-
 
 # ===== Solicitudes Aprobadas View =====
 class SolicitudesAprobadasView(APIView):

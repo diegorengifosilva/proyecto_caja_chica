@@ -17,10 +17,11 @@ from .views import (
     solicitudes_dashboard_view,
     solicitudes_pendientes_view,
     detalle_liquidacion_view,
-    presentar_liquidacion,
-    liquidaciones_pendientes_view,
-    EmailTokenObtainPairView,
-    RegisterView,
+    presentar_liquidacion,    
+    solicitudes_pendientes_aprobacion_view,
+    listar_documentos_solicitud,
+    login_usuario,
+    usuario_actual,
     SolicitudGastoHistorialViewSet,
     SolicitudGastoViewSetCRUD,
     CajaDiariaView,
@@ -48,9 +49,10 @@ urlpatterns = [
     path('csrf/', get_csrf_token, name='get_csrf_token'),
 
     # LOGIN, REGISTER Y REFRESH
-    path('login/', EmailTokenObtainPairView.as_view(), name='login'),
-    path('refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('register/', RegisterView.as_view(), name='register'),
+    path("login/", login_usuario, name="login_usuario"),
+    path("refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("usuario_actual/", usuario_actual, name="usuario_actual"),
+
 
     # SOLICITUD DE GASTO
     path('boleta/solicitudes/dashboard/', solicitudes_dashboard_view, name='solicitudes-dashboard'),
@@ -71,10 +73,10 @@ urlpatterns = [
     path('boleta/documentos/guardar/', views.guardar_documento, name='guardar_documento'),
     path('boleta/documentos/solicitud/<int:solicitud_id>/', views.obtener_documentos_por_solicitud, name='obtener_documentos_por_solicitud'),
     path('boleta/liquidaciones/presentar/', views.presentar_liquidacion, name='presentar_liquidacion'),
-
+    path('boleta/listar_documentos/<int:solicitud_id>/', views.listar_documentos_solicitud, name='listar_documentos'),
 
     # APROBACIÓN DE LIQUIDACIÓN
-    path("boleta/liquidaciones_pendientes/", views.liquidaciones_pendientes_view),
+    path('boleta/solicitudes_pendientes_aprobacion/', views.solicitudes_pendientes_aprobacion_view, name='solicitudes_pendientes_aprobacion'),
     path('api/liquidaciones/<int:liquidacion_id>/detalle/', detalle_liquidacion_view, name='detalle-liquidacion'),
     path("liquidaciones/<int:liquidacion_id>/accion/", views.actualizar_estado_liquidacion, name="actualizar_estado_liquidacion"),
     

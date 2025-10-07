@@ -24,9 +24,6 @@ import LiquidacionesHome from "../dashboard/caja_chica/CajaChica.jsx";
 /* PANTALLA PRINCIPAL */
 import DashboardHome from "../dashboard/principal/DashboardHome.jsx";
 
-/* PROGRAMACIÓN */
-import Programacion from "../dashboard/programacion/index.js";
-
 /* SOLICITUD DE GASTO */
 import SolicitudDashboard from "@/dashboard/solicitudes/SolicitudDashboard.jsx";
 import NuevaSolicitud from "@/dashboard/solicitudes/NuevaSolicitud.jsx";
@@ -49,9 +46,6 @@ import CajaChica from "@/dashboard/caja_chica/CajaChica.jsx";
 
 /* REGISTRO DE ACTIVIDADES */
 import RegistroActividades from "@/dashboard/registro_actividades/RegistroActividades.jsx";
-
-/* GUIAS DE SALIDAS */
-import GuiasSalida from "@/dashboard/guias_salidas/GuiasSalida.jsx";
 
 /* ESTADÍSTICAS Y REPORTES */
 import Reportes from '@/dashboard/reportes/Reportes.jsx';
@@ -77,8 +71,6 @@ export default function App() {
           <Route path="/dashboard/*" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
             {/* Pantalla Principal */}
             <Route index element={<DashboardHome />} />
-            {/* Programación */}
-            <Route path="gastos/programacion" element={<Programacion />} />
             {/*  */}
             <Route path="liquidaciones" element={<LiquidacionesHome />} />
             {/* Solicitud de Gasto */}
@@ -98,8 +90,6 @@ export default function App() {
             <Route path="movimientos/arqueo" element={<CajaChica />} />
             {/* Registro de Actividades */}
             <Route path="registros/actividades" element={<RegistroActividades />} />
-            {/* Guias de Salida */}
-            <Route path="registros/guias-salida" element={<GuiasSalida />} />
             {/* Estadísticas y Reportes */}
             <Route path="reportes" element={<Reportes />} />
           </Route>

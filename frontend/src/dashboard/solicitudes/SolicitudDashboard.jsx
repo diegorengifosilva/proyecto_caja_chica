@@ -205,7 +205,7 @@ export default function SolicitudDashboard() {
                     barSize={14}
                     data={stats.chartRadialEstado}
                   >
-                    <RadialBar minAngle={15} background clockWise dataKey="value" cornerRadius={6}>
+                    <RadialBar minAngle={15} background clockwise dataKey="value" cornerRadius={6}>
                       {stats.chartRadialEstado.map((entry, i) => (
                         <Cell key={i} fill={STATE_COLOR_VALUES[i % STATE_COLOR_VALUES.length]} />
                       ))}
@@ -255,7 +255,7 @@ export default function SolicitudDashboard() {
                     barSize={14}
                     data={stats.chartTreemapTipo}
                   >
-                    <RadialBar minAngle={15} background clockWise dataKey="value" cornerRadius={6}>
+                    <RadialBar minAngle={15} background clockwise dataKey="value" cornerRadius={6}>
                       {stats.chartTreemapTipo.map((entry, i) => (
                         <Cell key={i} fill={TYPE_COLOR_VALUES[i % TYPE_COLOR_VALUES.length] || "#334155"} />
                       ))}
@@ -285,7 +285,6 @@ export default function SolicitudDashboard() {
               </div>
             </div>
           </ChartWrapped>
-
         </div>
 
         {/* Evolución Mensual */}

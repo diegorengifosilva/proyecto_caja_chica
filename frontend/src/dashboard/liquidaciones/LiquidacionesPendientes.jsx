@@ -203,7 +203,7 @@ export default function LiquidacionesPendientes() {
         </FilterCard>
 
         {/* Tabla */}
-        <div className="overflow-x-auto max-h-[70vh] w-full">
+        <div className="max-h-[70vh] overflow-y-auto w-full">
           <Table
             headers={[
               "N° Solicitud",
@@ -218,35 +218,29 @@ export default function LiquidacionesPendientes() {
             data={solicitudesFiltradas}
             emptyMessage="No hay solicitudes en este estado o rango de fechas."
             renderRow={(s) => [
-              s.numero_solicitud,
+              <span className="break-words max-w-[120px] text-center">{s.numero_solicitud}</span>,
               <span
-                className={`px-2 py-0.5 rounded-full text-[10px] sm:text-xs md:text-sm ${
-                  TIPO_SOLICITUD_CLASSES[s.tipo_solicitud] || "bg-gray-200 text-gray-700"
-                } whitespace-pre-wrap break-words text-center`}
+                className={`px-2 py-0.5 rounded-full text-[10px] sm:text-xs md:text-sm ${TIPO_SOLICITUD_CLASSES[s.tipo_solicitud] || "bg-gray-200 text-gray-700"} break-words text-center`}
               >
                 {s.tipo_solicitud}
               </span>,
-              <span className="text-center">{s.total_soles ? `S/. ${s.total_soles}` : "-"}</span>,
-              <span className="text-center">{s.total_dolares ? `$ ${s.total_dolares}` : "-"}</span>,
-              <span className="whitespace-pre-wrap break-words text-center">{s.fecha}</span>,
-              <span className="truncate sm:whitespace-normal max-w-[120px] sm:max-w-[200px] text-center">
-                {s.concepto_gasto ?? "-"}
-              </span>,
+              <span className="text-center break-words max-w-[100px]">{s.total_soles ? `S/. ${s.total_soles}` : "-"}</span>,
+              <span className="text-center break-words max-w-[100px]">{s.total_dolares ? `$ ${s.total_dolares}` : "-"}</span>,
+              <span className="break-words max-w-[120px] text-center">{s.fecha}</span>,
+              <span className="break-words max-w-[200px] text-center">{s.concepto_gasto ?? "-"}</span>,
               <span
-                className={`px-2 py-0.5 rounded-full text-[10px] sm:text-xs md:text-sm ${
-                  STATE_CLASSES[s.estado] || "bg-gray-200 text-gray-700"
-                } whitespace-pre-wrap break-words text-center`}
+                className={`px-2 py-0.5 rounded-full text-[10px] sm:text-xs md:text-sm ${STATE_CLASSES[s.estado] || "bg-gray-200 text-gray-700"} break-words text-center`}
               >
-                {s.estado.split(" ").length > 3 ? s.estado.replace(" ", "\n") : s.estado}
+                {s.estado}
               </span>,
               <div className="hidden md:flex justify-center">
                 <Button
                   variant="default"
                   size="sm"
-                  fromColor="#a8d8d8"       // color base
-                  toColor="#81c7c7"         // degradado suave
-                  hoverFrom="#81c7c7"       // hover inicio
-                  hoverTo="#5eb0b0"         // hover fin
+                  fromColor="#a8d8d8"
+                  toColor="#81c7c7"
+                  hoverFrom="#81c7c7"
+                  hoverTo="#5eb0b0"
                   onClick={(e) => {
                     e.stopPropagation();
                     setSelectedSolicitud(s);

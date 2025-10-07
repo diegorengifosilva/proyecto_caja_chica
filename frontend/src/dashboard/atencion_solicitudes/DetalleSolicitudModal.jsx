@@ -4,7 +4,20 @@ import { useAuth } from "@/context/AuthContext";
 import api from "@/services/api";
 import { toast } from "react-toastify";
 import EventBus from "@/components/EventBus";
-import { User, Tag, DollarSign, WalletMinimal, Calendar, BadgeAlert, Landmark, Hash, MessageCircleWarning } from "lucide-react";
+import { User, 
+  Tag, 
+  DollarSign, 
+  WalletMinimal, 
+  Calendar, 
+  BadgeAlert, 
+  Landmark, 
+  Hash, 
+  MessageCircleWarning, 
+  NotebookPen, 
+  Clock,
+  ClipboardList,
+} from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 
 export default function DetalleSolicitudModal({ solicitudId, onClose, onDecided }) {
   const { authUser: user, logout } = useAuth();
@@ -76,7 +89,7 @@ export default function DetalleSolicitudModal({ solicitudId, onClose, onDecided 
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50 px-4">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-3xl shadow-xl relative border border-gray-100 dark:border-gray-700 overflow-y-auto max-h-[90vh]">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-4xl shadow-xl relative border border-gray-100 dark:border-gray-700 overflow-y-auto max-h-[90vh]">
         {/* Botón cerrar */}
         <button
           className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 dark:hover:text-gray-200"
@@ -96,69 +109,74 @@ export default function DetalleSolicitudModal({ solicitudId, onClose, onDecided 
           </div>
         ) : (
           <>
-            <h2 className="text-2xl font-bold mb-4 text-gray-800 dark:text-gray-100 text-center md:text-left">
+            {/* Título */}
+            <h2 className="text-2xl font-bold mb-5 text-gray-800 dark:text-gray-100 text-center md:text-left">
               Solicitud {solicitud?.numero_solicitud}
             </h2>
 
-            {/* Datos principales */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5 text-sm sm:text-base">
-              <div className="space-y-2">
-                <p className="flex items-center gap-1">
-                  <User className="w-4 h-4 text-gray-800" />
-                  <span className="font-semibold">Solicitante:</span> {solicitud?.solicitante_nombre || solicitud?.solicitante || "—"}
-                </p>
-                <p className="flex items-center gap-1">
-                  <Tag className="w-4 h-4 text-gray-800" />
-                  <span className="font-semibold">Tipo:</span> {solicitud?.tipo_solicitud || "—"}
-                </p>
-                <p className="flex items-center gap-1">
-                  <WalletMinimal className="w-4 h-4 text-gray-800" />
-                  <span className="font-semibold">Monto S/:</span> {(Number(solicitud?.total_soles ?? 0)).toFixed(2)}
-                </p>
-                <p className="flex items-center gap-1">
-                  <DollarSign className="w-4 h-4 text-gray-800" />
-                  <span className="font-semibold">Monto $:</span> {(Number(solicitud?.total_dolares ?? 0)).toFixed(2)}
-                </p>
-              </div>
+            {/* Info solicitud estilo dashboard corporativo en 3 columnas compactas */}
+            <Card className="overflow-hidden rounded-xl shadow-md border border-gray-200/70 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 mb-4">
+              <CardContent className="p-2 md:p-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {[
+                    { icon: <ClipboardList className="w-4 h-4 text-blue-600" />, label: "Solicitud", value: solicitud.numero_solicitud },
+                    { icon: <User className="w-4 h-4 text-orange-600" />, label: "Solicitante", value: solicitud.solicitante_nombre || solicitud.solicitante || "—" },
+                    { icon: <Tag className="w-4 h-4 text-purple-600" />, label: "Tipo", value: solicitud.tipo_solicitud || "—" },
+                    { icon: <Calendar className="w-4 h-4 text-yellow-500" />, label: "Fecha", value: solicitud.fecha ? new Date(solicitud.fecha).toLocaleDateString("es-PE") : "—" },
+                    { icon: <Clock className="w-4 h-4 text-pink-500" />, label: "Hora", value: solicitud.hora || "—" },
+                    { icon: <WalletMinimal className="w-4 h-4 text-blue-400" />, label: "Monto Soles", value: (Number(solicitud?.total_soles ?? 0)).toFixed(2) },
+                    { icon: <DollarSign className="w-4 h-4 text-green-500" />, label: "Monto Dólares", value: (Number(solicitud?.total_dolares ?? 0)).toFixed(2) },
+                    solicitud?.banco
+                      ? { icon: <Landmark className="w-4 h-4 text-indigo-500" />, label: "Banco", value: solicitud.banco }
+                      : null,
+                    solicitud?.numero_cuenta
+                      ? { icon: <Hash className="w-4 h-4 text-gray-500" />, label: "N° Cuenta", value: solicitud.numero_cuenta }
+                      : null,
+                    { icon: <BadgeAlert className="w-4 h-4 text-red-500" />, label: "Estado", value: solicitud.estado || "Pendiente" },
+                    { icon: <NotebookPen className="w-4 h-4 text-cyan-500" />, label: "Concepto", value: solicitud.concepto_gasto || "—" },
+                  ]
+                    .filter(Boolean)
+                    .map((item, idx) => (
+                      <div
+                        key={idx}
+                        className="flex flex-col justify-between p-2 rounded-lg border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 min-h-[60px]"
+                      >
+                        <div className="flex items-center gap-1.5">
+                          {item.icon}
+                          <span className="font-semibold text-gray-600 dark:text-gray-300 text-[11px] sm:text-xs">
+                            {item.label}:
+                          </span>
+                        </div>
+                        <span className="text-gray-800 dark:text-gray-100 text-xs sm:text-sm break-words mt-0.5">
+                          {item.value}
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              </CardContent>
+            </Card>
 
-              <div className="space-y-2">
-                <p className="flex items-center gap-1">
-                  <Calendar className="w-4 h-4 text-gray-800" />
-                  <span className="font-semibold">Fecha:</span> {solicitud?.fecha ? new Date(solicitud.fecha).toLocaleDateString("es-PE") : "—"}
-                </p>
-                <p className="flex items-center gap-1">
-                  <BadgeAlert className="w-4 h-4 text-gray-800" />
-                  <span className="font-semibold">Estado actual:</span> {solicitud?.estado || "—"}
-                </p>
-                {solicitud?.banco && (
-                  <p className="flex items-center gap-1">
-                    <Landmark className="w-4 h-4 text-gray-800" />
-                    <span className="font-semibold">Banco:</span> {solicitud.banco}
-                  </p>
-                )}
-                {solicitud?.numero_cuenta && (
-                  <p className="flex items-center gap-1">
-                    <Hash className="w-4 h-4 text-gray-800" />
-                    <span className="font-semibold">N° Cuenta:</span> {solicitud.numero_cuenta}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Comentarios */}
-            <div className="mb-4">
-              <label className="mb-2 font-medium text-gray-700 dark:text-gray-200 flex items-center gap-2">
-                <MessageCircleWarning className="w-4 h-4 text-gray-700" />
-                Comentario del revisor (opcional)
-              </label>
-              <textarea
-                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                rows={4}
-                value={comentario}
-                onChange={(e) => setComentario(e.target.value)}
-                placeholder="Agregar comentario opcional..."
-              />
-            </div>
+            {/* Comentarios - estilo profesional */}
+            <Card className="overflow-hidden rounded-xl shadow-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 mb-4">
+              <CardContent className="p-3 sm:p-4">
+                <label className="flex items-center gap-2 mb-2">
+                  <MessageCircleWarning className="w-5 h-5 text-indigo-500" />
+                  <span className="font-semibold text-gray-700 dark:text-gray-200 text-sm sm:text-base">
+                    Comentario del revisor <span className="font-normal text-gray-500 dark:text-gray-400">(opcional)</span>
+                  </span>
+                </label>
+                <textarea
+                  className="w-full border border-gray-200 dark:border-gray-600 rounded-lg p-2 sm:p-3 bg-white dark:bg-gray-800 
+                            text-gray-800 dark:text-gray-100 text-sm sm:text-base resize-none 
+                            focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent
+                            placeholder-gray-400 dark:placeholder-gray-500"
+                  rows={3}
+                  value={comentario}
+                  onChange={(e) => setComentario(e.target.value)}
+                  placeholder="Escribe aquí tu comentario..."
+                />
+              </CardContent>
+            </Card>
 
             {/* Botones de acción */}
             <div className="flex flex-wrap justify-end gap-3 mt-4">

@@ -1,18 +1,28 @@
 // src/services/documentoService.js
 import axios from "axios";
 
+/* 🔹 Obtener token CSRF de cookies */
+const getCSRFToken = () => {
+  const match = document.cookie.match(/csrftoken=([\w-]+)/);
+  return match ? match[1] : null;
+};
+
 /* 🌐 Cliente Axios con URL dinámica y soporte CORS + credenciales */
 const api = axios.create({
-  baseURL:
-    import.meta.env.MODE === "development"
-      ? "http://localhost:8000/api/boleta/documentos"
-      : "https://proyecto-caja-chica-backend.onrender.com/api/boleta/documentos",
+  baseURL: import.meta.env.VITE_API_URL + "/boleta/documentos",
   timeout: 60000,
   headers: {
     Accept: "application/json",
-    // ⚡ Content-Type se maneja automáticamente para FormData
   },
-  withCredentials: true, // 🔹 obligatorio para CORS con cookies/JWT
+  withCredentials: true,
+});
+
+/* 🔹 Interceptor para enviar CSRF en métodos que lo requieren */
+api.interceptors.request.use((config) => {
+  if (["post", "put", "patch", "delete"].includes(config.method)) {
+    config.headers["X-CSRFToken"] = getCSRFToken();
+  }
+  return config;
 });
 
 /* 🔄 Manejo centralizado de errores */
@@ -38,7 +48,6 @@ const manejarError = (error, mensajeDefault) => {
  */
 export const procesarDocumentoOCR = async (formData) => {
   try {
-    // ⚡ DEBUG: mostrar payload enviado
     for (let pair of formData.entries()) {
       console.log("📤 Enviando:", pair[0], pair[1]);
     }
@@ -53,7 +62,6 @@ export const procesarDocumentoOCR = async (formData) => {
       return null;
     }
 
-    // Retornamos directamente todos los resultados (por si hay varias páginas)
     return resultados.map((r) => r.datos_detectados || {});
   } catch (error) {
     manejarError(

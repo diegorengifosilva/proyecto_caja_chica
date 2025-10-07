@@ -7,7 +7,7 @@ export const STATE_CLASSES = {
   "Pendiente para Atención": "bg-yellow-200 text-yellow-800", // amarillo
   "Atendido, Pendiente de Liquidación": "bg-sky-200 text-sky-800", // celeste
   "Liquidación enviada para Aprobación": "bg-green-200 text-green-800", // verde
-  "Liquidación Aprobada": "bg-gray-600 text-white", // negro
+  "Liquidación Aprobada": "bg-gray-800 text-white", // negro
   "Rechazado": "bg-red-200 text-red-800", // rojo
 };
 
@@ -24,7 +24,7 @@ export const STATE_COLORS = {
 /* ================== TIPOS DE SOLICITUD ================== */
 // Para componentes UI
 export const TIPO_SOLICITUD_CLASSES = {
-  "Viáticos": "bg-blue-600 text-white",       // azul oscuro
+  "Viáticos": "bg-blue-500 text-white",       // azul oscuro
   "Movilidad": "bg-emerald-500 text-white",   // esmeralda
   "Compras": "bg-purple-500 text-white",      // morado
   "Otros gastos": "bg-yellow-100 text-yellow-800", // beige / arena

@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import Tippy from "@tippyjs/react";
 import "tippy.js/dist/tippy.css";
 
@@ -14,100 +14,82 @@ const Table = ({
   emptyMessage = "No hay datos disponibles.",
   activeRow = null,
   rowsPerPage = 10,
-  onDeleteRow,
   onRowClick,
 }) => {
   const [currentPage, setCurrentPage] = useState(1);
-
   const totalPages = Math.ceil(data.length / rowsPerPage) || 1;
   const startIndex = (currentPage - 1) * rowsPerPage;
   const endIndex = startIndex + rowsPerPage;
   const paginatedData = data.slice(startIndex, endIndex);
-
-  const goToPage = (page) => {
-    if (page >= 1 && page <= totalPages) setCurrentPage(page);
-  };
+  const goToPage = (page) => page >= 1 && page <= totalPages && setCurrentPage(page);
 
   return (
-    <Card className="rounded-2xl shadow-md border border-gray-200 flex-1 flex flex-col">
+    <Card className="rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 flex-1 flex flex-col overflow-hidden">
       <CardContent className="p-0 flex-1 flex flex-col">
-        {/* Tabla para pantallas grandes */}
-        <div className="hidden md:block w-full flex-1 overflow-x-auto">
+        {/* 📌 Tabla para pantallas grandes */}
+        <div className="hidden md:block w-full flex-1">
           <table className="w-full table-auto border-collapse text-sm">
-            <thead className="bg-gray-100 text-gray-700 font-medium">
+            <thead className="bg-gradient-to-r from-gray-100 to-gray-100 dark:from-gray-900 dark:to-gray-800 text-gray-800 dark:text-gray-200 font-semibold sticky top-0 z-10 shadow-sm">
               <tr>
                 {headers.map((header, idx) => (
                   <th
                     key={idx}
-                    className="px-3 py-2 border border-gray-200 text-center align-middle text-[10px] sm:text-xs md:text-sm whitespace-normal"
+                    className={`px-4 py-3 border-b border-gray-200 dark:border-gray-600 text-center align-middle text-xs sm:text-sm uppercase tracking-wide
+                               ${idx === 0 ? "rounded-tl-2xl" : ""} 
+                               ${idx === headers.length - 1 ? "rounded-tr-2xl" : ""}`}
                   >
                     {header}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="bg-gray-50">
+            <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-700">
               <AnimatePresence>
                 {paginatedData.length === 0 ? (
                   <tr>
-                    <td
-                      colSpan={headers.length}
-                      className="px-4 py-6 text-center text-gray-500 italic border border-gray-200"
-                    >
+                    <td colSpan={headers.length} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400 italic">
                       {emptyMessage}
                     </td>
                   </tr>
                 ) : (
-                  paginatedData.map((item, index) => (
+                  paginatedData.map((item, rowIndex) => (
                     <motion.tr
-                      key={item.id || index}
-                      initial={{ opacity: 0, y: 8 }}
+                      key={item.id || rowIndex}
+                      initial={{ opacity: 0, y: 6 }}
                       animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      transition={{ duration: 0.25 }}
-                      className={`group relative transition-all duration-200 rounded-lg ${
-                        activeRow === (item.id || index)
-                          ? "bg-blue-50 shadow-md border-l-4 border-blue-500"
-                          : "hover:bg-gray-100 hover:shadow-sm cursor-pointer"
-                      }`}
-                      onClick={() => {
-                        if (onRowClick) onRowClick(item);
-                      }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.2 }}
+                      className={`group relative transition-all duration-300 ${
+                        activeRow === (item.id || rowIndex)
+                          ? "bg-blue-50 dark:bg-blue-900/30 border-l-4 border-blue-500 shadow-sm"
+                          : "hover:bg-gray-50 dark:hover:bg-gray-800"
+                      } cursor-pointer`}
+                      onClick={() => onRowClick && onRowClick(item)}
                     >
                       {Array.isArray(renderRow(item))
-                        ? renderRow(item).map((cell, i) => (
-                            <td
-                              key={i}
-                              className="px-2 sm:px-3 py-2 border border-gray-200 text-center align-middle break-words whitespace-normal max-w-[150px] sm:max-w-[200px] md:max-w-[300px]"
-                            >
-                              {typeof cell === "string" || typeof cell === "number" ? (
-                                <Tippy content={cell}>
-                                  <span className="block">{cell}</span>
-                                </Tippy>
-                              ) : (
-                                cell
-                              )}
-                            </td>
-                          ))
+                        ? renderRow(item).map((cell, i) => {
+                            const isLastRow = rowIndex === paginatedData.length - 1;
+                            return (
+                              <td
+                                key={i}
+                                className={`px-3 py-3 text-center align-middle text-xs sm:text-sm md:text-base text-gray-800 dark:text-gray-200
+                                           break-words max-w-[180px] 
+                                           ${isLastRow && i === 0 ? "rounded-bl-2xl" : ""} 
+                                           ${isLastRow && i === headers.length - 1 ? "rounded-br-2xl" : ""}`}
+                              >
+                                {typeof cell === "string" || typeof cell === "number" ? (
+                                  <Tippy content={cell}>
+                                    <span className="block overflow-hidden" style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                                      {cell}
+                                    </span>
+                                  </Tippy>
+                                ) : (
+                                  cell
+                                )}
+                              </td>
+                            );
+                          })
                         : renderRow(item)}
-
-                      {onDeleteRow && (
-                        <td className="relative px-1 sm:px-2 py-1 sm:py-2 w-[40px]">
-                          <div className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="text-red-500 hover:text-red-700 hover:bg-red-100 rounded-full"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onDeleteRow(item);
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </td>
-                      )}
                     </motion.tr>
                   ))
                 )}
@@ -116,10 +98,10 @@ const Table = ({
           </table>
         </div>
 
-        {/* Móvil: tarjetas verticales */}
-        <div className="flex flex-col gap-3 md:hidden">
+        {/* 📌 Vista móvil: tarjetas */}
+        <div className="flex flex-col gap-3 md:hidden p-2">
           {paginatedData.length === 0 ? (
-            <div className="px-4 py-6 text-center text-gray-500 italic bg-gray-50 rounded-lg border border-gray-200">
+            <div className="px-4 py-6 text-center text-gray-500 italic bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
               {emptyMessage}
             </div>
           ) : (
@@ -130,17 +112,17 @@ const Table = ({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.25 }}
-                className={`group relative bg-white rounded-2xl shadow-sm border border-gray-200 p-3 flex flex-col gap-1 cursor-pointer hover:shadow-md`}
-                onClick={() => {
-                  if (onRowClick) onRowClick(item);
-                }}
+                className="group relative bg-white dark:bg-gray-900 rounded-2xl shadow-md border border-gray-200 dark:border-gray-700 p-4 flex flex-col gap-3 cursor-pointer hover:shadow-lg transition"
+                onClick={() => onRowClick && onRowClick(item)}
               >
                 {headers.map((header, i) => {
                   const cell = Array.isArray(renderRow(item)) ? renderRow(item)[i] : renderRow(item);
                   return (
-                    <div key={i} className="flex justify-between gap-2">
-                      <span className="font-semibold text-gray-600 text-xs sm:text-sm">{header}</span>
-                      <span className="text-gray-900 text-xs sm:text-sm break-words whitespace-normal">
+                    <div key={i} className="flex items-center justify-between gap-3 w-full">
+                      <span className="px-2.5 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 text-[10px] sm:text-xs font-medium flex-shrink-0">
+                        {header}
+                      </span>
+                      <span className="text-gray-900 dark:text-gray-100 text-xs sm:text-sm md:text-base lg:text-lg text-right leading-snug break-words whitespace-normal max-w-[65%]">
                         {typeof cell === "string" || typeof cell === "number" ? cell : cell}
                       </span>
                     </div>
@@ -151,15 +133,19 @@ const Table = ({
           )}
         </div>
 
-        {/* Paginación */}
+        {/* 📌 Paginación */}
         {totalPages > 1 && (
-          <div className="flex flex-wrap items-center justify-center gap-2 px-4 py-3 border-t border-gray-200 bg-gray-50">
+          <div className="flex flex-wrap items-center justify-center gap-2 px-4 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
             <Button
-              variant="outline"
+              variant="default"
               size="sm"
+              fromColor="#a8d8d8"
+              toColor="#81c7c7"
+              hoverFrom="#81c7c7"
+              hoverTo="#5eb0b0"
               disabled={currentPage === 1}
               onClick={() => goToPage(currentPage - 1)}
-              className="flex items-center gap-1"
+              className="flex items-center gap-1 rounded-full"
             >
               <ChevronLeft className="w-4 h-4" /> Anterior
             </Button>
@@ -168,11 +154,15 @@ const Table = ({
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                 <Button
                   key={page}
-                  variant={page === currentPage ? "default" : "outline"}
+                  variant="default"
                   size="sm"
+                  fromColor="#a8d8d8"
+                  toColor="#81c7c7"
+                  hoverFrom="#81c7c7"
+                  hoverTo="#5eb0b0"
                   onClick={() => goToPage(page)}
-                  className={`w-8 h-8 rounded-full ${
-                    page === currentPage ? "bg-blue-500 text-white hover:bg-blue-600" : "hover:bg-gray-100"
+                  className={`w-8 h-8 rounded-full text-xs ${
+                    page === currentPage ? "bg-blue-500 text-white hover:bg-blue-600" : "hover:bg-gray-100 dark:hover:bg-gray-700"
                   }`}
                 >
                   {page}
@@ -181,11 +171,15 @@ const Table = ({
             </div>
 
             <Button
-              variant="outline"
+              variant="default"
               size="sm"
+              fromColor="#a8d8d8"
+              toColor="#81c7c7"
+              hoverFrom="#81c7c7"
+              hoverTo="#5eb0b0"
               disabled={currentPage === totalPages}
               onClick={() => goToPage(currentPage + 1)}
-              className="flex items-center gap-1"
+              className="flex items-center gap-1 rounded-full"
             >
               Siguiente <ChevronRight className="w-4 h-4" />
             </Button>

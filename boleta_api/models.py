@@ -15,73 +15,131 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager, User
 
 
-# USER #
-AREAS_CHOICES = [
-    ("Gerencia General", "Gerencia General"),
-    ("Industria", "Industria"),
-    ("Minería", "Minería"),
-    ("Mantenimiento", "Mantenimiento"),
-    ("Petroquímica", "Petroquímica"),
-    ("Administración", "Administración"),
-    ("Contabilidad", "Contabilidad"),
-    ("Tecnología de la Información", "Tecnología de la Información"),
-    ("Logística - Almacén", "Logística - Almacén"),
-    ("Recursos Humanos", "Recursos Humanos"),
-    ("Comercial", "Comercial"),
-    ("SIG. HSEQ", "SIG. HSEQ"),
-    ("Seguridad de Maquinaria", "Seguridad de Maquinaria"),
-    ("Comité CSSO", "Comité CSSO"),
-]
+from django.db import models
 
-class CustomUserManager(BaseUserManager):
-    use_in_migrations = True
+##=========##
+## USUARIO ##
+##=========##
+class VcTabAreas(models.Model):
+    codigo = models.IntegerField(primary_key=True)
+    nombre = models.CharField(max_length=150)
+    responsable = models.CharField(max_length=150, blank=True, null=True)
+    telefono = models.CharField(max_length=50, blank=True, null=True)
+    correlativo = models.IntegerField(blank=True, null=True)
+    activo = models.BooleanField(default=True)
+    std = models.IntegerField(blank=True, null=True)
+    org = models.CharField(max_length=150, blank=True, null=True)
+    nomp = models.CharField(max_length=150, blank=True, null=True)
 
-    def _create_user(self, email, password, **extra_fields):
-        if not email:
-            raise ValueError("El correo electrónico es obligatorio")
-        if not extra_fields.get('nombre'):
-            raise ValueError("El nombre es obligatorio")
-        if not extra_fields.get('apellido'):
-            raise ValueError("El apellido es obligatorio")
-        email = self.normalize_email(email)
-        user = self.model(email=email, **extra_fields)
-        user.set_password(password)
-        user.save(using=self._db)
-        return user
-
-    def create_user(self, email, password=None, **extra_fields):
-        extra_fields.setdefault('is_staff', False)
-        extra_fields.setdefault('is_superuser', False)
-        return self._create_user(email, password, **extra_fields)
-
-    def create_superuser(self, email, password=None, **extra_fields):
-        extra_fields.setdefault('is_staff', True)
-        extra_fields.setdefault('is_superuser', True)
-        extra_fields.setdefault('rol', 'Administrador')
-        if extra_fields.get('is_staff') is not True:
-            raise ValueError("El superusuario debe tener is_staff=True.")
-        if extra_fields.get('is_superuser') is not True:
-            raise ValueError("El superusuario debe tener is_superuser=True.")
-        return self._create_user(email, password, **extra_fields)
-
-class CustomUser(AbstractUser):
-    username = None  # 🔴 elimina el username de AbstractUser
-    email = models.EmailField(unique=True)
-    nombre = models.CharField(max_length=50)
-    apellido = models.CharField(max_length=50)
-    empresa = models.CharField(max_length=100, blank=True, null=True)
-    edad = models.PositiveIntegerField(blank=True, null=True)
-    pais = models.CharField(max_length=50, blank=True, null=True)
-    rol = models.CharField(max_length=50, blank=True, null=True)
-    area = models.CharField(max_length=50, choices=AREAS_CHOICES, blank=True, null=True)
-
-    USERNAME_FIELD = "email"
-    REQUIRED_FIELDS = ["nombre", "apellido"]
-
-    objects = CustomUserManager()
+    class Meta:
+        managed = False
+        db_table = "vc_tab_areas"
 
     def __str__(self):
-        return f"{self.nombre} {self.apellido} <{self.email}>"
+        return self.nombre
+
+    def get_nombre(self):
+        return self.nombre
+
+class VcTabBancos(models.Model):
+    codigo = models.CharField(max_length=5, primary_key=True)
+    nombre = models.CharField(max_length=150)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        managed = False
+        db_table = "vc_tab_bancos"
+
+    def __str__(self):
+        return self.nombre
+
+    def get_nombre(self):
+        return self.nombre
+
+class VcTabCargos(models.Model):
+    codigo = models.CharField(max_length=5, primary_key=True)
+    nombre = models.CharField(max_length=150, blank=True, null=True)
+    nom = models.CharField(max_length=150, blank=True, null=True)
+    niv = models.PositiveIntegerField(blank=True, null=True)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        managed = False
+        db_table = "vc_tab_cargos"
+
+    def __str__(self):
+        return self.nombre if self.nombre else f"Código {self.codigo}"
+
+    def get_nombre(self):
+        return self.nombre if self.nombre else ""
+
+class SegUsuario(models.Model):
+    usuario_usu = models.CharField(max_length=150, primary_key=True)
+    password_usu = models.CharField(max_length=255)
+    nomb_cort_usu = models.CharField(max_length=150, blank=True, null=True)
+    nom = models.CharField(max_length=50, blank=True, null=True)
+    ape = models.CharField(max_length=50, blank=True, null=True)
+    area = models.IntegerField(blank=True, null=True)
+    cargo = models.CharField(max_length=5, blank=True, null=True)  # Código cargo
+    ban = models.CharField(max_length=5, blank=True, null=True)    # Código banco
+    banc = models.CharField(max_length=50, blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = "seg_usuarios"
+
+    # ==============================
+    # Métodos para compatibilidad con Django
+    # ==============================
+    @property
+    def is_authenticated(self):
+        """
+        Permite que Django REST Framework reconozca a este modelo como un usuario autenticado.
+        Sin esto, DRF lanza AttributeError al verificar permisos.
+        """
+        return True
+
+    @property
+    def is_anonymous(self):
+        """Compatibilidad con el sistema de autenticación estándar."""
+        return False
+
+    @property
+    def is_active(self):
+        """Se puede usar en caso de necesitar desactivar usuarios más adelante."""
+        return True
+
+    def get_username(self):
+        """Método requerido por Django para identificar el usuario."""
+        return self.usuario_usu
+
+    def __str__(self):
+        """Representación legible del usuario."""
+        return f"{self.nomb_cort_usu or self.usuario_usu}"
+
+    # ==============================
+    # Métodos para obtener nombres de relaciones
+    # ==============================
+    def get_area_nombre(self):
+        from boleta_api.models import VcTabAreas
+        try:
+            return VcTabAreas.objects.get(codigo=self.area).get_nombre()
+        except VcTabAreas.DoesNotExist:
+            return ""
+
+    def get_cargo_nombre(self):
+        from boleta_api.models import VcTabCargos
+        try:
+            return VcTabCargos.objects.get(codigo=self.cargo).get_nombre()
+        except VcTabCargos.DoesNotExist:
+            return ""
+
+    def get_banco_nombre(self):
+        from boleta_api.models import VcTabBancos
+        try:
+            return VcTabBancos.objects.get(codigo=self.ban).get_nombre()
+        except VcTabBancos.DoesNotExist:
+            return ""
 
 #========================================================================================
 
@@ -117,27 +175,24 @@ class Solicitud(models.Model):
     numero_solicitud = models.CharField(max_length=20, unique=True, db_index=True, editable=False)
     fecha = models.DateField(db_index=True, default=timezone.now)
     hora = models.TimeField(default=timezone.now, db_index=True)
-    solicitante = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="solicitudes_realizadas", db_index=True)
-    destinatario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="solicitudes_recibidas", db_index=True)
-    area = models.CharField(max_length=100)
     tipo_solicitud = models.CharField(max_length=50, choices=TIPOS_SOLICITUD, default="Compras")
     concepto_gasto = models.TextField(blank=True)
-
-    # Estado
+    solicitante = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="solicitudes_realizadas", db_index=True)
     estado = models.CharField(max_length=80, choices=ESTADOS, default="Pendiente de Envío", db_index=True)
-    observacion = models.TextField(blank=True)
-
-    # Datos financieros
+    area = models.CharField(max_length=100)
+    
+    # Información Financiera
     total_soles = models.DecimalField(max_digits=10, decimal_places=2, default=0, validators=[MinValueValidator(0)])
     total_dolares = models.DecimalField(max_digits=10, decimal_places=2, default=0, validators=[MinValueValidator(0)])
-
-    # Fechas adicionales
+    banco = models.CharField(max_length=50, blank=True)
+    numero_cuenta = models.CharField(max_length=50, blank=True)
     fecha_transferencia = models.DateField(null=True, blank=True, db_index=True)
     fecha_liquidacion = models.DateField(null=True, blank=True, db_index=True)
 
-    # Datos bancarios
-    banco = models.CharField(max_length=50, blank=True)
-    numero_cuenta = models.CharField(max_length=50, blank=True)
+    # Seguimiento
+    destinatario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="solicitudes_recibidas", db_index=True)
+    observacion = models.TextField(blank=True)
+    comentario = models.TextField(null=True, blank=True)
 
     # Auditoría
     creado = models.DateTimeField(default=timezone.now, db_index=True)
@@ -207,10 +262,31 @@ class DocumentoGasto(models.Model):
     ruc = models.CharField(max_length=20, blank=True, null=True)
     razon_social = models.CharField(max_length=255, blank=True, null=True)
     total = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
+    total_documentado = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        help_text="Total acumulado de todos los documentos de la liquidación"
+    )
     nombre_archivo = models.CharField(max_length=255, blank=True, null=True)
     archivo = models.FileField(upload_to="documentos/", blank=True, null=True)
+    archivo_url = models.URLField(blank=True, null=True)  # URL absoluta
+    subido_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="documentos_subidos"
+    )
     creado = models.DateTimeField(auto_now_add=True)
 
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if self.archivo:
+            # Genera la URL accesible desde el backend
+            self.archivo_url = self.archivo.url
+            super().save(update_fields=["archivo_url"])
+  
 class Liquidacion(models.Model):
     # ===============================
     # ESTADOS
@@ -336,7 +412,6 @@ class RazonSocial(models.Model):
 
     def __str__(self):
         return f"{self.ruc} - {self.razon_social}"
-
 
 #========================================================================================
 

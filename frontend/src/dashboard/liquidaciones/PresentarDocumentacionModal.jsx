@@ -23,8 +23,17 @@ import {
   ClipboardList,
   FilePlus2,
   Pencil,
-  Check
+  Check,
+  NotebookPen,
+  Trash,
+  MoreVertical,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu"
 import api from "@/services/api";
 import Table from "@/components/ui/table";
 import SubirArchivoModal from "./SubirArchivoModal";
@@ -38,7 +47,6 @@ export default function PresentarDocumentacionModal({ open, onClose, solicitud }
   const [showSubirArchivoModal, setShowSubirArchivoModal] = useState(false);
 
   // edición controlada
-  const [editingCells, setEditingCells] = useState({});
   const [editingValues, setEditingValues] = useState({});
   const [editingRow, setEditingRow] = useState(null);
   const [isMobileEditing, setIsMobileEditing] = useState(false);
@@ -54,6 +62,8 @@ export default function PresentarDocumentacionModal({ open, onClose, solicitud }
     return () => window.removeEventListener("resize", check);
   }, []);
 
+   const [mobileMenu, setMobileMenu] = useState(null);
+
   // recalcula totales
   const { totalSoles, totalDolares } = useMemo(() => {
     const totalS = documentos.reduce((sum, doc) => sum + (parseFloat(doc.total) || 0), 0);
@@ -66,6 +76,7 @@ export default function PresentarDocumentacionModal({ open, onClose, solicitud }
     console.log("✅ Documento agregado:", doc);
   };
 
+  // Estado para manejar el documento a eliminar
   const handleEliminarDocumento = (doc) => {
     setDocumentos((prev) => prev.filter((d) => d !== doc));
   };
@@ -91,7 +102,6 @@ export default function PresentarDocumentacionModal({ open, onClose, solicitud }
       return copy;
     });
   };
-
   const cancelEditRow = () => {
     if (editingRow === null) return;
     const row = editingRow;
@@ -129,6 +139,11 @@ export default function PresentarDocumentacionModal({ open, onClose, solicitud }
     return { ok: true, value };
   };
 
+  // 🔍 Monitorear cambios en documentos
+  useEffect(() => {
+    console.log("✅ Documentos actualizado:", documentos);
+  }, [documentos]);
+
   // guardar una celda (desktop)
   const handleUpdateField = (rowIndex, field, value) => {
     const validation = validateField(field, value);
@@ -136,11 +151,18 @@ export default function PresentarDocumentacionModal({ open, onClose, solicitud }
       alert("⚠️ " + validation.msg);
       return;
     }
+
     setDocumentos((prev) => {
       const copy = [...prev];
-      const target = { ...(copy[rowIndex] || {}) };
-      target[field] = validation.value;
-      copy[rowIndex] = target;
+      if (!copy[rowIndex]) return prev;
+
+      // 👇 crear copia del objeto y actualizar solo el campo
+      copy[rowIndex] = {
+        ...copy[rowIndex],
+        [field]: validation.value,
+      };
+
+      console.log("✏️ Editado:", field, "=", validation.value);
       return copy;
     });
   };
@@ -192,6 +214,7 @@ export default function PresentarDocumentacionModal({ open, onClose, solicitud }
         ruc: doc.ruc,
         razon_social: doc.razon_social,
         total: parseFloat(doc.total) || 0,
+        total_documentado: totalSoles,
       }));
       formData.append("documentos", JSON.stringify(documentosSinArchivo));
 
@@ -237,7 +260,7 @@ export default function PresentarDocumentacionModal({ open, onClose, solicitud }
   return (
     <>
       <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent className="w-[95vw] sm:max-w-3xl md:max-w-4xl lg:max-w-5xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+        <DialogContent className="w-[95vw] sm:max-w-4xl md:max-w-5xl lg:max-w-6xl max-h-[90vh] overflow-y-auto p-4 sm:p-6 rounded-2xl shadow-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-sm sm:text-base md:text-lg">
               <FileText className="w-5 h-5 text-gray-700" />
@@ -246,23 +269,45 @@ export default function PresentarDocumentacionModal({ open, onClose, solicitud }
           </DialogHeader>
 
           <div className="grid gap-4">
-            {/* Info solicitud */}
-            <Card className="overflow-hidden">
-              <CardContent className="p-4 space-y-2 text-sm sm:text-base">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {[
-                    { icon: <ClipboardList className="w-4 h-4 text-gray-800" />, label: "Solicitud", value: solicitud.numero_solicitud },
-                    { icon: <User className="w-4 h-4 text-gray-800" />, label: "Solicitante", value: solicitud.solicitante || "—" },
-                    { icon: <Tag className="w-4 h-4 text-gray-800" />, label: "Tipo", value: solicitud.tipo_solicitud || "—" },
-                    { icon: <WalletMinimal className="w-4 h-4 text-gray-800" />, label: "Monto Soles (S/.)", value: solicitud.total_soles || solicitud.monto || "—" },
-                    { icon: <DollarSign className="w-4 h-4 text-gray-800" />, label: "Monto Dólares ($)", value: solicitud.total_dolares || "—" },
-                    { icon: <Calendar className="w-4 h-4 text-gray-800" />, label: "Fecha", value: solicitud.fecha || "—" },
-                    { icon: <BadgeAlert className="w-4 h-4 text-gray-800" />, label: "Estado", value: solicitud.estado || "Pendiente", full: true },
-                  ].map((item, idx) => (
-                    <p key={idx} className={`flex items-center gap-1 ${item.full ? "col-span-full sm:col-span-2 lg:col-span-3" : ""} break-words text-sm sm:text-base`}>
-                      {item.icon} <span className="font-semibold">{item.label}:</span> {item.value}
-                    </p>
-                  ))}
+            {/* Info solicitud estilo dashboard corporativo adaptativo */}
+            <Card className="overflow-hidden rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+              <CardContent className="p-2 md:p-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {/* Columna izquierda */}
+                  <div className="grid grid-cols-1 gap-2">
+                    {[
+                      { icon: <ClipboardList className="w-5 h-5 text-blue-600" />, label: "Solicitud", value: solicitud.numero_solicitud },
+                      { icon: <User className="w-5 h-5 text-orange-600" />, label: "Solicitante", value: solicitud.solicitante || "—" },
+                      { icon: <Tag className="w-5 h-5 text-purple-600" />, label: "Tipo", value: solicitud.tipo_solicitud || "—" },
+                      { icon: <Calendar className="w-5 h-5 text-yellow-500" />, label: "Fecha", value: solicitud.fecha || "—" },
+                    ].map((item, idx) => (
+                      <div key={idx} className="flex items-start gap-2 md:gap-3 p-2 md:p-2 min-h-[50px] md:min-h-[60px] rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm bg-white dark:bg-gray-800">
+                        {item.icon}
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-gray-700 dark:text-gray-200 text-xs sm:text-sm md:text-base">{item.label}:</span>
+                          <span className="text-gray-800 dark:text-gray-100 leading-snug text-xs sm:text-sm md:text-base break-words">{item.value}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Columna derecha */}
+                  <div className="grid grid-cols-1 gap-2">
+                    {[
+                      { icon: <WalletMinimal className="w-5 h-5 text-blue-400" />, label: "Monto Soles", value: solicitud.total_soles || solicitud.monto || "—" },
+                      { icon: <DollarSign className="w-5 h-5 text-green-500" />, label: "Monto Dólares", value: solicitud.total_dolares || "—" },
+                      { icon: <BadgeAlert className="w-5 h-5 text-red-500" />, label: "Estado", value: solicitud.estado || "Pendiente" },
+                      { icon: <NotebookPen className="w-5 h-5 text-cyan-500" />, label: "Concepto", value: solicitud.concepto_gasto || "—" },
+                    ].map((item, idx) => (
+                      <div key={idx} className="flex items-start gap-2 md:gap-2 p-2 md:p-4 min-h-[50px] md:min-h-[60px] rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm bg-white dark:bg-gray-800">
+                        {item.icon}
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-gray-700 dark:text-gray-200 text-xs sm:text-sm md:text-base">{item.label}:</span>
+                          <span className="text-gray-800 dark:text-gray-100 leading-snug text-xs sm:text-sm md:text-base break-words">{item.value}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -289,7 +334,6 @@ export default function PresentarDocumentacionModal({ open, onClose, solicitud }
                       <Plus className="h-4 w-4" /> Agregar
                     </Button>
 
-                    {/* toggle edición móvil (icono lápiz) */}
                     <button
                       className="sm:hidden p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition"
                       onClick={() => setIsMobileEditing((prev) => !prev)}
@@ -300,158 +344,152 @@ export default function PresentarDocumentacionModal({ open, onClose, solicitud }
                   </div>
                 </div>
 
-                {/* Tabla OCR */}
-                <div className="overflow-x-auto">
+                {/* Tabla OCR adaptativa */}
+                <div className="w-full overflow-x-hidden">
                   <Table
                     headers={[
-                      "Nombre del Archivo",
+                      "Nombre Archivo",
                       "N° Documento",
-                      "Tipo de Documento",
+                      "Tipo Documento",
                       "Fecha",
                       "RUC",
                       "Razón Social",
                       "Total",
-                      isMobileEditing ? "Acciones" : null,
-                    ].filter(Boolean)}
+                      <span key="accion" className="hidden md:table-cell">Acción</span>,
+                    ]}
                     data={documentos}
                     emptyMessage="No se han agregado comprobantes todavía."
-                    renderRow={(doc, rowIndex) => {
-                      // nombre archivo (no editable)
-                      const nameCell = (
-                        <span
-                          className="cursor-pointer text-blue-600 hover:underline whitespace-normal break-words text-center block"
-                          onClick={() => handleAbrirArchivo(doc.archivo)}
+                    renderRow={(doc, rowIndex) => [
+                      // Nombre archivo
+                      <span
+                        className="break-words max-w-[180px] sm:max-w-[220px] md:max-w-[260px] lg:max-w-[300px] cursor-pointer text-blue-600 hover:underline text-center text-xs sm:text-sm md:text-sm lg:text-base leading-snug whitespace-normal px-2 py-1"
+                        onClick={() => {
+                          if (window.innerWidth < 768) {
+                            setMobileMenu({ open: true, rowIndex, doc });
+                          } else {
+                            handleAbrirArchivo(doc.archivo);
+                          }
+                        }}
+                        title={doc.nombre_archivo}
+                      >
+                        {doc.nombre_archivo ?? "-"}
+                      </span>,
+
+                      ...["numero_documento", "tipo_documento", "fecha", "ruc", "razon_social", "total"].map((field) => {
+                        const isEditing = editingCell && editingCell.rowIndex === rowIndex && editingCell.field === field;
+                        return (
+                          <span
+                            key={field}
+                            className={`break-words max-w-[100px] sm:max-w-[120px] md:max-w-[140px] lg:max-w-[160px] text-center px-1 py-1 text-[9px] sm:text-[10px] md:text-xs lg:text-sm hover:bg-gray-50 leading-snug whitespace-normal cursor-pointer`}
+                            title={doc[field] ?? "-"}
+                            onDoubleClick={() => window.innerWidth >= 768 && setEditingCell({ rowIndex, field, value: doc[field] ?? "" })}
+                          >
+                            {isEditing ? editingCell.value ?? "" : doc[field] ?? "-"}
+                          </span>
+                        );
+                      }),
+
+                      // Botón eliminar desktop
+                      <div className="hidden md:flex justify-center">
+                        <button
+                          className="p-1 rounded-full bg-red-500 text-white hover:bg-red-700"
+                          onClick={() => handleEliminarDocumento(doc)}
+                          title="Eliminar documento"
                         >
-                          {doc.nombre_archivo || "—"}
-                        </span>
-                      );
-
-                      // campos editables en tabla
-                      const fields = ["numero_documento", "tipo_documento", "fecha", "ruc", "razon_social", "total"];
-                      const fieldCells = fields.map((field) => (
-                        <span
-                          key={field}
-                          className={`text-center block cursor-pointer ${!isMobileView ? "hover:bg-gray-50" : ""}`}
-                          onDoubleClick={() => {
-                            if (!isMobileView) {
-                              // abrir modal pequeño para editar solo esa celda
-                              setEditingCell({
-                                rowIndex,
-                                field,
-                                value: doc[field] ?? "",
-                              });
-                            }
-                          }}
-                        >
-                          {doc[field] ?? "—"}
-                        </span>
-                      ));
-
-                      // acciones móviles: editar fila completa
-                      const actionsCell = isMobileEditing ? (
-                        <div className="flex items-center justify-center gap-2">
-                          {editingRow === rowIndex ? (
-                            <>
-                              <Button
-                                key="save-row"
-                                size="sm"
-                                fromColor="#10b981"
-                                toColor="#34d399"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  saveRow(rowIndex);
-                                }}
-                              >
-                                Guardar
-                              </Button>
-                              <Button
-                                key="cancel-row"
-                                size="sm"
-                                fromColor="#f87171"
-                                toColor="#ef4444"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  cancelEditRow();
-                                }}
-                              >
-                                Cancelar
-                              </Button>
-                            </>
-                          ) : (
-                            <Button
-                              key="edit-row"
-                              size="sm"
-                              fromColor="#60a5fa"
-                              toColor="#3b82f6"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                startEditingRow(rowIndex);
-                              }}
-                            >
-                              <Pencil className="w-4 h-4 mr-1" /> Editar
-                            </Button>
-                          )}
-                        </div>
-                      ) : null;
-
-                      return [nameCell, ...fieldCells, actionsCell];
-                    }}
-                    onDeleteRow={(doc) => handleEliminarDocumento(doc)}
+                          <Trash className="w-4 h-4" />
+                        </button>
+                      </div>,
+                    ]}
+                    onRowClick={() => {}}
                   />
-
-                  {/* Modal de edición por celda (desktop) */}
-                  {editingCell && !isMobileView && (
-                    <Dialog open={!!editingCell} onOpenChange={() => setEditingCell(null)}>
-                      <DialogContent className="sm:max-w-md">
-                        <DialogHeader>
-                          <DialogTitle>Editar campo</DialogTitle>
-                        </DialogHeader>
-                        <input
-                          type={editingCell.field === "fecha" ? "date" : editingCell.field === "total" ? "number" : "text"}
-                          step={editingCell.field === "total" ? "0.01" : undefined}
-                          autoFocus
-                          defaultValue={editingCell.value}
-                          className="border rounded px-2 py-1 text-sm w-full mb-4"
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              handleUpdateField(editingCell.rowIndex, editingCell.field, e.target.value);
-                              setEditingCell(null);
-                            }
-                          }}
-                        />
-                        <DialogFooter className="flex justify-end gap-2">
-                          <Button
-                            fromColor="#f87171" // rojo claro
-                            toColor="#ef4444"   // rojo medio
-                            hoverFrom="#ef4444"
-                            hoverTo="#dc2626"
-                            size="default"
-                            onClick={() => setEditingCell(null)}
-                          >
-                            <X />
-                          </Button>
-                          <Button
-                            fromColor="#34d399" // verde claro
-                            toColor="#10b981"   // verde medio
-                            hoverFrom="#059669"
-                            hoverTo="#10b981"
-                            size="default"
-                            onClick={() => {
-                              const inputEl = document.querySelector("input[type]");
-                              if (inputEl) {
-                                handleUpdateField(editingCell.rowIndex, editingCell.field, inputEl.value);
-                              }
-                              setEditingCell(null);
-                            }}
-                          >
-                            <Check />
-                          </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
-                  )}
                 </div>
 
+                {/* Modal móvil: menú de opciones por fila */}
+                {mobileMenu?.open && (
+                  <Dialog open={mobileMenu.open} onOpenChange={() => setMobileMenu(null)}>
+                    <DialogContent className="w-[90vw] max-w-sm rounded-xl p-4 shadow-lg">
+                      <DialogHeader>
+                        <DialogTitle>Opciones para {mobileMenu.doc.nombre_archivo}</DialogTitle>
+                      </DialogHeader>
+
+                      <DialogFooter className="flex flex-col gap-2">
+                        {/* Editar: abre modal de edición */}
+                        <Button
+                          fromColor="#34d399"
+                          toColor="#10b981"
+                          onClick={() => {
+                            setEditingCell({
+                              rowIndex: mobileMenu.rowIndex,
+                              field: "numero_documento", // Por defecto abrimos edición del primer campo, o puedes permitir elegir
+                              value: mobileMenu.doc.numero_documento ?? "",
+                            });
+                            setMobileMenu(null);
+                          }}
+                        >
+                          <Pencil className="w-4 h-4 mr-1" /> Editar
+                        </Button>
+
+                        {/* Eliminar */}
+                        <Button
+                          fromColor="#f87171"
+                          toColor="#ef4444"
+                          onClick={() => {
+                            handleEliminarDocumento(mobileMenu.doc);
+                            setMobileMenu(null);
+                          }}
+                        >
+                          <Trash className="w-4 h-4 mr-1" /> Eliminar
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                )}
+                
+                {/* Modal edición por celda */}
+                {editingCell && (
+                  <Dialog open={!!editingCell} onOpenChange={() => setEditingCell(null)}>
+                    <DialogContent className="w-[90vw] sm:w-[80vw] md:w-[60vw] lg:w-[50vw] max-h-[80vh] overflow-y-auto p-4 rounded-xl shadow-lg">
+                      <DialogHeader>
+                        <DialogTitle>Editar campo</DialogTitle>
+                      </DialogHeader>
+
+                      <input
+                        key={`${editingCell.rowIndex}-${editingCell.field}`}
+                        type={editingCell.field === "fecha" ? "date" : editingCell.field === "total" ? "number" : "text"}
+                        step={editingCell.field === "total" ? "0.01" : undefined}
+                        autoFocus
+                        value={editingCell.value ?? ""}
+                        onChange={(e) => setEditingCell((prev) => prev && { ...prev, value: e.target.value })}
+                        className="border rounded px-2 py-1 text-sm w-full mb-4"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            handleUpdateField(editingCell.rowIndex, editingCell.field, editingCell.value);
+                            setEditingCell(null);
+                          }
+                        }}
+                      />
+
+                      <DialogFooter className="flex justify-end gap-2 flex-wrap">
+                        <Button fromColor="#f87171" toColor="#ef4444" size="default" onClick={() => setEditingCell(null)}>
+                          <X />
+                        </Button>
+                        <Button
+                          fromColor="#34d399"
+                          toColor="#10b981"
+                          size="default"
+                          onClick={() => {
+                            handleUpdateField(editingCell.rowIndex, editingCell.field, editingCell.value);
+                            setEditingCell(null);
+                          }}
+                        >
+                          <Check />
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                )}
+
+                {/* Total Acumulado */}
                 <div className="mt-4 text-right font-semibold text-gray-800 text-sm sm:text-base">
                   <p>Total: S/ {Number(totalSoles || 0).toFixed(2)}</p>
                   <p>Total: $ {Number(totalDolares || 0).toFixed(2)}</p>
@@ -461,7 +499,7 @@ export default function PresentarDocumentacionModal({ open, onClose, solicitud }
           </div>
 
           {/* Footer buttons */}
-          <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-4">
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-4 mt-4">
             <Button
               onClick={onClose}
               fromColor="#f87171"
